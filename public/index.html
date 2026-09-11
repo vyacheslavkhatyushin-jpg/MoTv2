@@ -2636,13 +2636,38 @@ function frameAll() {
   if (!any) return;
   flyTo(box, true);
 }
-/* ---------- неоновая подсветка выбранного объекта ---------- */
-let highlightState = null; // { key, glowObjs: THREE.Object3D[], t0 }
-function makeGlowMeshMaterial() {
-  return new THREE.MeshBasicMaterial({
-    color: 0x00fff2, transparent: true, opacity: 0.5,
-    side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
-  });
+/* ---------- неоновая подсветка выбранного объекта ----------
+   Кабели/заплатки строятся в мировых координатах (геометрия сама по себе —
+   не в локальном начале координат меша), поэтому простое масштабирование
+   дочернего меша "от центра" уводит копию в сторону. Вместо этого делаем
+   "оболочку" — клон геометрии со сдвигом каждой вершины наружу вдоль её
+   нормали на нужное расстояние. Это верно огибает сам объект (для кабеля —
+   именно вокруг его оси) независимо от того, где он расположен в сцене.
+   Несколько таких оболочек с растущим сдвигом и убывающей непрозрачностью
+   дают эффект тумана — от плотного свечения у поверхности к рассеянному. */
+let highlightState = null; // { key, obj, scaleHint, layers: [{mesh, baseOpacity}], t0, timeoutId }
+const GLOW_COLOR = 0x00fff2;
+const GLOW_DURATION_MS = 3000;
+const GLOW_MIN_SCALE_HINT = 0.5; // минимальный "радиус" подсветки в метрах — чтобы тонкие кабели тоже было видно
+const GLOW_SHELL_LAYERS = [
+  { offsetFactor: 0.35, opacityBase: 0.6 },
+  { offsetFactor: 0.9, opacityBase: 0.32 },
+  { offsetFactor: 1.7, opacityBase: 0.14 },
+];
+function buildShellGeometry(geometry, offset) {
+  if (!geometry.attributes.normal) geometry.computeVertexNormals();
+  const shell = geometry.clone();
+  const pos = shell.attributes.position;
+  const normal = shell.attributes.normal;
+  const v = new THREE.Vector3(), n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    n.fromBufferAttribute(normal, i);
+    v.addScaledVector(n, offset);
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  pos.needsUpdate = true;
+  return shell;
 }
 function makeGlowSpriteTexture() {
   const size = 128;
@@ -2659,56 +2684,74 @@ function makeGlowSpriteTexture() {
 }
 function clearHighlight() {
   if (!highlightState) return;
-  for (const g of highlightState.glowObjs) {
+  if (highlightState.timeoutId) clearTimeout(highlightState.timeoutId);
+  for (const layer of highlightState.layers) {
+    const g = layer.mesh;
     if (g.parent) g.parent.remove(g);
+    if (g.geometry) g.geometry.dispose(); // клон оболочки — наш собственный, не общий с объектом
     if (g.material) {
       if (g.material.map) g.material.map.dispose();
       g.material.dispose();
     }
-    // g.geometry (для мешей) — та же геометрия, что у самого объекта, не наша — не освобождаем.
   }
   highlightState = null;
 }
-// targets — меши/спрайты самого объекта (кабель/оборудование/заплатка — Mesh,
-// метка — Sprite); toggleKey уникален для объекта, повторный клик снимает подсветку.
-function toggleHighlight(toggleKey, targets) {
+// obj — Mesh или Sprite самого объекта; scaleHint — характерный размер объекта
+// в реальных единицах (радиус трубы кабеля, размер оборудования и т.п.),
+// определяет, насколько широко расходится свечение.
+function startHighlight(key, obj, scaleHint) {
+  const hint = Math.max(scaleHint || 0, GLOW_MIN_SCALE_HINT);
+  const layers = [];
+  if (obj.isSprite) {
+    for (const { offsetFactor, opacityBase } of GLOW_SHELL_LAYERS) {
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: makeGlowSpriteTexture(), transparent: true, depthTest: true, blending: THREE.AdditiveBlending,
+      }));
+      glow.scale.copy(obj.scale).multiplyScalar(1 + offsetFactor * 1.6);
+      obj.add(glow);
+      layers.push({ mesh: glow, baseOpacity: opacityBase });
+    }
+  } else if (obj.geometry) {
+    for (const { offsetFactor, opacityBase } of GLOW_SHELL_LAYERS) {
+      const shellGeo = buildShellGeometry(obj.geometry, hint * offsetFactor);
+      const mat = new THREE.MeshBasicMaterial({
+        color: GLOW_COLOR, transparent: true, opacity: opacityBase,
+        side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
+      });
+      const glow = new THREE.Mesh(shellGeo, mat);
+      obj.add(glow);
+      layers.push({ mesh: glow, baseOpacity: opacityBase });
+    }
+  }
+  if (!layers.length) return;
+  const timeoutId = setTimeout(clearHighlight, GLOW_DURATION_MS);
+  highlightState = { key, obj, scaleHint, layers, t0: performance.now(), timeoutId };
+}
+// toggleKey уникален для объекта — повторный клик по уже подсвеченному снимает подсветку раньше времени.
+function toggleHighlight(toggleKey, obj, scaleHint) {
   if (highlightState && highlightState.key === toggleKey) {
     clearHighlight();
     return;
   }
   clearHighlight();
-  const glowObjs = [];
-  for (const obj of targets) {
-    if (!obj) continue;
-    if (obj.isSprite) {
-      const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: makeGlowSpriteTexture(), transparent: true, depthTest: true, blending: THREE.AdditiveBlending,
-      }));
-      glow.scale.copy(obj.scale).multiplyScalar(2.4);
-      obj.add(glow);
-      glowObjs.push(glow);
-    } else if (obj.geometry) {
-      const glow = new THREE.Mesh(obj.geometry, makeGlowMeshMaterial());
-      glow.scale.setScalar(1.18);
-      obj.add(glow);
-      glowObjs.push(glow);
-    }
-  }
-  if (glowObjs.length) highlightState = { key: toggleKey, glowObjs, t0: performance.now() };
+  startHighlight(toggleKey, obj, scaleHint);
 }
-// Свечение — дочерний Mesh с ТОЙ ЖЕ геометрией, что и у самого объекта; если
-// геометрию объекта пересобрали (смена толщины/правка узлов), старая
-// геометрия освобождается, и ссылку в свечении надо обновить, иначе оно
-// будет указывать на уже disposed буфер.
+// Оболочки — самостоятельные клоны геометрии; если базовую геометрию объекта
+// пересобрали (смена толщины/правка узлов/размера), их нужно пересчитать
+// заново, а не просто переставить ссылку.
 function syncHighlightGeometry(mesh) {
-  if (!highlightState) return;
-  for (const g of highlightState.glowObjs) if (g.parent === mesh) g.geometry = mesh.geometry;
+  if (!highlightState || highlightState.obj !== mesh) return;
+  const { key, scaleHint } = highlightState;
+  clearHighlight();
+  startHighlight(key, mesh, scaleHint);
 }
 function updateHighlightPulse() {
   if (!highlightState) return;
   const t = (performance.now() - highlightState.t0) / 1000;
-  const pulse = 0.35 + 0.35 * (0.5 + 0.5 * Math.sin(t * 4));
-  for (const g of highlightState.glowObjs) if (g.material) g.material.opacity = pulse;
+  const pulse = Math.max(0.15, 0.55 + 0.45 * Math.sin(t * 6));
+  for (const layer of highlightState.layers) {
+    if (layer.mesh.material) layer.mesh.material.opacity = layer.baseOpacity * pulse;
+  }
 }
 function flyTo(box, instant) {
   const size = box.getSize(new THREE.Vector3());
@@ -3236,7 +3279,7 @@ dom.cableDFocus.addEventListener("click", () => {
 });
 dom.cableDHighlight.addEventListener("click", () => {
   if (!selectedCable) return;
-  toggleHighlight("cable:" + selectedCable.id, [selectedCable.mesh]);
+  toggleHighlight("cable:" + selectedCable.id, selectedCable.mesh, selectedCable.radius);
 });
 dom.cableDDelete.addEventListener("click", () => {
   if (selectedCable) deleteCable(selectedCable.id);
@@ -3515,7 +3558,7 @@ dom.equipDFocus.addEventListener("click", () => {
 });
 dom.equipDHighlight.addEventListener("click", () => {
   if (!selectedEquip) return;
-  toggleHighlight("equipment:" + selectedEquip.id, [selectedEquip.mesh]);
+  toggleHighlight("equipment:" + selectedEquip.id, selectedEquip.mesh, selectedEquip.size);
 });
 dom.equipDDelete.addEventListener("click", () => {
   if (!selectedEquip) return;
@@ -3685,7 +3728,7 @@ dom.markDFocus.addEventListener("click", () => {
 });
 dom.markDHighlight.addEventListener("click", () => {
   if (!selectedMark) return;
-  toggleHighlight("mark:" + selectedMark.id, [selectedMark.sprite]);
+  toggleHighlight("mark:" + selectedMark.id, selectedMark.sprite, selectedMark.scale);
 });
 dom.markDDelete.addEventListener("click", () => {
   if (!selectedMark) return;
@@ -3898,7 +3941,7 @@ dom.patchDFocus.addEventListener("click", () => {
 });
 dom.patchDHighlight.addEventListener("click", () => {
   if (!selectedPatch) return;
-  toggleHighlight("patch:" + selectedPatch.id, [selectedPatch.mesh]);
+  toggleHighlight("patch:" + selectedPatch.id, selectedPatch.mesh, 0.6);
 });
 dom.patchDDelete.addEventListener("click", () => {
   if (selectedPatch) deletePatch(selectedPatch.id);
