@@ -50,14 +50,19 @@
   #fileMeta{ margin:0 12px 8px; font-size:11.5px; color:var(--text-dim); min-height:14px; }
   #fileMeta.ok{ color:var(--accent-2); }
   #fileMeta.err{ color:var(--danger); }
-  #btnClearAll, #btnExportInventory, #btnSaveAll, #btnExportSTR{
-    padding:5px 10px; border-radius:3px; border:1px solid var(--border);
-    background:var(--panel-alt); color:var(--text-dim); font-size:11px; cursor:pointer; font-family:inherit;
+  #actionButtonsRow{ display:flex; flex-wrap:wrap; gap:5px; margin:0 12px 6px; }
+  .icon-btn{
+    width:32px; height:30px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    padding:0; border-radius:4px; border:1px solid var(--border);
+    background:var(--panel-alt); color:var(--text-dim); font-size:14px; line-height:1;
+    cursor:pointer; font-family:inherit; transition:border-color .12s ease, color .12s ease;
   }
-  #btnClearAll:hover{ border-color:var(--danger); color:var(--danger); }
-  #btnExportInventory:hover, #btnExportSTR:hover{ border-color:var(--accent); color:var(--accent); }
-  #btnSaveAll{ width:calc(100% - 24px); font-weight:600; }
-  #btnSaveAll:hover{ border-color:var(--accent-2); color:var(--accent-2); }
+  .icon-btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .icon-btn:disabled{ opacity:.4; cursor:default; border-color:var(--border); color:var(--text-dim); }
+  .icon-btn-primary{ border-color:var(--accent-2); color:var(--accent-2); }
+  .icon-btn-primary:hover{ filter:brightness(1.15); }
+  .icon-btn-danger:hover{ border-color:var(--danger); color:var(--danger); }
+  #saveStatus{ margin:0 12px 6px; font-size:11px; color:var(--text-dim); min-height:14px; }
   #progressWrap{ margin:0 12px 10px; height:3px; background:var(--border-soft); border-radius:2px; overflow:hidden; display:none; }
   #progressBar{ height:100%; width:0%; background:var(--accent); transition:width .1s linear; }
   /* ---- tabs ---- */
@@ -175,7 +180,7 @@
   .label-row{ display:flex; align-items:center; gap:8px; }
   .label-row input[type="range"]{ flex:1; accent-color:var(--accent); }
   .label-row input[type="color"]{ width:26px; height:20px; border:1px solid var(--border); border-radius:3px; background:none; padding:0; cursor:pointer; flex-shrink:0; }
-  .uo-list{ flex:1 1 auto; overflow-y:auto; }
+  .uo-list{ flex:1 1 auto; overflow-y:auto; min-height:140px; }
   .uo-row{
     display:flex; align-items:center; gap:7px; padding:6px 10px; cursor:pointer; color:var(--text-dim); font-size:12px;
     border-bottom:1px solid var(--border-soft);
@@ -190,7 +195,18 @@
   .uo-row .swatch{ width:9px; height:9px; border-radius:2px; flex-shrink:0; border:1px solid rgba(255,255,255,.15); }
   .uo-row .lname{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .uo-row .llen{ color:var(--text-faint); font-size:10.5px; flex-shrink:0; }
-  .uo-details{ border-top:1px solid var(--border); padding:10px 12px; flex-shrink:0; display:none; }
+  .uo-edit-btn{
+    flex-shrink:0; width:22px; height:20px; padding:0; display:flex; align-items:center; justify-content:center;
+    background:none; border:1px solid transparent; border-radius:3px; color:var(--text-faint); font-size:11px; cursor:pointer;
+  }
+  .uo-row:hover .uo-edit-btn{ color:var(--text-dim); }
+  .uo-edit-btn:hover{ border-color:var(--accent); color:var(--accent) !important; }
+  .uo-details .dtitle{ display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .uo-details .dtitle .dclose{
+    flex-shrink:0; background:none; border:none; color:var(--text-dim); font-size:14px; cursor:pointer; padding:0 4px; line-height:1;
+  }
+  .uo-details .dtitle .dclose:hover{ color:var(--danger); }
+  .uo-details{ border-top:1px solid var(--border); padding:10px 12px; flex-shrink:0; display:none; max-height:50%; overflow-y:auto; }
   .uo-details.open{ display:block; }
   .uo-details .dtitle{ font-weight:600; font-size:12.5px; margin-bottom:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .uo-details .drow{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; font-size:11.5px; color:var(--text-dim); }
@@ -572,23 +588,17 @@
       <input type="file" id="fileInput" accept=".str,.txt,.bin,.dtm,.obj" multiple>
     </div>
     <div id="fileMeta"></div>
-    <button id="btnSaveAll" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере" style="margin:0 12px 8px;">☁ Сохранить в проект</button>
-    <div id="saveStatus" style="margin:0 12px 8px; font-size:11px; color:var(--text-dim);"></div>
-    <div style="display:flex; gap:6px; margin:0 12px 6px;">
-      <button id="btnSaveBackup" title="Скачать локальную резервную копию — standalone HTML со всеми изменениями" style="flex:1;">💾 Резервная копия HTML</button>
-    </div>
-    <div style="display:flex; gap:6px; margin:0 12px 6px;">
-      <button id="btnExportInventory" title="Выгрузить кабели/оборудование/метки в CSV" style="flex:1;">⬇ Инвентарь CSV</button>
-      <button id="btnExportSTR" title="Выгрузить всю модель (выработки, кабели, оборудование, метки) в один .str файл" style="flex:1;">⬇ Экспорт STR</button>
-    </div>
-    <div id="objectsIoRow" style="display:flex; gap:6px; margin:0 12px 6px;">
-      <button id="btnExportObjects" title="Выгрузить только кабели/оборудование/метки/заплатки (без модели шахты) в .str со всеми атрибутами — для последующей загрузки обратно в этот инструмент" style="flex:1;">⬇ Объекты .str</button>
-      <button id="btnImportObjects" title="Загрузить .str, ранее выгруженный кнопкой «Объекты .str» — восстановит кабели/оборудование/метки/заплатки как есть, сгруппированными по типу" style="flex:1;">⬆ Импорт объектов</button>
+    <div id="actionButtonsRow">
+      <button id="btnSaveAll" class="icon-btn icon-btn-primary" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере">☁</button>
+      <button id="btnSaveBackup" class="icon-btn" title="Скачать локальную резервную копию — standalone HTML со всеми изменениями">💾</button>
+      <button id="btnExportInventory" class="icon-btn" title="Выгрузить кабели/оборудование/метки в CSV">📋</button>
+      <button id="btnExportSTR" class="icon-btn" title="Выгрузить всю модель (выработки, кабели, оборудование, метки) в один .str файл">🗺</button>
+      <button id="btnExportObjects" class="icon-btn" title="Выгрузить только кабели/оборудование/метки/заплатки (без модели шахты) в .str со всеми атрибутами — для последующей загрузки обратно в этот инструмент">📤</button>
+      <button id="btnImportObjects" class="icon-btn" title="Загрузить .str, ранее выгруженный кнопкой «Объекты .str» — восстановит кабели/оборудование/метки/заплатки, сгруппированными по типу">📥</button>
       <input type="file" id="objectsFileInput" accept=".str" style="display:none;">
+      <button id="btnClearAll" class="icon-btn icon-btn-danger" title="Убрать все загруженные файлы из модели">🗑</button>
     </div>
-    <div id="clearAllRow" style="display:flex; gap:6px; margin:0 12px 8px;">
-      <button id="btnClearAll" title="Убрать все загруженные файлы из модели" style="flex:1;">Очистить всё</button>
-    </div>
+    <div id="saveStatus"></div>
     <div id="progressWrap"><div id="progressBar"></div></div>
     <div id="tabs">
       <button class="tab-btn active" data-tab="shaft">Шахта</button>
@@ -679,7 +689,7 @@
         <div class="uo-list" id="cableList"></div>
         <div class="placeholder" id="cablePlaceholder">Кабельных трасс пока нет.<br>Нажмите «Добавить» и кликайте по тоннелям на модели.</div>
         <div class="uo-details" id="cableDetails">
-          <div class="dtitle" id="cableDTitle">—</div>
+          <div class="dtitle"><span id="cableDTitle">—</span><button class="dclose" id="btnCableDClose" title="Закрыть">✕</button></div>
           <div class="drow"><span>Видимость</span><input type="checkbox" id="cableDVisible" checked></div>
           <div class="drow"><span>Цвет</span><input type="color" id="cableDColor" value="#ffcc00"></div>
           <div class="drow"><span>Подпись</span><input type="text" id="cableDLabel" placeholder="Название трассы"></div>
@@ -741,7 +751,7 @@
         <div class="uo-list" id="equipList"></div>
         <div class="placeholder" id="equipPlaceholder">Объектов оборудования пока нет.</div>
         <div class="uo-details" id="equipDetails">
-          <div class="dtitle" id="equipDTitle">—</div>
+          <div class="dtitle"><span id="equipDTitle">—</span><button class="dclose" id="btnEquipDClose" title="Закрыть">✕</button></div>
           <div class="drow"><span>Видимость</span><input type="checkbox" id="equipDVisible" checked></div>
           <div class="drow"><span>Цвет</span><input type="color" id="equipDColor" value="#4fd6e0"></div>
           <div class="drow"><span>Подпись</span><input type="text" id="equipDLabel" placeholder="Название объекта"></div>
@@ -782,10 +792,14 @@
         <div class="uo-list" id="markList"></div>
         <div class="placeholder" id="markPlaceholder">Меток пока нет.</div>
         <div class="uo-details" id="markDetails">
-          <div class="dtitle" id="markDTitle">—</div>
+          <div class="dtitle"><span id="markDTitle">—</span><button class="dclose" id="btnMarkDClose" title="Закрыть">✕</button></div>
           <div class="drow"><span>Видимость</span><input type="checkbox" id="markDVisible" checked></div>
           <div class="drow"><span>Цвет</span><input type="color" id="markDColor" value="#ff5b7a"></div>
           <div class="drow"><span>Подпись</span><input type="text" id="markDLabel" placeholder="Название метки"></div>
+          <div class="drow" style="align-items:flex-start;">
+            <span>Текст</span>
+            <textarea id="markDText" placeholder="Комментарий/описание метки" rows="3" style="flex:1; margin-left:8px; background:var(--panel-alt); border:1px solid var(--border); color:var(--text); border-radius:3px; padding:6px; font-size:11.5px; font-family:inherit; resize:vertical;"></textarea>
+          </div>
           <div style="display:flex; gap:6px;">
             <button id="markDFocus" style="width:auto; flex:1;">Перейти</button>
             <button id="markDHighlight" style="width:auto; flex:1;">✨ Подсветить</button>
@@ -1625,6 +1639,7 @@ const dom = {
   cableDFocus: document.getElementById("cableDFocus"),
   cableDHighlight: document.getElementById("cableDHighlight"),
   cableDDelete: document.getElementById("cableDDelete"),
+  btnCableDClose: document.getElementById("btnCableDClose"),
   cableLabelToggle: document.getElementById("cableLabelToggle"),
   cableLabelSize: document.getElementById("cableLabelSize"),
   cableLabelColor: document.getElementById("cableLabelColor"),
@@ -1646,6 +1661,7 @@ const dom = {
   equipDFocus: document.getElementById("equipDFocus"),
   equipDHighlight: document.getElementById("equipDHighlight"),
   equipDDelete: document.getElementById("equipDDelete"),
+  btnEquipDClose: document.getElementById("btnEquipDClose"),
   equipLabelToggle: document.getElementById("equipLabelToggle"),
   equipLabelSize: document.getElementById("equipLabelSize"),
   equipLabelColor: document.getElementById("equipLabelColor"),
@@ -1660,6 +1676,8 @@ const dom = {
   markDVisible: document.getElementById("markDVisible"),
   markDColor: document.getElementById("markDColor"),
   markDLabel: document.getElementById("markDLabel"),
+  markDText: document.getElementById("markDText"),
+  btnMarkDClose: document.getElementById("btnMarkDClose"),
   markDFocus: document.getElementById("markDFocus"),
   markDHighlight: document.getElementById("markDHighlight"),
   markDDelete: document.getElementById("markDDelete"),
@@ -3272,8 +3290,12 @@ function buildCableList() {
       lname.className = "lname"; lname.textContent = c.label;
       const llen = document.createElement("span");
       llen.className = "llen"; llen.textContent = Math.round(c.length) + " м";
-      row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname); row.appendChild(llen);
-      row.addEventListener("click", () => selectCable(c));
+      const btnEdit = document.createElement("button");
+      btnEdit.className = "uo-edit-btn";
+      btnEdit.textContent = "✏️";
+      btnEdit.title = "Редактировать";
+      btnEdit.addEventListener("click", (e) => { e.stopPropagation(); selectCable(c); });
+      row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname); row.appendChild(llen); row.appendChild(btnEdit);
       dom.cableList.appendChild(row);
     }
   }
@@ -3413,6 +3435,11 @@ dom.cableDHighlight.addEventListener("click", () => {
 });
 dom.cableDDelete.addEventListener("click", () => {
   if (selectedCable) deleteCable(selectedCable.id);
+});
+dom.btnCableDClose.addEventListener("click", () => {
+  selectedCable = null;
+  dom.cableDetails.classList.remove("open");
+  buildCableList();
 });
 dom.cableLabelToggle.addEventListener("change", () => {
   cableLabelsOn = dom.cableLabelToggle.checked;
@@ -3611,8 +3638,12 @@ function buildEquipList() {
       swatch.className = "swatch"; swatch.style.background = "#" + eq.color.toString(16).padStart(6, "0");
       const lname = document.createElement("span");
       lname.className = "lname"; lname.textContent = eq.label;
-      row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname);
-      row.addEventListener("click", () => selectEquip(eq));
+      const btnEdit = document.createElement("button");
+      btnEdit.className = "uo-edit-btn";
+      btnEdit.textContent = "✏️";
+      btnEdit.title = "Редактировать";
+      btnEdit.addEventListener("click", (e) => { e.stopPropagation(); selectEquip(eq); });
+      row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname); row.appendChild(btnEdit);
       dom.equipList.appendChild(row);
     }
   }
@@ -3702,6 +3733,11 @@ dom.equipDDelete.addEventListener("click", () => {
   dom.equipDetails.classList.remove("open");
   buildEquipList();
 });
+dom.btnEquipDClose.addEventListener("click", () => {
+  selectedEquip = null;
+  dom.equipDetails.classList.remove("open");
+  buildEquipList();
+});
 dom.equipLabelToggle.addEventListener("change", () => {
   equipLabelsOn = dom.equipLabelToggle.checked;
   for (const eq of equipment.values()) if (eq.labelObj) eq.labelObj.visible = equipLabelsOn;
@@ -3777,7 +3813,7 @@ function placeMark(point, overrides) {
   scene.add(labelObj);
   const markData = {
     id, type: "mark", markType: type, color,
-    label, visible: sprite.visible, sprite, scale, labelObj,
+    label, text: overrides?.text ?? "", visible: sprite.visible, sprite, scale, labelObj,
     createdBy: overrides?.createdBy ?? currentUsername(),
     createdAt: overrides?.createdAt ?? new Date().toISOString(),
   };
@@ -3802,8 +3838,12 @@ function buildMarkList() {
     swatch.className = "swatch"; swatch.style.background = "#" + m.color.toString(16).padStart(6, "0");
     const lname = document.createElement("span");
     lname.className = "lname"; lname.textContent = m.label;
-    row.appendChild(swatch); row.appendChild(lname);
-    row.addEventListener("click", () => selectMark(m));
+    const btnEdit = document.createElement("button");
+    btnEdit.className = "uo-edit-btn";
+    btnEdit.textContent = "✏️";
+    btnEdit.title = "Редактировать";
+    btnEdit.addEventListener("click", (e) => { e.stopPropagation(); selectMark(m); });
+    row.appendChild(swatch); row.appendChild(lname); row.appendChild(btnEdit);
     dom.markList.appendChild(row);
   }
 }
@@ -3815,6 +3855,7 @@ function selectMark(m) {
   dom.markDVisible.checked = m.visible;
   dom.markDColor.value = "#" + m.color.toString(16).padStart(6, "0");
   dom.markDLabel.value = m.label;
+  dom.markDText.value = m.text || "";
 }
 document.querySelectorAll(".shape-btn[data-mark]").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -3852,6 +3893,10 @@ dom.markDLabel.addEventListener("input", () => {
   if (selectedMark.labelObj) selectedMark.labelObj.element.textContent = selectedMark.label;
   buildMarkList();
 });
+dom.markDText.addEventListener("input", () => {
+  if (!selectedMark) return;
+  selectedMark.text = dom.markDText.value;
+});
 dom.markDFocus.addEventListener("click", () => {
   if (!selectedMark) return;
   flyTo(new THREE.Box3().setFromObject(selectedMark.sprite), false);
@@ -3869,6 +3914,11 @@ dom.markDDelete.addEventListener("click", () => {
   if (selectedMark.labelObj) { scene.remove(selectedMark.labelObj); selectedMark.labelObj.element.remove(); }
   marks.delete(selectedMark.id);
   recordDeletion("mark", selectedMark);
+  selectedMark = null;
+  dom.markDetails.classList.remove("open");
+  buildMarkList();
+});
+dom.btnMarkDClose.addEventListener("click", () => {
   selectedMark = null;
   dom.markDetails.classList.remove("open");
   buildMarkList();
@@ -4623,7 +4673,7 @@ function buildSnapshot() {
     createdBy: eq.createdBy, createdAt: eq.createdAt,
   }));
   const marksSnap = [...marks.values()].map((m) => ({
-    markType: m.markType, color: m.color, label: m.label, visible: m.visible,
+    markType: m.markType, color: m.color, label: m.label, text: m.text, visible: m.visible,
     position: [m.sprite.position.x, m.sprite.position.y, m.sprite.position.z],
     createdBy: m.createdBy, createdAt: m.createdAt,
   }));
@@ -4774,7 +4824,7 @@ function applyRoleToUI() {
 
   // Загрузка/удаление STR-модели и инструмент "Заплатки" — только admin,
   // у остальных ролей эти элементы управления полностью скрыты.
-  const adminOnlyIds = ["dropzoneWrap", "clearAllRow", "tabBtnPatches"];
+  const adminOnlyIds = ["dropzoneWrap", "btnClearAll", "tabBtnPatches"];
   for (const id of adminOnlyIds) {
     const el = document.getElementById(id);
     if (el) el.style.display = isAdmin ? "" : "none";
