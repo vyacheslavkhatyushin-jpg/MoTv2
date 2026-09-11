@@ -38,15 +38,27 @@
     display:flex; flex-direction:column; height:100%;
   }
   /* ---- header / drop zone ---- */
+  #dropzoneWrap{ display:flex; flex-shrink:0; }
   #dropzone{
-    margin:12px; padding:14px; border:1px dashed var(--border);
-    border-radius:4px; text-align:left; cursor:pointer;
-    transition: border-color .15s ease, background .15s ease;
+    width:32px; height:30px; display:flex; align-items:center; justify-content:center;
+    padding:0; border:1px dashed var(--border); border-radius:4px; cursor:pointer; font-size:14px;
+    color:var(--text-dim); background:var(--panel-alt);
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
   }
-  #dropzone:hover, #dropzone.drag{ border-color:var(--accent); background:rgba(255,159,28,.06); }
-  #dropzone .title{ font-weight:600; color:var(--text); margin-bottom:2px; }
-  #dropzone .hint{ color:var(--text-dim); font-size:11.5px; line-height:1.4; }
+  #dropzone:hover, #dropzone.drag{ border-color:var(--accent); background:rgba(255,159,28,.06); color:var(--accent); }
   #fileInput{ display:none; }
+  .save-btn-big{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    width:calc(100% - 24px); margin:0 12px 8px; padding:12px; box-sizing:border-box;
+    border-radius:8px; border:1px solid var(--accent);
+    background:linear-gradient(135deg, var(--accent), var(--accent-2));
+    color:#14171a; font-weight:700; font-size:14px; font-family:inherit; cursor:pointer;
+    box-shadow:0 4px 14px rgba(255,159,28,.25);
+    transition:transform .1s ease, box-shadow .15s ease, filter .15s ease;
+  }
+  .save-btn-big:hover{ filter:brightness(1.08); box-shadow:0 6px 18px rgba(255,159,28,.35); transform:translateY(-1px); }
+  .save-btn-big:active{ transform:translateY(0); }
+  .save-btn-big:disabled{ opacity:.5; cursor:default; filter:none; box-shadow:none; transform:none; }
   #fileMeta{ margin:0 12px 8px; font-size:11.5px; color:var(--text-dim); min-height:14px; }
   #fileMeta.ok{ color:var(--accent-2); }
   #fileMeta.err{ color:var(--danger); }
@@ -581,15 +593,14 @@
     </div>
   </div>
   <div id="sidebar">
-    <div id="dropzoneWrap">
-      <div id="dropzone">
-        <div class="title">Загрузить модель шахты</div>
-      </div>
-      <input type="file" id="fileInput" accept=".str,.txt,.bin,.dtm,.obj" multiple>
-    </div>
+    <button id="btnSaveAll" class="save-btn-big" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере">☁ Сохранить изменения</button>
+    <div id="saveStatus"></div>
     <div id="fileMeta"></div>
     <div id="actionButtonsRow">
-      <button id="btnSaveAll" class="icon-btn icon-btn-primary" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере">☁</button>
+      <div id="dropzoneWrap">
+        <div id="dropzone" title="Загрузить модель шахты (.str/.dtm/.obj) — клик или перетащите файл сюда">📁</div>
+        <input type="file" id="fileInput" accept=".str,.txt,.bin,.dtm,.obj" multiple>
+      </div>
       <button id="btnSaveBackup" class="icon-btn" title="Скачать локальную резервную копию — standalone HTML со всеми изменениями">💾</button>
       <button id="btnExportInventory" class="icon-btn" title="Выгрузить кабели/оборудование/метки в CSV">📋</button>
       <button id="btnExportSTR" class="icon-btn" title="Выгрузить всю модель (выработки, кабели, оборудование, метки) в один .str файл">🗺</button>
@@ -598,7 +609,6 @@
       <input type="file" id="objectsFileInput" accept=".str" style="display:none;">
       <button id="btnClearAll" class="icon-btn icon-btn-danger" title="Убрать все загруженные файлы из модели">🗑</button>
     </div>
-    <div id="saveStatus"></div>
     <div id="progressWrap"><div id="progressBar"></div></div>
     <div id="tabs">
       <button class="tab-btn active" data-tab="shaft">Шахта</button>
