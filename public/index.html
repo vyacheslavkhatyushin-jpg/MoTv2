@@ -3279,7 +3279,10 @@ dom.cableDFocus.addEventListener("click", () => {
 });
 dom.cableDHighlight.addEventListener("click", () => {
   if (!selectedCable) return;
-  toggleHighlight("cable:" + selectedCable.id, selectedCable.mesh, selectedCable.radius);
+  // Труба кабеля тонкая, поэтому её "радиус подсветки" считаем от эффективного
+  // минимума (см. GLOW_MIN_SCALE_HINT), а не от сырого radius — иначе x5 почти
+  // не будет заметен на тонких кабелях, у которых radius меньше этого минимума.
+  toggleHighlight("cable:" + selectedCable.id, selectedCable.mesh, Math.max(selectedCable.radius, GLOW_MIN_SCALE_HINT) * 5);
 });
 dom.cableDDelete.addEventListener("click", () => {
   if (selectedCable) deleteCable(selectedCable.id);
