@@ -4003,7 +4003,7 @@ function saveStandaloneCopy() {
    3D-модели и buildSnapshot()/restoreFromSnapshot() не меняется —
    меняется только транспорт.
 ============================================================ */
-const CURRENT_PROJECT_ID = (location.pathname.split("/").filter(Boolean)[0]) || "default";
+const CURRENT_PROJECT_ID = (location.pathname.split("/").filter(Boolean)[0] || "default").toLowerCase();
 let serverStateVersion = 0;
 
 function apiHeaders(extra) {

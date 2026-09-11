@@ -7,6 +7,14 @@ const SLUG_RE = /^[a-z0-9][a-z0-9-_]{1,63}$/;
 
 router.use(requireAuth);
 
+// Project ids are always lowercase (enforced by SLUG_RE on creation); normalize
+// the URL param too so /APK, /Apk and /apk all resolve to the same project
+// instead of 404ing on a case mismatch.
+router.param("id", (req, res, next, id) => {
+  req.params.id = id.toLowerCase();
+  next();
+});
+
 router.get("/", (req, res) => {
   const projects = db
     .prepare("SELECT id, name, created_at FROM projects ORDER BY name")
