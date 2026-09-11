@@ -326,6 +326,60 @@
   }
   #authCard #btnAuthSubmit:hover{ filter:brightness(1.08); }
   #authCard .authHint{ margin-top:14px; font-size:10.5px; color:var(--text-faint); text-align:center; line-height:1.5; }
+
+  /* ---- панель управления пользователями (admin) ---- */
+  #userAdminOverlay{
+    position:fixed; inset:0; z-index:900; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.55);
+  }
+  #userAdminOverlay.hidden{ display:none; }
+  #userAdminCard{
+    width:420px; max-width:92vw; max-height:82vh; overflow-y:auto; background:var(--panel);
+    border:1px solid var(--border); border-radius:10px; padding:18px 20px; box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  #userAdminCard h3{ margin:0 0 12px; font-size:14px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between; }
+  #userAdminCard h3 button{ background:none; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; line-height:1; padding:2px 6px; }
+  #userAdminCard h3 button:hover{ color:var(--text); }
+  .ua-add-row{ display:flex; gap:6px; margin-bottom:14px; }
+  .ua-add-row input[type="text"], .ua-add-row input[type="password"]{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:6px 8px; font-size:12px; font-family:inherit; width:0; flex:1 1 0;
+  }
+  .ua-add-row select{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:6px 4px; font-size:12px; font-family:inherit;
+  }
+  .ua-add-row button{
+    background:var(--accent); border:1px solid var(--accent); color:#14171a; border-radius:5px;
+    width:30px; flex-shrink:0; font-size:15px; font-weight:700; cursor:pointer;
+  }
+  .ua-add-row button:hover{ filter:brightness(1.08); }
+  #userAdminError{ min-height:14px; font-size:11px; color:var(--danger); margin:-8px 0 10px; }
+  .ua-row{
+    display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px solid var(--border-soft); font-size:12px; color:var(--text-dim);
+  }
+  .ua-row .ua-name{ flex:1 1 auto; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ua-row select{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:4px; padding:3px; font-size:11px; font-family:inherit;
+  }
+  .ua-row .ua-dots{ letter-spacing:2px; color:var(--text-faint); }
+  .ua-row button{
+    background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px;
+    width:26px; height:24px; cursor:pointer; font-size:12px; flex-shrink:0;
+  }
+  .ua-row button:hover{ border-color:var(--accent); color:var(--accent); }
+  .ua-row button.ua-delete:hover{ border-color:var(--danger); color:var(--danger); }
+  .ua-reset-row{ display:none; gap:6px; margin:4px 0 8px; }
+  .ua-reset-row.open{ display:flex; }
+  .ua-reset-row input{
+    flex:1; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:4px; padding:4px 6px; font-size:11.5px; font-family:inherit;
+  }
+  .ua-reset-row button{
+    background:var(--accent); border:1px solid var(--accent); color:#14171a; border-radius:4px;
+    padding:0 10px; font-size:11px; cursor:pointer; font-weight:600;
+  }
 </style>
 
 <!--[if gte mso 9]><xml>
@@ -437,10 +491,28 @@
     <div id="sessionInfo" style="display:flex; align-items:center; gap:12px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
       <span id="sessionProject"></span>
       <span id="sessionUser"></span>
+      <button id="btnUserAdmin" title="Управление пользователями" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">👥 Пользователи</button>
       <button id="btnLogout" title="Выйти" style="background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">Выйти</button>
     </div>
     <div class="brand-copyright">© 2026 KazMinerals LLP<br>Все права защищены</div>
   </header>
+<div id="userAdminOverlay" class="hidden">
+  <div id="userAdminCard">
+    <h3>Пользователи <button id="btnUserAdminClose" title="Закрыть">✕</button></h3>
+    <div class="ua-add-row">
+      <input type="text" id="uaNewLogin" placeholder="Логин" autocomplete="off">
+      <input type="password" id="uaNewPassword" placeholder="Пароль" autocomplete="off">
+      <select id="uaNewRole">
+        <option value="viewer">viewer</option>
+        <option value="editor" selected>editor</option>
+        <option value="admin">admin</option>
+      </select>
+      <button id="btnUaAdd" title="Добавить пользователя">+</button>
+    </div>
+    <div id="userAdminError"></div>
+    <div id="userAdminList"></div>
+  </div>
+</div>
 <div id="app">
   <div id="viewport">
     <canvas id="glcanvas"></canvas>
@@ -4663,6 +4735,8 @@ function applyRoleToUI() {
   const role = auth ? auth.role : "viewer";
   const isAdmin = role === "admin";
   const canEdit = role === "editor" || role === "admin";
+  const btnUserAdminEl = document.getElementById("btnUserAdmin");
+  if (btnUserAdminEl) btnUserAdminEl.style.display = isAdmin ? "" : "none";
 
   // Кабели/оборудование/метки/сохранение — доступны editor и admin.
   const editButtonIds = ["btnAddCable", "btnAddEquip", "btnAddMark", "btnSaveAll", "cableDExtend", "btnImportObjects"];
@@ -4775,6 +4849,152 @@ async function saveToServer() {
 
 document.getElementById("btnLogout").addEventListener("click", () => {
   if (window.__kzmLogout) window.__kzmLogout();
+});
+
+/* ---------- панель управления пользователями (admin) ----------
+   Пароль в базе хранится как bcrypt-хеш — "посмотреть" исходный пароль
+   невозможно ни при каком UI. Кнопка с иконкой глаза вместо этого задаёт
+   новый пароль (по сути сброс). */
+const uaOverlay = document.getElementById("userAdminOverlay");
+const uaList = document.getElementById("userAdminList");
+const uaError = document.getElementById("userAdminError");
+function openUserAdminPanel() {
+  uaOverlay.classList.remove("hidden");
+  uaError.textContent = "";
+  loadUserAdminList();
+}
+function closeUserAdminPanel() {
+  uaOverlay.classList.add("hidden");
+}
+document.getElementById("btnUserAdmin").addEventListener("click", openUserAdminPanel);
+document.getElementById("btnUserAdminClose").addEventListener("click", closeUserAdminPanel);
+uaOverlay.addEventListener("click", (e) => { if (e.target === uaOverlay) closeUserAdminPanel(); });
+
+async function loadUserAdminList() {
+  try {
+    const resp = await apiFetch("/api/users");
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    renderUserAdminList(data.users || []);
+  } catch (err) {
+    uaError.textContent = "Не удалось загрузить список пользователей: " + err.message;
+  }
+}
+function renderUserAdminList(users) {
+  uaList.innerHTML = "";
+  const myUsername = window.__auth && window.__auth.username;
+  for (const u of users) {
+    const row = document.createElement("div");
+    row.className = "ua-row";
+    const name = document.createElement("span");
+    name.className = "ua-name";
+    name.textContent = u.username;
+    const roleSelect = document.createElement("select");
+    for (const r of ["viewer", "editor", "admin"]) {
+      const opt = document.createElement("option");
+      opt.value = r; opt.textContent = r;
+      if (r === u.role) opt.selected = true;
+      roleSelect.appendChild(opt);
+    }
+    const dots = document.createElement("span");
+    dots.className = "ua-dots";
+    dots.textContent = "••••••••";
+    const btnReveal = document.createElement("button");
+    btnReveal.textContent = "👁";
+    btnReveal.title = "Пароль хранится в зашифрованном виде и его нельзя посмотреть — нажмите, чтобы задать новый";
+    const btnDelete = document.createElement("button");
+    btnDelete.className = "ua-delete";
+    btnDelete.textContent = "✕";
+    btnDelete.title = "Удалить пользователя";
+    if (u.username === myUsername) btnDelete.disabled = true;
+    row.appendChild(name); row.appendChild(roleSelect); row.appendChild(dots);
+    row.appendChild(btnReveal); row.appendChild(btnDelete);
+    uaList.appendChild(row);
+
+    const resetRow = document.createElement("div");
+    resetRow.className = "ua-reset-row";
+    const resetInput = document.createElement("input");
+    resetInput.type = "password";
+    resetInput.placeholder = "Новый пароль";
+    const btnResetSave = document.createElement("button");
+    btnResetSave.textContent = "Сохранить";
+    resetRow.appendChild(resetInput); resetRow.appendChild(btnResetSave);
+    uaList.appendChild(resetRow);
+
+    roleSelect.addEventListener("change", async () => {
+      uaError.textContent = "";
+      try {
+        const resp = await apiFetch(`/api/users/${encodeURIComponent(u.username)}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: roleSelect.value }),
+        });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
+      } catch (err) {
+        uaError.textContent = "Не удалось сменить роль: " + err.message;
+        roleSelect.value = u.role;
+      }
+    });
+    btnReveal.addEventListener("click", () => {
+      resetRow.classList.toggle("open");
+      resetInput.value = "";
+      if (resetRow.classList.contains("open")) resetInput.focus();
+    });
+    btnResetSave.addEventListener("click", async () => {
+      uaError.textContent = "";
+      const pass = resetInput.value;
+      if (!pass || pass.length < 4) {
+        uaError.textContent = "Пароль должен быть не короче 4 символов.";
+        return;
+      }
+      try {
+        const resp = await apiFetch(`/api/users/${encodeURIComponent(u.username)}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pass }),
+        });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
+        resetRow.classList.remove("open");
+        resetInput.value = "";
+      } catch (err) {
+        uaError.textContent = "Не удалось сменить пароль: " + err.message;
+      }
+    });
+    btnDelete.addEventListener("click", async () => {
+      if (u.username === myUsername) return;
+      if (!confirm(`Удалить пользователя «${u.username}»?`)) return;
+      uaError.textContent = "";
+      try {
+        const resp = await apiFetch(`/api/users/${encodeURIComponent(u.username)}`, { method: "DELETE" });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
+        loadUserAdminList();
+      } catch (err) {
+        uaError.textContent = "Не удалось удалить пользователя: " + err.message;
+      }
+    });
+  }
+}
+document.getElementById("btnUaAdd").addEventListener("click", async () => {
+  const loginEl = document.getElementById("uaNewLogin");
+  const passEl = document.getElementById("uaNewPassword");
+  const roleEl = document.getElementById("uaNewRole");
+  const login = loginEl.value.trim();
+  const password = passEl.value;
+  uaError.textContent = "";
+  if (!login) { uaError.textContent = "Введите логин."; return; }
+  if (!password || password.length < 4) { uaError.textContent = "Пароль должен быть не короче 4 символов."; return; }
+  try {
+    const resp = await apiFetch("/api/users", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: login, password, role: roleEl.value }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error === "already_exists" ? "Такой логин уже существует." : (err.error || ("HTTP " + resp.status)));
+    }
+    loginEl.value = ""; passEl.value = "";
+    loadUserAdminList();
+  } catch (err) {
+    uaError.textContent = "Не удалось добавить пользователя: " + err.message;
+  }
 });
 
 async function restoreFromSnapshot(state) {
