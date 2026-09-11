@@ -487,11 +487,13 @@
     </div>
   </div>
   <div id="sidebar">
-    <div id="dropzone">
-      <div class="title">Загрузить модель шахты</div>
-      <div class="hint">.str файл Datamine (текстовый или бинарный) — перетащите сюда или нажмите для выбора. Можно загрузить несколько файлов подряд — они добавятся друг к другу отдельными слоями. Если для выработки есть готовая триангуляция — выделите .str и парный .dtm вместе (координаты берутся из STR, треугольники — из DTM), геометрия строится сразу без лофтинга и получается точнее.</div>
+    <div id="dropzoneWrap">
+      <div id="dropzone">
+        <div class="title">Загрузить модель шахты</div>
+        <div class="hint">.str файл Datamine (текстовый или бинарный) — перетащите сюда или нажмите для выбора. Можно загрузить несколько файлов подряд — они добавятся друг к другу отдельными слоями. Если для выработки есть готовая триангуляция — выделите .str и парный .dtm вместе (координаты берутся из STR, треугольники — из DTM), геометрия строится сразу без лофтинга и получается точнее.</div>
+      </div>
+      <input type="file" id="fileInput" accept=".str,.txt,.bin,.dtm" multiple>
     </div>
-    <input type="file" id="fileInput" accept=".str,.txt,.bin,.dtm" multiple>
     <div id="fileMeta"></div>
     <button id="btnSaveAll" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере" style="margin:0 12px 8px;">☁ Сохранить в проект</button>
     <div id="saveStatus" style="margin:0 12px 8px; font-size:11px; color:var(--text-dim);"></div>
@@ -502,7 +504,7 @@
       <button id="btnExportInventory" title="Выгрузить кабели/оборудование/метки в CSV" style="flex:1;">⬇ Инвентарь CSV</button>
       <button id="btnExportSTR" title="Выгрузить всю модель (выработки, кабели, оборудование, метки) в один .str файл" style="flex:1;">⬇ Экспорт STR</button>
     </div>
-    <div style="display:flex; gap:6px; margin:0 12px 8px;">
+    <div id="clearAllRow" style="display:flex; gap:6px; margin:0 12px 8px;">
       <button id="btnClearAll" title="Убрать все загруженные файлы из модели" style="flex:1;">Очистить всё</button>
     </div>
     <div id="progressWrap"><div id="progressBar"></div></div>
@@ -511,7 +513,7 @@
       <button class="tab-btn" data-tab="cables">Кабели</button>
       <button class="tab-btn" data-tab="equip">Оборудование</button>
       <button class="tab-btn" data-tab="marks">Метки</button>
-      <button class="tab-btn" data-tab="patches">Заплатки</button>
+      <button class="tab-btn" data-tab="patches" id="tabBtnPatches">Заплатки</button>
     </div>
     <div id="tabpanels">
       <div class="tabpanel active" id="tab-shaft">
@@ -568,6 +570,7 @@
           <button class="uo-add-btn" id="btnAddCable">+ Добавить кабельную трассу</button>
           <div class="uo-hint" id="cableHint" style="display:none;">
             Кликайте по тоннелям, чтобы добавлять узлы трассы (точка ставится только на поверхности выработки).
+            <div id="cableLiveLength" style="margin-top:6px; font-weight:600; color:var(--text);"></div>
             <div class="hint-actions">
               <button id="btnFinishCable">Готово</button>
               <button id="btnCancelCable">Отмена</button>
@@ -601,13 +604,19 @@
       <div class="tabpanel" id="tab-equip">
         <div class="uo-toolbar">
           <div class="shape-picker">
-            <button class="shape-btn selected" data-shape="map" title="MAP">📡 MAP</button>
-            <button class="shape-btn" data-shape="iilb" title="IILB">▤ IILB</button>
-            <button class="shape-btn" data-shape="mps" title="MPS">🔋 MPS</button>
-            <button class="shape-btn" data-shape="cam" title="CAM">🎥 CAM</button>
-            <button class="shape-btn" data-shape="coupling" title="Муфта">🔗 Муфта</button>
-            <button class="shape-btn" data-shape="wifi_ap" title="Wi-Fi AP">📶 Wi-Fi AP</button>
-            <button class="shape-btn" data-shape="poe" title="PoE">🔌 PoE</button>
+            <select id="equipShapeSelect" style="width:100%; background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:5px; padding:7px 8px; font-family:inherit; font-size:12.5px;">
+              <option value="mla">MLA</option>
+              <option value="map" selected>MAP</option>
+              <option value="iilb">IILB</option>
+              <option value="isib">ISIB</option>
+              <option value="cam">CAM</option>
+              <option value="mps">MPS</option>
+              <option value="mpc">MPC</option>
+              <option value="mtu">MTU</option>
+              <option value="mvsa">MVSA</option>
+              <option value="wifi">WiFi</option>
+              <option value="mbu">MBU</option>
+            </select>
           </div>
           <button class="uo-add-btn" id="btnAddEquip">+ Добавить объект</button>
           <div class="uo-hint" id="equipHint" style="display:none;">
@@ -1236,6 +1245,7 @@ const dom = {
   // кабели
   btnAddCable: document.getElementById("btnAddCable"),
   cableHint: document.getElementById("cableHint"),
+  cableLiveLength: document.getElementById("cableLiveLength"),
   btnFinishCable: document.getElementById("btnFinishCable"),
   btnCancelCable: document.getElementById("btnCancelCable"),
   cableList: document.getElementById("cableList"),
@@ -1392,6 +1402,7 @@ let selectedCable = null, selectedEquip = null, selectedMark = null;
 let drawMode = null; // null | "cable" | "equip" | "mark" | "patch" | "link"
 let cableInProgress = null;
 let patchInProgress = null;
+let cableLengthLabel = null;
 let selectedPatch = null;
 let linkFirstPick = null; // { ring, highlightObj } — первая выбранная грань в режиме "Соединить два среза"
 let equipShape = "map";
@@ -2397,6 +2408,7 @@ function exitDrawMode() {
       cableInProgress.previewObj.material.dispose();
     }
     cableInProgress = null;
+    clearCableLiveLength();
   }
   if (drawMode === "patch" && patchInProgress) {
     if (patchInProgress.previewObj) {
@@ -2459,6 +2471,30 @@ function addCableNode(point) {
     cableInProgress.previewObj = new THREE.Line(geo, mat);
     scene.add(cableInProgress.previewObj);
   }
+  updateCableLiveLength();
+}
+function updateCableLiveLength() {
+  if (!cableInProgress || cableInProgress.nodes.length === 0) {
+    if (dom.cableLiveLength) dom.cableLiveLength.textContent = "";
+    if (cableLengthLabel) { scene.remove(cableLengthLabel); cableLengthLabel = null; }
+    return;
+  }
+  const len = cablePathLength(cableInProgress.nodes);
+  const text = `Текущая длина: ${len.toFixed(1)} м`;
+  if (dom.cableLiveLength) dom.cableLiveLength.textContent = text;
+  const lastNode = cableInProgress.nodes[cableInProgress.nodes.length - 1];
+  if (!cableLengthLabel) {
+    cableLengthLabel = makeUOLabel(text, 12, 0xffcc00);
+    cableLengthLabel.visible = true;
+    scene.add(cableLengthLabel);
+  } else {
+    cableLengthLabel.element.textContent = text;
+  }
+  cableLengthLabel.position.copy(lastNode);
+}
+function clearCableLiveLength() {
+  if (dom.cableLiveLength) dom.cableLiveLength.textContent = "";
+  if (cableLengthLabel) { scene.remove(cableLengthLabel); cableLengthLabel = null; }
 }
 function cableMidpoint(nodes) {
   const v = new THREE.Vector3();
@@ -2588,6 +2624,7 @@ dom.btnFinishCable.addEventListener("click", () => {
     cableInProgress.previewObj.material.dispose();
   }
   cableInProgress = null;
+  clearCableLiveLength();
   createCable(nodes);
   exitDrawMode();
 });
@@ -2647,6 +2684,13 @@ dom.cableLabelColor.addEventListener("input", () => {
 function buildEquipGeometry(shape, size) {
   const s = size;
   switch (shape) {
+    case "mla": {
+      // MLA — корпус-куб с полусферическим куполом сверху
+      const body = new THREE.BoxGeometry(s * 0.6, s * 0.4, s * 0.6);
+      const dome = new THREE.SphereGeometry(s * 0.28, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+      dome.translate(0, s * 0.2, 0);
+      return BufferGeometryUtils.mergeGeometries([body, dome]);
+    }
     case "map": {
       // MAP (точка доступа) — корпус-куб + тонкая антенна сверху
       const body = new THREE.BoxGeometry(s * 0.7, s * 0.5, s * 0.7);
@@ -2658,9 +2702,12 @@ function buildEquipGeometry(shape, size) {
       // IILB (считыватель на кабеле) — плоский вытянутый корпус
       return new THREE.BoxGeometry(s * 1.1, s * 0.25, s * 0.45);
     }
-    case "mps": {
-      // MPS (модуль питания) — цилиндр-канистра
-      return new THREE.CylinderGeometry(s * 0.35, s * 0.35, s * 0.7, 16);
+    case "isib": {
+      // ISIB — плоский корпус, как IILB, с приподнятым гребнем интерфейса
+      const body = new THREE.BoxGeometry(s * 1.1, s * 0.25, s * 0.45);
+      const ridge = new THREE.BoxGeometry(s * 0.9, s * 0.15, s * 0.12);
+      ridge.translate(0, s * 0.2, 0);
+      return BufferGeometryUtils.mergeGeometries([body, ridge]);
     }
     case "cam": {
       // CAM (камера) — сферический корпус + конус-объектив
@@ -2670,12 +2717,36 @@ function buildEquipGeometry(shape, size) {
       lens.translate(0, 0, s * 0.45);
       return BufferGeometryUtils.mergeGeometries([body, lens]);
     }
-    case "coupling": {
-      // Муфта — кольцо (тор), охватывающее кабель в точке соединения
-      return new THREE.TorusGeometry(s * 0.35, s * 0.1, 10, 20);
+    case "mps": {
+      // MPS (модуль питания) — цилиндр-канистра
+      return new THREE.CylinderGeometry(s * 0.35, s * 0.35, s * 0.7, 16);
     }
-    case "wifi_ap": {
-      // Wi-Fi AP — плоский диск + два кольца сигнала
+    case "mpc": {
+      // MPC — корпус-панель с встроенным "экраном" на лицевой стороне
+      const body = new THREE.BoxGeometry(s * 0.7, s * 0.6, s * 0.3);
+      const panel = new THREE.BoxGeometry(s * 0.5, s * 0.4, s * 0.05);
+      panel.translate(0, 0, s * 0.18);
+      return BufferGeometryUtils.mergeGeometries([body, panel]);
+    }
+    case "mtu": {
+      // MTU (терминальный блок) — корпус с двумя антеннами
+      const body = new THREE.BoxGeometry(s * 0.6, s * 0.4, s * 0.6);
+      const ant1 = new THREE.CylinderGeometry(s * 0.03, s * 0.03, s * 0.6, 8);
+      ant1.translate(-s * 0.18, s * 0.5, 0);
+      const ant2 = new THREE.CylinderGeometry(s * 0.03, s * 0.03, s * 0.6, 8);
+      ant2.translate(s * 0.18, s * 0.5, 0);
+      return BufferGeometryUtils.mergeGeometries([body, ant1, ant2]);
+    }
+    case "mvsa": {
+      // MVSA (звуко-световой оповещатель) — раструб-рупор на цилиндрическом основании
+      const base = new THREE.CylinderGeometry(s * 0.22, s * 0.22, s * 0.2, 16);
+      const horn = new THREE.ConeGeometry(s * 0.4, s * 0.5, 16, 1, true);
+      horn.rotateX(Math.PI);
+      horn.translate(0, s * 0.4, 0);
+      return BufferGeometryUtils.mergeGeometries([base, horn]);
+    }
+    case "wifi": {
+      // WiFi AP — плоский диск + два кольца сигнала
       const disc = new THREE.CylinderGeometry(s * 0.4, s * 0.4, s * 0.12, 20);
       const ring1 = new THREE.TorusGeometry(s * 0.45, s * 0.015, 6, 24);
       ring1.rotateX(Math.PI / 2); ring1.translate(0, s * 0.15, 0);
@@ -2683,8 +2754,8 @@ function buildEquipGeometry(shape, size) {
       ring2.rotateX(Math.PI / 2); ring2.translate(0, s * 0.15, 0);
       return BufferGeometryUtils.mergeGeometries([disc, ring1, ring2]);
     }
-    case "poe": {
-      // PoE (инжектор/коммутатор) — куб с двумя штырьками-разъёмами снизу
+    case "mbu": {
+      // MBU (резервный блок питания) — корпус с двумя контактными штырьками снизу
       const body = new THREE.BoxGeometry(s * 0.7, s * 0.5, s * 0.5);
       const pin1 = new THREE.CylinderGeometry(s * 0.05, s * 0.05, s * 0.25, 8);
       pin1.translate(-s * 0.15, -s * 0.37, 0);
@@ -2697,8 +2768,8 @@ function buildEquipGeometry(shape, size) {
   }
 }
 const EQUIP_SHAPE_LABELS = {
-  map: "MAP", iilb: "IILB", mps: "MPS", cam: "CAM",
-  coupling: "Муфта", wifi_ap: "Wi-Fi AP", poe: "PoE",
+  mla: "MLA", map: "MAP", iilb: "IILB", isib: "ISIB", cam: "CAM",
+  mps: "MPS", mpc: "MPC", mtu: "MTU", mvsa: "MVSA", wifi: "WiFi", mbu: "MBU",
 };
 function equipLabelOffset(eq) {
   return new THREE.Vector3(eq.mesh.position.x, eq.mesh.position.y + eq.size * 0.6 + 2, eq.mesh.position.z);
@@ -2753,12 +2824,8 @@ function selectEquip(eq) {
   dom.equipDLabel.value = eq.label;
   dom.equipDSize.value = eq.size;
 }
-document.querySelectorAll(".shape-btn[data-shape]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".shape-btn[data-shape]").forEach((b) => b.classList.remove("selected"));
-    btn.classList.add("selected");
-    equipShape = btn.dataset.shape;
-  });
+document.getElementById("equipShapeSelect").addEventListener("change", (e) => {
+  equipShape = e.target.value;
 });
 dom.btnAddEquip.addEventListener("click", () => {
   if (drawMode === "equip") { exitDrawMode(); return; }
@@ -3578,15 +3645,34 @@ async function apiFetch(url, options) {
 
 function applyRoleToUI() {
   const auth = window.__auth;
-  const isViewer = !auth || auth.role === "viewer";
-  const editButtonIds = [
-    "btnAddCable", "btnAddEquip", "btnAddMark", "btnAddPatch", "btnAddLink",
-    "btnClearAll", "btnSaveAll",
-  ];
+  const role = auth ? auth.role : "viewer";
+  const isAdmin = role === "admin";
+  const canEdit = role === "editor" || role === "admin";
+
+  // Кабели/оборудование/метки/сохранение — доступны editor и admin.
+  const editButtonIds = ["btnAddCable", "btnAddEquip", "btnAddMark", "btnSaveAll"];
   for (const id of editButtonIds) {
     const el = document.getElementById(id);
-    if (el) el.disabled = isViewer;
+    if (el) el.disabled = !canEdit;
   }
+
+  // Загрузка/удаление STR-модели и инструмент "Заплатки" — только admin,
+  // у остальных ролей эти элементы управления полностью скрыты.
+  const adminOnlyIds = ["dropzoneWrap", "clearAllRow", "tabBtnPatches"];
+  for (const id of adminOnlyIds) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isAdmin ? "" : "none";
+  }
+  const patchTab = document.getElementById("tab-patches");
+  if (patchTab) patchTab.style.display = isAdmin ? "" : "none";
+  if (!isAdmin && patchTab && patchTab.classList.contains("active")) {
+    // Если заплатки были активной вкладкой — переключаемся на "Шахта".
+    patchTab.classList.remove("active");
+    document.querySelector('.tab-btn[data-tab="patches"]').classList.remove("active");
+    document.getElementById("tab-shaft").classList.add("active");
+    document.querySelector('.tab-btn[data-tab="shaft"]').classList.add("active");
+  }
+
   const sessionProjectEl = document.getElementById("sessionProject");
   const sessionUserEl = document.getElementById("sessionUser");
   if (sessionProjectEl) sessionProjectEl.textContent = "Проект: " + CURRENT_PROJECT_ID;

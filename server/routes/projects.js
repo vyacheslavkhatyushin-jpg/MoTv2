@@ -88,6 +88,25 @@ router.put("/:id/state", requireRole("editor", "admin"), (req, res) => {
     });
   }
 
+  // Загрузка/удаление STR-модели ("layers"/"layersDTM") и заплатки
+  // ("patches") — только для admin. editor может редактировать
+  // кабели/оборудование/метки/настройки, но не эти поля: если запрос
+  // пришёл не от admin, эти части снапшота берём из текущей сохранённой
+  // версии, а не из тела запроса, чтобы UI-ограничение нельзя было обойти
+  // прямым вызовом API.
+  if (req.user.role !== "admin") {
+    const existing = current
+      ? JSON.parse(
+          db
+            .prepare("SELECT snapshot_json FROM project_state WHERE project_id = ?")
+            .get(req.params.id).snapshot_json
+        )
+      : null;
+    snapshot.layers = existing ? existing.layers : [];
+    snapshot.layersDTM = existing ? existing.layersDTM : [];
+    snapshot.patches = existing ? existing.patches : [];
+  }
+
   const nextVersion = currentVersion + 1;
   const snapshotJson = JSON.stringify(snapshot);
   db.prepare(
