@@ -509,6 +509,11 @@
       <button id="btnExportInventory" title="Выгрузить кабели/оборудование/метки в CSV" style="flex:1;">⬇ Инвентарь CSV</button>
       <button id="btnExportSTR" title="Выгрузить всю модель (выработки, кабели, оборудование, метки) в один .str файл" style="flex:1;">⬇ Экспорт STR</button>
     </div>
+    <div id="objectsIoRow" style="display:flex; gap:6px; margin:0 12px 6px;">
+      <button id="btnExportObjects" title="Выгрузить только кабели/оборудование/метки/заплатки (без модели шахты) в .str со всеми атрибутами — для последующей загрузки обратно в этот инструмент" style="flex:1;">⬇ Объекты .str</button>
+      <button id="btnImportObjects" title="Загрузить .str, ранее выгруженный кнопкой «Объекты .str» — восстановит кабели/оборудование/метки/заплатки как есть, сгруппированными по типу" style="flex:1;">⬆ Импорт объектов</button>
+      <input type="file" id="objectsFileInput" accept=".str" style="display:none;">
+    </div>
     <div id="clearAllRow" style="display:flex; gap:6px; margin:0 12px 8px;">
       <button id="btnClearAll" title="Убрать все загруженные файлы из модели" style="flex:1;">Очистить всё</button>
     </div>
@@ -1523,6 +1528,9 @@ const dom = {
   saveStatus: document.getElementById("saveStatus"),
   btnExportInventory: document.getElementById("btnExportInventory"),
   btnExportSTR: document.getElementById("btnExportSTR"),
+  btnExportObjects: document.getElementById("btnExportObjects"),
+  btnImportObjects: document.getElementById("btnImportObjects"),
+  objectsFileInput: document.getElementById("objectsFileInput"),
   chkGrayscale: document.getElementById("chkGrayscale"),
   // кабели
   btnAddCable: document.getElementById("btnAddCable"),
@@ -4065,6 +4073,15 @@ function sceneToReal(v) {
     z: v.y + modelOffset[2],
   };
 }
+// Обратное преобразование к sceneToReal — нужно для импорта объектов из
+// реальных координат .str обратно в координаты сцены.
+function realToScene(r) {
+  return new THREE.Vector3(
+    r[0] - modelOffset[0],
+    r[2] - modelOffset[2],
+    modelOffset[1] - r[1],
+  );
+}
 function csvEscape(val) {
   const s = String(val ?? "");
   if (/[",;\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
@@ -4263,6 +4280,174 @@ function exportAllToSTR() {
   URL.revokeObjectURL(url);
 }
 dom.btnExportSTR.addEventListener("click", exportAllToSTR);
+/* ============================================================
+   Экспорт/импорт ТОЛЬКО пользовательских объектов (без модели шахты) —
+   в отличие от exportAllToSTR() (всё вместе, лофтинг при повторной
+   загрузке всё равно превратит кабели/оборудование в кривые "тоннели"),
+   этот формат распознаётся нашим же импортом по маркеру в заголовке и
+   служебному первому атрибуту "MOTV2OBJ" у каждой записи — при обратной
+   загрузке кабели/оборудование/метки/заплатки восстанавливаются как
+   настоящие объекты со своими типом/цветом/толщиной, а не лофтятся.
+   Труба-связка (заплатка method:"link") не переносится — она пересчитывается
+   из геометрии самого тоннеля (ringA/ringB), а не хранит независимую форму.
+============================================================ */
+const MOTV2_OBJECTS_MARKER = "motv2_objects_export";
+function numOrUndefined(v) {
+  return Number.isFinite(v) ? v : undefined;
+}
+function parseColorAttr(s, fallback) {
+  const v = parseInt(String(s ?? "").replace("#", ""), 16);
+  return Number.isFinite(v) ? v : fallback;
+}
+function unsanitizeAttr(s) {
+  return s === "-" ? "" : s;
+}
+function exportObjectsToSTR() {
+  if (isBusy) {
+    dom.fileMeta.textContent = "Подождите, идёт загрузка/перестроение модели — попробуйте ещё раз через секунду.";
+    dom.fileMeta.className = "err";
+    return;
+  }
+  if (!cables.size && !equipment.size && !marks.size && !patches.size) {
+    dom.fileMeta.textContent = "Нечего выгружать — нет ни одного кабеля, объекта, метки или заплатки.";
+    dom.fileMeta.className = "err";
+    return;
+  }
+  const lines = [];
+  const now = new Date();
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const dateStr = `${String(now.getDate()).padStart(2,"0")}-${months[now.getMonth()]}-${String(now.getFullYear()).slice(2)}`;
+  lines.push(`${MOTV2_OBJECTS_MARKER},${dateStr},,Экспорт пользовательских объектов из MoTv2`);
+  lines.push(STR_SEPARATOR);
+  for (const c of cables.values()) {
+    const attrs = ["MOTV2OBJ", "cable", sanitizeAttr(c.label), c.cableType || "-", String(c.thickness),
+      "#" + c.color.toString(16).padStart(6, "0"), c.lineType || "-", sanitizeAttr(c.createdBy), sanitizeAttr(c.createdAt)];
+    for (const n of c.nodes) { const r = sceneToReal(n); lines.push(strPointLine(r.x, r.y, r.z, attrs)); }
+    lines.push(STR_SEPARATOR);
+  }
+  for (const eq of equipment.values()) {
+    const r = sceneToReal(eq.mesh.position);
+    const attrs = ["MOTV2OBJ", "equipment", sanitizeAttr(eq.label), eq.shape, String(eq.size),
+      "#" + eq.color.toString(16).padStart(6, "0"), sanitizeAttr(eq.location), sanitizeAttr(eq.ip),
+      sanitizeAttr(eq.idNumber), sanitizeAttr(eq.createdBy), sanitizeAttr(eq.createdAt)];
+    lines.push(strPointLine(r.x, r.y, r.z, attrs));
+    lines.push(strPointLine(r.x, r.y, r.z, attrs)); // повтор точки — полилиния из 1 точки не считается валидной
+    lines.push(STR_SEPARATOR);
+  }
+  for (const m of marks.values()) {
+    const r = sceneToReal(m.sprite.position);
+    const attrs = ["MOTV2OBJ", "mark", sanitizeAttr(m.label), m.markType,
+      "#" + m.color.toString(16).padStart(6, "0"), sanitizeAttr(m.createdBy), sanitizeAttr(m.createdAt)];
+    lines.push(strPointLine(r.x, r.y, r.z, attrs));
+    lines.push(strPointLine(r.x, r.y, r.z, attrs));
+    lines.push(STR_SEPARATOR);
+  }
+  let skippedLinks = 0;
+  for (const p of patches.values()) {
+    if (p.method === "link") { skippedLinks++; continue; }
+    const attrs = ["MOTV2OBJ", "patch", sanitizeAttr(p.label), "#" + p.color.toString(16).padStart(6, "0"),
+      String(p.opacity), sanitizeAttr(p.createdBy), sanitizeAttr(p.createdAt)];
+    for (const n of p.nodes) { const r = sceneToReal(n); lines.push(strPointLine(r.x, r.y, r.z, attrs)); }
+    lines.push(STR_SEPARATOR);
+  }
+  const content = lines.join("\r\n") + "\r\n";
+  const blob = new Blob([encodeWin1251(content)], { type: "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  a.download = `motv2_objects_${ts}.str`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  dom.fileMeta.textContent = `Выгружено: ${cables.size} кабелей, ${equipment.size} объектов оборудования, ${marks.size} меток, ${patches.size - skippedLinks} заплаток` +
+    (skippedLinks ? ` (трубы-связки — ${skippedLinks} шт. — не переносятся, они пересчитываются из геометрии тоннеля)` : "");
+  dom.fileMeta.className = "ok";
+}
+function importObjectsFromParsed(parsed) {
+  const role = (window.__auth && window.__auth.role) || "viewer";
+  if (role === "viewer") {
+    dom.fileMeta.textContent = "У вашей роли нет прав на добавление объектов.";
+    dom.fileMeta.className = "err";
+    return;
+  }
+  const counts = { cable: 0, equipment: 0, mark: 0, patch: 0 };
+  let skippedPatchesNoRights = 0;
+  for (const pl of parsed.polylines) {
+    const a = pl.attrs;
+    if (a[0] !== "MOTV2OBJ") continue;
+    const kind = a[1];
+    const label = unsanitizeAttr(a[2] || "");
+    if (kind === "cable") {
+      const nodes = pl.points.map((p) => realToScene(p));
+      if (nodes.length < 2) continue;
+      createCable(nodes, {
+        label, cableType: a[3] === "-" ? null : a[3], thickness: numOrUndefined(parseFloat(a[4])),
+        color: parseColorAttr(a[5], 0xffcc00), lineType: a[6] === "-" ? undefined : a[6],
+        createdBy: unsanitizeAttr(a[7]) || undefined, createdAt: unsanitizeAttr(a[8]) || undefined,
+      });
+      counts.cable++;
+    } else if (kind === "equipment") {
+      const pos = realToScene(pl.points[0]);
+      placeEquipment(pos, {
+        label, shape: a[3], size: numOrUndefined(parseFloat(a[4])), color: parseColorAttr(a[5], 0x4fd6e0),
+        location: unsanitizeAttr(a[6]), ip: unsanitizeAttr(a[7]), idNumber: unsanitizeAttr(a[8]),
+        createdBy: unsanitizeAttr(a[9]) || undefined, createdAt: unsanitizeAttr(a[10]) || undefined,
+      });
+      counts.equipment++;
+    } else if (kind === "mark") {
+      const pos = realToScene(pl.points[0]);
+      placeMark(pos, {
+        label, markType: a[3], color: parseColorAttr(a[4], 0xff5b7a),
+        createdBy: unsanitizeAttr(a[5]) || undefined, createdAt: unsanitizeAttr(a[6]) || undefined,
+      });
+      counts.mark++;
+    } else if (kind === "patch") {
+      if (role !== "admin") { skippedPatchesNoRights++; continue; }
+      const nodes = pl.points.map((p) => realToScene(p));
+      if (nodes.length < 3) continue;
+      createPatch(nodes, {
+        label, color: parseColorAttr(a[3], 0x9aa4ad), opacity: numOrUndefined(parseFloat(a[4])),
+        createdBy: unsanitizeAttr(a[5]) || undefined, createdAt: unsanitizeAttr(a[6]) || undefined,
+      });
+      counts.patch++;
+    }
+  }
+  dom.fileMeta.textContent = `Импортировано: ${counts.cable} кабелей, ${counts.equipment} объектов оборудования, ${counts.mark} меток, ${counts.patch} заплаток` +
+    (skippedPatchesNoRights ? ` (заплатки — ${skippedPatchesNoRights} шт. — пропущены, нужна роль admin)` : "");
+  dom.fileMeta.className = "ok";
+}
+dom.btnExportObjects.addEventListener("click", exportObjectsToSTR);
+dom.btnImportObjects.addEventListener("click", () => dom.objectsFileInput.click());
+dom.objectsFileInput.addEventListener("change", () => {
+  const file = dom.objectsFileInput.files && dom.objectsFileInput.files[0];
+  dom.objectsFileInput.value = "";
+  if (!file) return;
+  if (isBusy) {
+    dom.fileMeta.textContent = "Дождитесь завершения текущей загрузки, затем попробуйте снова.";
+    dom.fileMeta.className = "err";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    let text;
+    try { text = new TextDecoder("windows-1251").decode(reader.result); }
+    catch (e) { text = new TextDecoder("utf-8").decode(reader.result); }
+    const parsed = parseSTR(text);
+    if (!parsed.header.startsWith(MOTV2_OBJECTS_MARKER)) {
+      dom.fileMeta.textContent = "Это не файл объектов MoTv2 (выгруженный кнопкой «Объекты .str»). Обычную модель шахты загружайте через панель загрузки слева.";
+      dom.fileMeta.className = "err";
+      return;
+    }
+    importObjectsFromParsed(parsed);
+  };
+  reader.onerror = () => {
+    dom.fileMeta.textContent = "Ошибка чтения файла.";
+    dom.fileMeta.className = "err";
+  };
+  reader.readAsArrayBuffer(file);
+});
 /* ---- сохранение всей модели в новый standalone HTML ---- */
 function buildSnapshot() {
   const layersSnap = [];
@@ -4480,7 +4665,7 @@ function applyRoleToUI() {
   const canEdit = role === "editor" || role === "admin";
 
   // Кабели/оборудование/метки/сохранение — доступны editor и admin.
-  const editButtonIds = ["btnAddCable", "btnAddEquip", "btnAddMark", "btnSaveAll", "cableDExtend"];
+  const editButtonIds = ["btnAddCable", "btnAddEquip", "btnAddMark", "btnSaveAll", "cableDExtend", "btnImportObjects"];
   for (const id of editButtonIds) {
     const el = document.getElementById(id);
     if (el) el.disabled = !canEdit;
