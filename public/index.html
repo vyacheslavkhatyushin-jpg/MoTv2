@@ -2699,7 +2699,13 @@ function clearHighlight() {
 // obj — Mesh или Sprite самого объекта; scaleHint — характерный размер объекта
 // в реальных единицах (радиус трубы кабеля, размер оборудования и т.п.),
 // определяет, насколько широко расходится свечение.
-function startHighlight(key, obj, scaleHint) {
+// glowShape: "shell" (по умолчанию) — оболочка, повторяющая точную форму
+// объекта вдоль его поверхности (нужно для вытянутых/сложных форм вроде
+// кабеля или заплатки). "sphere" — простой сферический ореол вокруг центра
+// объекта: для оборудования с угловатой геометрией (кубы и т.п.) оболочка
+// повторяет рёбра и выглядит гранёной, а не свечением — сфера выглядит
+// одинаково аккуратно для любой формы объекта.
+function startHighlight(key, obj, scaleHint, glowShape) {
   const hint = Math.max(scaleHint || 0, GLOW_MIN_SCALE_HINT);
   const layers = [];
   if (obj.isSprite) {
@@ -2708,6 +2714,18 @@ function startHighlight(key, obj, scaleHint) {
         map: makeGlowSpriteTexture(), transparent: true, depthTest: true, blending: THREE.AdditiveBlending,
       }));
       glow.scale.copy(obj.scale).multiplyScalar(1 + offsetFactor * 1.6);
+      obj.add(glow);
+      layers.push({ mesh: glow, baseOpacity: opacityBase });
+    }
+  } else if (glowShape === "sphere") {
+    for (const { offsetFactor, opacityBase } of GLOW_SHELL_LAYERS) {
+      const glow = new THREE.Mesh(
+        new THREE.SphereGeometry(hint * (0.6 + offsetFactor), 20, 14),
+        new THREE.MeshBasicMaterial({
+          color: GLOW_COLOR, transparent: true, opacity: opacityBase,
+          side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
+        })
+      );
       obj.add(glow);
       layers.push({ mesh: glow, baseOpacity: opacityBase });
     }
@@ -2725,25 +2743,25 @@ function startHighlight(key, obj, scaleHint) {
   }
   if (!layers.length) return;
   const timeoutId = setTimeout(clearHighlight, GLOW_DURATION_MS);
-  highlightState = { key, obj, scaleHint, layers, t0: performance.now(), timeoutId };
+  highlightState = { key, obj, scaleHint, glowShape, layers, t0: performance.now(), timeoutId };
 }
 // toggleKey уникален для объекта — повторный клик по уже подсвеченному снимает подсветку раньше времени.
-function toggleHighlight(toggleKey, obj, scaleHint) {
+function toggleHighlight(toggleKey, obj, scaleHint, glowShape) {
   if (highlightState && highlightState.key === toggleKey) {
     clearHighlight();
     return;
   }
   clearHighlight();
-  startHighlight(toggleKey, obj, scaleHint);
+  startHighlight(toggleKey, obj, scaleHint, glowShape);
 }
-// Оболочки — самостоятельные клоны геометрии; если базовую геометрию объекта
+// Оболочки/сферы — самостоятельные объекты; если базовую геометрию объекта
 // пересобрали (смена толщины/правка узлов/размера), их нужно пересчитать
 // заново, а не просто переставить ссылку.
 function syncHighlightGeometry(mesh) {
   if (!highlightState || highlightState.obj !== mesh) return;
-  const { key, scaleHint } = highlightState;
+  const { key, scaleHint, glowShape } = highlightState;
   clearHighlight();
-  startHighlight(key, mesh, scaleHint);
+  startHighlight(key, mesh, scaleHint, glowShape);
 }
 function updateHighlightPulse() {
   if (!highlightState) return;
@@ -3561,7 +3579,7 @@ dom.equipDFocus.addEventListener("click", () => {
 });
 dom.equipDHighlight.addEventListener("click", () => {
   if (!selectedEquip) return;
-  toggleHighlight("equipment:" + selectedEquip.id, selectedEquip.mesh, selectedEquip.size);
+  toggleHighlight("equipment:" + selectedEquip.id, selectedEquip.mesh, selectedEquip.size, "sphere");
 });
 dom.equipDDelete.addEventListener("click", () => {
   if (!selectedEquip) return;
