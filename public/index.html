@@ -179,6 +179,11 @@
     display:flex; align-items:center; gap:7px; padding:6px 10px; cursor:pointer; color:var(--text-dim); font-size:12px;
     border-bottom:1px solid var(--border-soft);
   }
+  .uo-group-header{
+    display:flex; align-items:center; gap:7px; padding:8px 10px 4px;
+    font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.4px;
+  }
+  .uo-group-header-label{ flex:1; }
   .uo-row:hover{ background:var(--panel-alt); color:var(--text); }
   .uo-row.selected{ background:rgba(255,159,28,.12); color:var(--text); }
   .uo-row .swatch{ width:9px; height:9px; border-radius:2px; flex-shrink:0; border:1px solid rgba(255,255,255,.15); }
@@ -2761,6 +2766,11 @@ const CABLE_TYPES = {
   ftp:   { label: "FTP",      color: 0x9b59b6, thickness: 3,  lineType: "dotted" },
 };
 const CABLE_TYPE_ORDER = ["vols", "lfc", "kao", "power", "ftp"];
+function setCableVisible(c, visible) {
+  c.visible = visible;
+  c.mesh.visible = visible;
+  c.nodeGroup.visible = visible;
+}
 function cablePathLength(nodes) {
   let len = 0;
   for (let i = 1; i < nodes.length; i++) len += nodes[i - 1].distanceTo(nodes[i]);
@@ -2956,15 +2966,41 @@ function buildCableList() {
   }
   const orderedKeys = [...CABLE_TYPE_ORDER, "custom"].filter((k) => groups.has(k));
   for (const key of orderedKeys) {
+    const groupItems = groups.get(key);
     const groupLabel = CABLE_TYPES[key] ? CABLE_TYPES[key].label : "Другое";
     const header = document.createElement("div");
     header.className = "uo-group-header";
-    header.style.cssText = "font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.4px; padding:8px 4px 4px;";
-    header.textContent = `${groupLabel} (${groups.get(key).length})`;
+    const groupChk = document.createElement("input");
+    groupChk.type = "checkbox";
+    const allVisible = groupItems.every((c) => c.visible);
+    const noneVisible = groupItems.every((c) => !c.visible);
+    groupChk.checked = allVisible;
+    groupChk.indeterminate = !allVisible && !noneVisible;
+    groupChk.title = "Показать/скрыть всю группу";
+    groupChk.addEventListener("click", (e) => e.stopPropagation());
+    groupChk.addEventListener("change", () => {
+      groupItems.forEach((c) => setCableVisible(c, groupChk.checked));
+      buildCableList();
+      if (selectedCable && groupItems.includes(selectedCable)) dom.cableDVisible.checked = selectedCable.visible;
+    });
+    const headerLabel = document.createElement("span");
+    headerLabel.className = "uo-group-header-label";
+    headerLabel.textContent = `${groupLabel} (${groupItems.length})`;
+    header.appendChild(groupChk);
+    header.appendChild(headerLabel);
     dom.cableList.appendChild(header);
-    for (const c of groups.get(key)) {
+    for (const c of groupItems) {
       const row = document.createElement("div");
       row.className = "uo-row" + (selectedCable === c ? " selected" : "");
+      const rowChk = document.createElement("input");
+      rowChk.type = "checkbox";
+      rowChk.checked = c.visible;
+      rowChk.addEventListener("click", (e) => e.stopPropagation());
+      rowChk.addEventListener("change", () => {
+        setCableVisible(c, rowChk.checked);
+        buildCableList();
+        if (selectedCable === c) dom.cableDVisible.checked = c.visible;
+      });
       const swatch = document.createElement("span");
       swatch.className = "swatch";
       swatch.style.background = "#" + c.color.toString(16).padStart(6, "0");
@@ -2972,7 +3008,7 @@ function buildCableList() {
       lname.className = "lname"; lname.textContent = c.label;
       const llen = document.createElement("span");
       llen.className = "llen"; llen.textContent = Math.round(c.length) + " м";
-      row.appendChild(swatch); row.appendChild(lname); row.appendChild(llen);
+      row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname); row.appendChild(llen);
       row.addEventListener("click", () => selectCable(c));
       dom.cableList.appendChild(row);
     }
@@ -3056,9 +3092,8 @@ dom.cableDExtend.addEventListener("click", () => {
 });
 dom.cableDVisible.addEventListener("change", () => {
   if (!selectedCable) return;
-  selectedCable.visible = dom.cableDVisible.checked;
-  selectedCable.mesh.visible = selectedCable.visible;
-  selectedCable.nodeGroup.visible = selectedCable.visible;
+  setCableVisible(selectedCable, dom.cableDVisible.checked);
+  buildCableList();
 });
 dom.cableDColor.addEventListener("input", () => {
   if (!selectedCable) return;
@@ -3215,6 +3250,11 @@ const EQUIP_SHAPE_LABELS = {
   mla: "MLA", map: "MAP", iilb: "IILB", isib: "ISIB", cam: "CAM",
   mps: "MPS", mpc: "MPC", mtu: "MTU", mvsa: "MVSA", wifi: "WiFi", mbu: "MBU",
 };
+const EQUIP_SHAPE_ORDER = ["mla", "map", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu"];
+function setEquipVisible(eq, visible) {
+  eq.visible = visible;
+  eq.mesh.visible = visible;
+}
 function equipLabelOffset(eq) {
   return new THREE.Vector3(eq.mesh.position.x, eq.mesh.position.y + eq.size * 0.6 + 2, eq.mesh.position.z);
 }
@@ -3251,16 +3291,59 @@ function placeEquipment(point, overrides) {
 function buildEquipList() {
   dom.equipList.innerHTML = "";
   dom.equipPlaceholder.style.display = equipment.size ? "none" : "block";
+  // Группируем по типу оборудования (слой на тип), в порядке из выпадающего
+  // списка; нераспознанные/старые типы — отдельной группой в конце.
+  const groups = new Map(); // shapeKey -> equipment[]
   for (const eq of equipment.values()) {
-    const row = document.createElement("div");
-    row.className = "uo-row" + (selectedEquip === eq ? " selected" : "");
-    const swatch = document.createElement("span");
-    swatch.className = "swatch"; swatch.style.background = "#" + eq.color.toString(16).padStart(6, "0");
-    const lname = document.createElement("span");
-    lname.className = "lname"; lname.textContent = eq.label;
-    row.appendChild(swatch); row.appendChild(lname);
-    row.addEventListener("click", () => selectEquip(eq));
-    dom.equipList.appendChild(row);
+    const key = EQUIP_SHAPE_LABELS[eq.shape] ? eq.shape : "custom";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(eq);
+  }
+  const orderedKeys = [...EQUIP_SHAPE_ORDER, "custom"].filter((k) => groups.has(k));
+  for (const key of orderedKeys) {
+    const groupItems = groups.get(key);
+    const groupLabel = EQUIP_SHAPE_LABELS[key] || "Другое";
+    const header = document.createElement("div");
+    header.className = "uo-group-header";
+    const groupChk = document.createElement("input");
+    groupChk.type = "checkbox";
+    const allVisible = groupItems.every((eq) => eq.visible);
+    const noneVisible = groupItems.every((eq) => !eq.visible);
+    groupChk.checked = allVisible;
+    groupChk.indeterminate = !allVisible && !noneVisible;
+    groupChk.title = "Показать/скрыть всю группу";
+    groupChk.addEventListener("click", (e) => e.stopPropagation());
+    groupChk.addEventListener("change", () => {
+      groupItems.forEach((eq) => setEquipVisible(eq, groupChk.checked));
+      buildEquipList();
+      if (selectedEquip && groupItems.includes(selectedEquip)) dom.equipDVisible.checked = selectedEquip.visible;
+    });
+    const headerLabel = document.createElement("span");
+    headerLabel.className = "uo-group-header-label";
+    headerLabel.textContent = `${groupLabel} (${groupItems.length})`;
+    header.appendChild(groupChk);
+    header.appendChild(headerLabel);
+    dom.equipList.appendChild(header);
+    for (const eq of groupItems) {
+      const row = document.createElement("div");
+      row.className = "uo-row" + (selectedEquip === eq ? " selected" : "");
+      const rowChk = document.createElement("input");
+      rowChk.type = "checkbox";
+      rowChk.checked = eq.visible;
+      rowChk.addEventListener("click", (e) => e.stopPropagation());
+      rowChk.addEventListener("change", () => {
+        setEquipVisible(eq, rowChk.checked);
+        buildEquipList();
+        if (selectedEquip === eq) dom.equipDVisible.checked = eq.visible;
+      });
+      const swatch = document.createElement("span");
+      swatch.className = "swatch"; swatch.style.background = "#" + eq.color.toString(16).padStart(6, "0");
+      const lname = document.createElement("span");
+      lname.className = "lname"; lname.textContent = eq.label;
+      row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname);
+      row.addEventListener("click", () => selectEquip(eq));
+      dom.equipList.appendChild(row);
+    }
   }
 }
 function selectEquip(eq) {
@@ -3291,8 +3374,8 @@ dom.btnAddEquip.addEventListener("click", () => {
 dom.btnCancelEquip.addEventListener("click", exitDrawMode);
 dom.equipDVisible.addEventListener("change", () => {
   if (!selectedEquip) return;
-  selectedEquip.visible = dom.equipDVisible.checked;
-  selectedEquip.mesh.visible = selectedEquip.visible;
+  setEquipVisible(selectedEquip, dom.equipDVisible.checked);
+  buildEquipList();
 });
 dom.equipDColor.addEventListener("input", () => {
   if (!selectedEquip) return;
