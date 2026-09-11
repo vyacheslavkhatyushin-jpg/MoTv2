@@ -597,6 +597,7 @@
           </div>
           <div class="stats" id="cableDStats"></div>
           <div class="node-list" id="cableNodeList"></div>
+          <button id="cableDExtend">+ Продолжить трассу от последнего узла</button>
           <button id="cableDFocus">Перейти к объекту</button>
           <button id="cableDDelete" class="danger-btn">Удалить трассу</button>
         </div>
@@ -642,6 +643,9 @@
             <span>Размер</span>
             <input type="range" id="equipDSize" min="1" max="50" value="10" style="flex:1;margin-left:8px;accent-color:var(--accent);">
           </div>
+          <div class="drow"><span>Расположение</span><input type="text" id="equipDLocation" placeholder="Например: гор. 340, ПК 12"></div>
+          <div class="drow"><span>IP-адрес</span><input type="text" id="equipDIp" placeholder="192.168.0.1"></div>
+          <div class="drow"><span>ID номер</span><input type="text" id="equipDIdNumber" placeholder="Инвентарный/серийный номер"></div>
           <button id="equipDFocus">Перейти к объекту</button>
           <button id="equipDDelete" class="danger-btn">Удалить объект</button>
         </div>
@@ -1258,6 +1262,7 @@ const dom = {
   cableDThickness: document.getElementById("cableDThickness"),
   cableDStats: document.getElementById("cableDStats"),
   cableNodeList: document.getElementById("cableNodeList"),
+  cableDExtend: document.getElementById("cableDExtend"),
   cableDFocus: document.getElementById("cableDFocus"),
   cableDDelete: document.getElementById("cableDDelete"),
   cableLabelToggle: document.getElementById("cableLabelToggle"),
@@ -1275,6 +1280,9 @@ const dom = {
   equipDColor: document.getElementById("equipDColor"),
   equipDLabel: document.getElementById("equipDLabel"),
   equipDSize: document.getElementById("equipDSize"),
+  equipDLocation: document.getElementById("equipDLocation"),
+  equipDIp: document.getElementById("equipDIp"),
+  equipDIdNumber: document.getElementById("equipDIdNumber"),
   equipDFocus: document.getElementById("equipDFocus"),
   equipDDelete: document.getElementById("equipDDelete"),
   equipLabelToggle: document.getElementById("equipLabelToggle"),
@@ -1403,6 +1411,7 @@ let drawMode = null; // null | "cable" | "equip" | "mark" | "patch" | "link"
 let cableInProgress = null;
 let patchInProgress = null;
 let cableLengthLabel = null;
+let cableExtendTarget = null;
 let selectedPatch = null;
 let linkFirstPick = null; // { ring, highlightObj } — первая выбранная грань в режиме "Соединить два среза"
 let equipShape = "map";
@@ -2409,6 +2418,7 @@ function exitDrawMode() {
     }
     cableInProgress = null;
     clearCableLiveLength();
+    cableExtendTarget = null;
   }
   if (drawMode === "patch" && patchInProgress) {
     if (patchInProgress.previewObj) {
@@ -2502,6 +2512,9 @@ function cableMidpoint(nodes) {
   v.multiplyScalar(1 / nodes.length);
   return v;
 }
+function currentUsername() {
+  return (window.__auth && window.__auth.username) || "неизвестно";
+}
 function createCable(nodes, overrides) {
   const id = "cable" + (++objSeq);
   const color = overrides?.color ?? 0xffcc00;
@@ -2524,6 +2537,8 @@ function createCable(nodes, overrides) {
     id, type: "cable", nodes: nodes.map((p) => p.clone()), color, thickness, radius,
     label, visible: mesh.visible, mesh, nodeGroup, nodeMarkers, labelObj,
     length: cablePathLength(nodes),
+    createdBy: overrides?.createdBy ?? currentUsername(),
+    createdAt: overrides?.createdAt ?? new Date().toISOString(),
   };
   cables.set(id, cableData);
   buildCableList();
@@ -2625,10 +2640,32 @@ dom.btnFinishCable.addEventListener("click", () => {
   }
   cableInProgress = null;
   clearCableLiveLength();
-  createCable(nodes);
+  const extendTarget = cableExtendTarget;
+  cableExtendTarget = null;
+  if (extendTarget) {
+    extendTarget.nodes = nodes.map((p) => p.clone());
+    rebuildCableMesh(extendTarget);
+    buildCableList();
+    selectCable(extendTarget);
+  } else {
+    createCable(nodes);
+  }
   exitDrawMode();
 });
 dom.btnCancelCable.addEventListener("click", exitDrawMode);
+dom.cableDExtend.addEventListener("click", () => {
+  if (!selectedCable) return;
+  const target = selectedCable;
+  exitDrawMode();
+  setPivotPickMode(false);
+  drawMode = "cable";
+  cableExtendTarget = target;
+  cableInProgress = { nodes: target.nodes.map((p) => p.clone()), previewObj: null };
+  dom.btnAddCable.classList.add("active");
+  dom.cableHint.style.display = "block";
+  renderer.domElement.style.cursor = "crosshair";
+  updateCableLiveLength();
+});
 dom.cableDVisible.addEventListener("change", () => {
   if (!selectedCable) return;
   selectedCable.visible = dom.cableDVisible.checked;
@@ -2792,6 +2829,11 @@ function placeEquipment(point, overrides) {
   const equipData = {
     id, type: "equipment", shape, size, color,
     label, visible: mesh.visible, mesh, labelObj,
+    location: overrides?.location ?? "",
+    ip: overrides?.ip ?? "",
+    idNumber: overrides?.idNumber ?? "",
+    createdBy: overrides?.createdBy ?? currentUsername(),
+    createdAt: overrides?.createdAt ?? new Date().toISOString(),
   };
   labelObj.position.copy(equipLabelOffset(equipData));
   equipment.set(id, equipData);
@@ -2823,6 +2865,9 @@ function selectEquip(eq) {
   dom.equipDColor.value = "#" + eq.color.toString(16).padStart(6, "0");
   dom.equipDLabel.value = eq.label;
   dom.equipDSize.value = eq.size;
+  dom.equipDLocation.value = eq.location || "";
+  dom.equipDIp.value = eq.ip || "";
+  dom.equipDIdNumber.value = eq.idNumber || "";
 }
 document.getElementById("equipShapeSelect").addEventListener("change", (e) => {
   equipShape = e.target.value;
@@ -2862,6 +2907,18 @@ dom.equipDSize.addEventListener("input", () => {
   selectedEquip.mesh.geometry.dispose();
   selectedEquip.mesh.geometry = buildEquipGeometry(selectedEquip.shape, selectedEquip.size);
   if (selectedEquip.labelObj) selectedEquip.labelObj.position.copy(equipLabelOffset(selectedEquip));
+});
+dom.equipDLocation.addEventListener("input", () => {
+  if (!selectedEquip) return;
+  selectedEquip.location = dom.equipDLocation.value;
+});
+dom.equipDIp.addEventListener("input", () => {
+  if (!selectedEquip) return;
+  selectedEquip.ip = dom.equipDIp.value;
+});
+dom.equipDIdNumber.addEventListener("input", () => {
+  if (!selectedEquip) return;
+  selectedEquip.idNumber = dom.equipDIdNumber.value;
 });
 dom.equipDFocus.addEventListener("click", () => {
   if (!selectedEquip) return;
@@ -2953,6 +3010,8 @@ function placeMark(point, overrides) {
   const markData = {
     id, type: "mark", markType: type, color,
     label, visible: sprite.visible, sprite, scale, labelObj,
+    createdBy: overrides?.createdBy ?? currentUsername(),
+    createdAt: overrides?.createdAt ?? new Date().toISOString(),
   };
   marks.set(id, markData);
   buildMarkList();
@@ -3107,6 +3166,8 @@ function createPatch(nodes, overrides) {
   const patchData = {
     id, type: "patch", nodes: nodes.map((p) => p.clone()), color, opacity,
     label, visible: mesh.visible, mesh,
+    createdBy: overrides?.createdBy ?? currentUsername(),
+    createdAt: overrides?.createdAt ?? new Date().toISOString(),
   };
   patches.set(id, patchData);
   buildPatchList();
@@ -3291,6 +3352,8 @@ function createLinkPatch(ringA, ringB, overrides) {
     id, type: "patch", method: "link",
     ringA: ringA.map((p) => p.slice()), ringB: ringB.map((p) => p.slice()),
     nodes: allNodes, color, opacity, label, visible: mesh.visible, mesh,
+    createdBy: overrides?.createdBy ?? currentUsername(),
+    createdAt: overrides?.createdAt ?? new Date().toISOString(),
   };
   patches.set(id, patchData);
   buildPatchList();
@@ -3339,28 +3402,40 @@ function exportInventoryCSV() {
     dom.fileMeta.className = "err";
     return;
   }
-  const rows = [["Тип", "Название", "Цвет", "Параметр", "Значение", "Длина_м", "X", "Y", "Z", "Узлы (X,Y,Z; …)"]];
+  const fmtDate = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return isNaN(d) ? "" : d.toLocaleString();
+  };
+  const rows = [[
+    "Тип", "Название", "Цвет", "Параметр", "Значение", "Длина_м", "X", "Y", "Z", "Узлы (X,Y,Z; …)",
+    "Расположение", "IP-адрес", "ID номер", "Создал", "Дата создания",
+  ]];
   for (const c of cables.values()) {
     const nodeCoords = c.nodes.map((n) => { const r = sceneToReal(n); return `${r.x.toFixed(2)},${r.y.toFixed(2)},${r.z.toFixed(2)}`; }).join("; ");
     const first = sceneToReal(c.nodes[0]);
     rows.push(["Кабель", c.label, "#" + c.color.toString(16).padStart(6, "0"), "Толщина", c.thickness,
-      c.length.toFixed(1), first.x.toFixed(2), first.y.toFixed(2), first.z.toFixed(2), nodeCoords]);
+      c.length.toFixed(1), first.x.toFixed(2), first.y.toFixed(2), first.z.toFixed(2), nodeCoords,
+      "", "", "", c.createdBy || "", fmtDate(c.createdAt)]);
   }
   for (const eq of equipment.values()) {
     const r = sceneToReal(eq.mesh.position);
     rows.push(["Оборудование", eq.label, "#" + eq.color.toString(16).padStart(6, "0"), "Форма / размер",
-      `${EQUIP_SHAPE_LABELS[eq.shape] || eq.shape} / ${eq.size}`, "", r.x.toFixed(2), r.y.toFixed(2), r.z.toFixed(2), ""]);
+      `${EQUIP_SHAPE_LABELS[eq.shape] || eq.shape} / ${eq.size}`, "", r.x.toFixed(2), r.y.toFixed(2), r.z.toFixed(2), "",
+      eq.location || "", eq.ip || "", eq.idNumber || "", eq.createdBy || "", fmtDate(eq.createdAt)]);
   }
   for (const m of marks.values()) {
     const r = sceneToReal(m.sprite.position);
     rows.push(["Метка", m.label, "#" + m.color.toString(16).padStart(6, "0"), "Тип метки",
-      MARK_TYPE_LABELS[m.markType] || m.markType, "", r.x.toFixed(2), r.y.toFixed(2), r.z.toFixed(2), ""]);
+      MARK_TYPE_LABELS[m.markType] || m.markType, "", r.x.toFixed(2), r.y.toFixed(2), r.z.toFixed(2), "",
+      "", "", "", m.createdBy || "", fmtDate(m.createdAt)]);
   }
   for (const p of patches.values()) {
     const nodeCoords = p.nodes.map((n) => { const r = sceneToReal(n); return `${r.x.toFixed(2)},${r.y.toFixed(2)},${r.z.toFixed(2)}`; }).join("; ");
     const first = sceneToReal(p.nodes[0]);
     rows.push(["Заплатка", p.label, "#" + p.color.toString(16).padStart(6, "0"), "Узлов контура",
-      p.nodes.length, "", first.x.toFixed(2), first.y.toFixed(2), first.z.toFixed(2), nodeCoords]);
+      p.nodes.length, "", first.x.toFixed(2), first.y.toFixed(2), first.z.toFixed(2), nodeCoords,
+      "", "", "", p.createdBy || "", fmtDate(p.createdAt)]);
   }
   if (rows.length === 1) {
     dom.fileMeta.textContent = "Нечего выгружать — не добавлено ни одного кабеля, объекта, метки или заплатки.";
@@ -3557,20 +3632,25 @@ function buildSnapshot() {
   const cablesSnap = [...cables.values()].map((c) => ({
     nodes: c.nodes.map((p) => [p.x, p.y, p.z]),
     color: c.color, thickness: c.thickness, label: c.label, visible: c.visible,
+    createdBy: c.createdBy, createdAt: c.createdAt,
   }));
   const equipSnap = [...equipment.values()].map((eq) => ({
     shape: eq.shape, size: eq.size, color: eq.color, label: eq.label, visible: eq.visible,
     position: [eq.mesh.position.x, eq.mesh.position.y, eq.mesh.position.z],
+    location: eq.location, ip: eq.ip, idNumber: eq.idNumber,
+    createdBy: eq.createdBy, createdAt: eq.createdAt,
   }));
   const marksSnap = [...marks.values()].map((m) => ({
     markType: m.markType, color: m.color, label: m.label, visible: m.visible,
     position: [m.sprite.position.x, m.sprite.position.y, m.sprite.position.z],
+    createdBy: m.createdBy, createdAt: m.createdAt,
   }));
   const patchesSnap = [...patches.values()].map((p) => ({
     method: p.method || "outline",
     nodes: p.nodes.map((n) => [n.x, n.y, n.z]),
     ringA: p.ringA, ringB: p.ringB,
     color: p.color, opacity: p.opacity, label: p.label, visible: p.visible,
+    createdBy: p.createdBy, createdAt: p.createdAt,
   }));
   return {
     version: 1,
@@ -3650,7 +3730,7 @@ function applyRoleToUI() {
   const canEdit = role === "editor" || role === "admin";
 
   // Кабели/оборудование/метки/сохранение — доступны editor и admin.
-  const editButtonIds = ["btnAddCable", "btnAddEquip", "btnAddMark", "btnSaveAll"];
+  const editButtonIds = ["btnAddCable", "btnAddEquip", "btnAddMark", "btnSaveAll", "cableDExtend"];
   for (const id of editButtonIds) {
     const el = document.getElementById(id);
     if (el) el.disabled = !canEdit;
