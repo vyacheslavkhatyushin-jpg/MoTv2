@@ -34,7 +34,55 @@
   редактирование), `admin` (плюс управление пользователями/проектами через
   `seed.js`).
 
-## Установка на сервер
+## Установка на сервер (Docker)
+
+В репозитории есть `server/Dockerfile` и `docker-compose.yml` в корне —
+рассчитаны на то, что на сервере уже есть Docker (типичный случай).
+
+```bash
+# в корне репозитория
+echo "JWT_SECRET=$(openssl rand -hex 32)" > .env
+docker compose up -d --build
+```
+
+Это поднимет контейнер `mine-ops-tool`, слушающий порт 80 хоста (проброшен
+на 3000 внутри контейнера), с данными в именованном Docker-томе
+`mine-ops-data` (переживает пересборку/перезапуск контейнера).
+
+### Первый запуск: создать пользователей и проект
+
+Выполняется внутри уже запущенного контейнера:
+
+```bash
+docker compose exec mine-ops-tool node seed.js user admin "ваш-надёжный-пароль" admin
+docker compose exec mine-ops-tool node seed.js user ivanov "пароль-иванова" editor
+docker compose exec mine-ops-tool node seed.js user smirnov "пароль-смирнова" viewer
+docker compose exec mine-ops-tool node seed.js project shaft-1 "Шахта №1"
+```
+
+`seed.js` можно запускать повторно — существующий пользователь/проект
+обновится (пароль/роль/название), а не задублируется.
+
+Проект будет доступен по адресу `http://<ip-сервера>/shaft-1`.
+
+### Обновление на новую версию кода
+
+```bash
+git pull origin main
+docker compose up -d --build
+```
+
+Пользователи/проекты/сохранённые данные не теряются — они лежат в
+Docker-томе `mine-ops-data`, а не в самом образе.
+
+### Логи / статус
+
+```bash
+docker compose logs -f mine-ops-tool
+docker compose ps
+```
+
+## Установка без Docker (Node.js напрямую)
 
 Требуется Node.js 18+.
 
@@ -62,9 +110,6 @@ node seed.js user smirnov "пароль-смирнова" viewer
 node seed.js project shaft-1 "Шахта №1"
 ```
 
-`seed.js` можно запускать повторно — существующий пользователь/проект
-обновится (пароль/роль/название), а не задублируется.
-
 ### Запуск
 
 ```bash
@@ -81,8 +126,9 @@ JWT_SECRET=... node server.js
 
 ### Добавление новых проектов/пользователей позже
 
-Через `seed.js` (см. выше) или через API (`POST /api/projects`,
-только для роли `admin`, токен из `/api/auth/login`).
+Через `seed.js` (см. выше, с `docker compose exec` при Docker-варианте)
+или через API (`POST /api/projects`, только для роли `admin`, токен из
+`/api/auth/login`).
 
 ## Известные ограничения текущей версии (MVP)
 
