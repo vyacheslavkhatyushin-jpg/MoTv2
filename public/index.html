@@ -513,6 +513,7 @@
       <button class="tab-btn" data-tab="equip">Оборудование</button>
       <button class="tab-btn" data-tab="marks">Метки</button>
       <button class="tab-btn" data-tab="patches" id="tabBtnPatches">Заплатки</button>
+      <button class="tab-btn" data-tab="deleted">Удалено</button>
     </div>
     <div id="tabpanels">
       <div class="tabpanel active" id="tab-shaft">
@@ -712,6 +713,10 @@
           <button id="patchDFocus">Перейти к объекту</button>
           <button id="patchDDelete" class="danger-btn">Удалить заплатку</button>
         </div>
+      </div>
+      <div class="tabpanel" id="tab-deleted">
+        <div class="uo-list" id="deletionLogList"></div>
+        <div class="placeholder" id="deletionLogPlaceholder">Удалённых объектов пока нет.</div>
       </div>
     </div>
   </div>
@@ -1556,6 +1561,8 @@ const dom = {
   patchNodeList: document.getElementById("patchNodeList"),
   patchDFocus: document.getElementById("patchDFocus"),
   patchDDelete: document.getElementById("patchDDelete"),
+  deletionLogList: document.getElementById("deletionLogList"),
+  deletionLogPlaceholder: document.getElementById("deletionLogPlaceholder"),
   btnAddLink: document.getElementById("btnAddLink"),
   linkHint: document.getElementById("linkHint"),
   btnCancelLink: document.getElementById("btnCancelLink"),
@@ -2449,6 +2456,7 @@ dom.tabs.forEach((btn) => {
     dom.tabpanels.forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    if (btn.dataset.tab === "deleted") loadDeletionLog();
   });
 });
 /* ---------- file loading ---------- */
@@ -2849,6 +2857,7 @@ function deleteCable(id) {
   c.nodeGroup.children.forEach((m) => { m.geometry.dispose(); m.material.dispose(); });
   if (c.labelObj) { scene.remove(c.labelObj); c.labelObj.element.remove(); }
   cables.delete(id);
+  recordDeletion("cable", c);
   if (selectedCable === c) { selectedCable = null; dom.cableDetails.classList.remove("open"); }
   buildCableList();
 }
@@ -3206,6 +3215,7 @@ dom.equipDDelete.addEventListener("click", () => {
   selectedEquip.mesh.geometry.dispose(); selectedEquip.mesh.material.dispose();
   if (selectedEquip.labelObj) { scene.remove(selectedEquip.labelObj); selectedEquip.labelObj.element.remove(); }
   equipment.delete(selectedEquip.id);
+  recordDeletion("equipment", selectedEquip);
   selectedEquip = null;
   dom.equipDetails.classList.remove("open");
   buildEquipList();
@@ -3371,6 +3381,7 @@ dom.markDDelete.addEventListener("click", () => {
   selectedMark.sprite.material.dispose();
   if (selectedMark.labelObj) { scene.remove(selectedMark.labelObj); selectedMark.labelObj.element.remove(); }
   marks.delete(selectedMark.id);
+  recordDeletion("mark", selectedMark);
   selectedMark = null;
   dom.markDetails.classList.remove("open");
   buildMarkList();
@@ -3466,6 +3477,7 @@ function deletePatch(id) {
   if (!p) return;
   scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose();
   patches.delete(id);
+  recordDeletion("patch", p);
   if (selectedPatch === p) { selectedPatch = null; dom.patchDetails.classList.remove("open"); }
   buildPatchList();
 }
@@ -4020,6 +4032,57 @@ async function apiFetch(url, options) {
     throw new Error("Сессия истекла, требуется повторный вход.");
   }
   return resp;
+}
+
+/* ---------- лог удалений: кто/когда удалил кабель/оборудование/метку/заплатку ----------
+   Пишется на сервер сразу в момент удаления (отдельная append-only таблица,
+   не часть снапшота) — не теряется, если не нажали "Сохранить в проект", и
+   не может быть случайно затёрт при перезаписи состояния. */
+const OBJECT_TYPE_LABELS = { cable: "Кабель", equipment: "Оборудование", mark: "Метка", patch: "Заплатка" };
+function recordDeletion(objectType, obj) {
+  apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/deletions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      objectType,
+      label: obj.label,
+      createdBy: obj.createdBy || null,
+      createdAt: obj.createdAt || null,
+    }),
+  }).catch((err) => console.error("Не удалось записать удаление в лог:", err));
+}
+async function loadDeletionLog() {
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/deletions`);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    renderDeletionLog(data.deletions || []);
+  } catch (err) {
+    console.error("Не удалось загрузить лог удалений:", err);
+  }
+}
+function renderDeletionLog(rows) {
+  dom.deletionLogList.innerHTML = "";
+  dom.deletionLogPlaceholder.style.display = rows.length ? "none" : "block";
+  for (const r of rows) {
+    const row = document.createElement("div");
+    row.className = "uo-row";
+    row.style.cssText = "flex-direction:column; align-items:flex-start; gap:2px; cursor:default;";
+    const title = document.createElement("div");
+    title.textContent = `${OBJECT_TYPE_LABELS[r.object_type] || r.object_type} — ${r.label || "(без названия)"}`;
+    title.style.fontWeight = "600";
+    const meta = document.createElement("div");
+    meta.style.cssText = "font-size:11px; color:var(--text-dim);";
+    let text = `Удалил: ${r.deleted_by}, ${new Date(r.deleted_at).toLocaleString()}`;
+    if (r.created_by) {
+      text += ` · Создал: ${r.created_by}`;
+      if (r.created_at) text += `, ${new Date(r.created_at).toLocaleString()}`;
+    }
+    meta.textContent = text;
+    row.appendChild(title);
+    row.appendChild(meta);
+    dom.deletionLogList.appendChild(row);
+  }
 }
 
 function applyRoleToUI() {

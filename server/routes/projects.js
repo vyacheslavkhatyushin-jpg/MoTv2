@@ -133,4 +133,39 @@ router.put("/:id/state", requireRole("editor", "admin"), (req, res) => {
   res.json({ version: nextVersion, updatedBy: req.user.username });
 });
 
+const OBJECT_TYPES = new Set(["cable", "equipment", "mark", "patch"]);
+
+router.post("/:id/deletions", requireRole("editor", "admin"), (req, res) => {
+  const project = db
+    .prepare("SELECT id FROM projects WHERE id = ?")
+    .get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const { objectType, label, createdBy, createdAt } = req.body || {};
+  if (!objectType || !OBJECT_TYPES.has(objectType)) {
+    return res.status(400).json({ error: "invalid_object_type" });
+  }
+  db.prepare(
+    `INSERT INTO deletion_log (project_id, object_type, label, created_by, created_at, deleted_by)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(req.params.id, objectType, label || "", createdBy || null, createdAt || null, req.user.username);
+
+  res.status(201).json({ ok: true });
+});
+
+router.get("/:id/deletions", (req, res) => {
+  const project = db
+    .prepare("SELECT id FROM projects WHERE id = ?")
+    .get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const rows = db
+    .prepare(
+      `SELECT object_type, label, created_by, created_at, deleted_by, deleted_at
+       FROM deletion_log WHERE project_id = ? ORDER BY deleted_at DESC, id DESC`
+    )
+    .all(req.params.id);
+  res.json({ deletions: rows });
+});
+
 module.exports = router;
