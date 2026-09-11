@@ -1759,6 +1759,7 @@ function applyLeafColor(leaf) {
   const displayColor = grayscaleMode ? GRAYSCALE_COLOR : leaf.color;
   if (leaf.solidMesh) leaf.solidMesh.material.color.setHex(displayColor);
   if (leaf.lineMesh) leaf.lineMesh.material.color.setHex(displayColor);
+  if (leaf.pointMesh) leaf.pointMesh.material.color.setHex(displayColor);
 }
 function applyGrayscaleToAll() {
   for (const layer of layers.values()) {
@@ -2009,6 +2010,8 @@ async function buildLayer(parsed, filename) {
     const baseColor = colorForIndex(hi);
     for (const [name, pls] of hdata.names) {
       const lineVerts = [];
+      const pointVerts = []; // "сечения" из одной точки (например, ошибочно распознанные границы объектов
+                              // в бинарном парсере) — рисуем точкой, чтобы они не пропадали молча
       const closedRingsScene = [];
       let leafLen = 0;
       let segCount = 0;
@@ -2020,15 +2023,20 @@ async function buildLayer(parsed, filename) {
         const closed = isClosedLoop(pl.points);
         const ring = ringOf(pl.points).map(toScene);
         const pts = closed ? ring.concat([ring[0]]) : ring;
+        if (pts.length === 1) {
+          pointVerts.push(pts[0][0], pts[0][1], pts[0][2]);
+          bbox.expandByPoint(new THREE.Vector3(pts[0][0], pts[0][1], pts[0][2]));
+        }
         for (let i = 0; i < pts.length - 1; i++) {
           const a = pts[i], b = pts[i + 1];
           lineVerts.push(a[0], a[1], a[2], b[0], b[1], b[2]);
           bbox.expandByPoint(new THREE.Vector3(a[0], a[1], a[2]));
+          bbox.expandByPoint(new THREE.Vector3(b[0], b[1], b[2]));
         }
         if (closed && ring.length >= 3) closedRingsScene.push(ring);
       }
       const solidVerts = closedRingsScene.length ? buildSolidGeometry(closedRingsScene) : [];
-      if (!lineVerts.length && !solidVerts.length) continue;
+      if (!lineVerts.length && !solidVerts.length && !pointVerts.length) continue;
       const leafGroup = new THREE.Group();
       leafGroup.name = "leaf:" + layerId + "||" + hkey + "||" + name;
       let solidMesh = null;
@@ -2052,6 +2060,14 @@ async function buildLayer(parsed, filename) {
         lineMesh = new THREE.LineSegments(lgeo, lmat);
         leafGroup.add(lineMesh);
       }
+      let pointMesh = null;
+      if (pointVerts.length) {
+        const pgeo = new THREE.BufferGeometry();
+        pgeo.setAttribute("position", new THREE.Float32BufferAttribute(pointVerts, 3));
+        const pmat = new THREE.PointsMaterial({ color: baseColor, size: 6, sizeAttenuation: false });
+        pointMesh = new THREE.Points(pgeo, pmat);
+        leafGroup.add(pointMesh);
+      }
       horizonGroup.add(leafGroup);
       const center = bbox.isEmpty() ? new THREE.Vector3() : bbox.getCenter(new THREE.Vector3());
       const labelDiv = document.createElement("div");
@@ -2064,7 +2080,7 @@ async function buildLayer(parsed, filename) {
       const leafData = {
         key: layerId + "||" + hkey + "||" + name,
         name, horizonLabel: hdata.label, layerName,
-        group: leafGroup, solidMesh, lineMesh, labelObj,
+        group: leafGroup, solidMesh, lineMesh, pointMesh, labelObj,
         color: baseColor, opacity: 0.5, visible: true,
         length: leafLen, segCount, bbox: bbox.isEmpty() ? null : bbox.clone(),
         rings: closedRingsScene,
@@ -2096,8 +2112,19 @@ async function buildLayer(parsed, filename) {
   frameAll();
   recomputeAndShowStats();
   setLoading(false);
-  dom.fileMeta.textContent = `${filename} — добавлено: ${totalSegments.toLocaleString("ru-RU")} сечений, ${layerHorizons.size} горизонтов`;
-  dom.fileMeta.className = "ok";
+  // Если в среднем на "сечение" приходится меньше 2 точек — почти наверняка
+  // парсер (в первую очередь бинарный, там границы объектов определяются
+  // эвристически по длине паддинга) неверно расставил границы между
+  // объектами и разрубил реальные многоточечные сечения на кучу
+  // одноточечных огрызков. Геометрия при этом всё равно строится (см.
+  // pointVerts выше) и модель не пропадает молча, но это сильно непохоже на
+  // настоящие сечения выработок — стоит явно предупредить.
+  const avgPointsPerSection = totalSegments ? totalPoints / totalSegments : 0;
+  const parseWarning = avgPointsPerSection > 0 && avgPointsPerSection < 2
+    ? ` ⚠ Подозрительно мало точек на сечение (в среднем ${avgPointsPerSection.toFixed(2)}) — похоже, парсер неверно определил границы объектов; отображаются точки вместо тоннелей.`
+    : "";
+  dom.fileMeta.textContent = `${filename} — добавлено: ${totalSegments.toLocaleString("ru-RU")} сечений, ${layerHorizons.size} горизонтов${parseWarning}`;
+  dom.fileMeta.className = parseWarning ? "err" : "ok";
   return layerId;
 }
 /* Аналог buildLayer, но геометрия берётся напрямую из готовой
