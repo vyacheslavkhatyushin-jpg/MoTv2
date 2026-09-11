@@ -490,9 +490,9 @@
     <div id="dropzoneWrap">
       <div id="dropzone">
         <div class="title">Загрузить модель шахты</div>
-        <div class="hint">.str файл Datamine (текстовый или бинарный) — перетащите сюда или нажмите для выбора. Можно загрузить несколько файлов подряд — они добавятся друг к другу отдельными слоями. Если для выработки есть готовая триангуляция — выделите .str и парный .dtm вместе (координаты берутся из STR, треугольники — из DTM), геометрия строится сразу без лофтинга и получается точнее.</div>
+        <div class="hint">.str файл Datamine (текстовый или бинарный) — перетащите сюда или нажмите для выбора. Можно загрузить несколько файлов подряд — они добавятся друг к другу отдельными слоями. Если для выработки есть готовая триангуляция — выделите .str и парный .dtm вместе (координаты берутся из STR, треугольники — из DTM), геометрия строится сразу без лофтинга и получается точнее. Также можно загрузить готовый .obj (например, из конвертера str+dtm→3D) — если в нём есть строка-легенда с именами выработок, они подхватятся; если нет — именем станет название группы (g) внутри файла.</div>
       </div>
-      <input type="file" id="fileInput" accept=".str,.txt,.bin,.dtm" multiple>
+      <input type="file" id="fileInput" accept=".str,.txt,.bin,.dtm,.obj" multiple>
     </div>
     <div id="fileMeta"></div>
     <button id="btnSaveAll" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере" style="margin:0 12px 8px;">☁ Сохранить в проект</button>
@@ -1209,6 +1209,242 @@ function horizonForSolid(solid, linePoints) {
   return best;
 }
 /* ============================================================
+   OBJ import (готовая триангуляция, например из str+dtm→3D конвертера)
+============================================================ */
+/* Конвертер str+dtm→3D пишет вершины OBJ как (mine.X, mine.Z, mine.Y) —
+   свап осей Y/Z под трёхмерный "up=Y" (см. чат/документацию конвертера).
+   Разворачиваем обратно в mine-пространство (X,Y,Z как в исходном .str),
+   чтобы прогнать через тот же toScene(), что и все остальные слои —
+   иначе OBJ-слой окажется повёрнут/отражён относительно STR/DTM-слоёв
+   в той же сцене. */
+function mineFromObjVertex(x, y, z) {
+  return [x, z, y];
+}
+/* Первый индекс в "a/b/c" (или "a//c", "a/b", просто "a") — вершина;
+   uv/normal нам не нужны. Отрицательные (relative) индексы — на случай
+   OBJ не из нашего конвертера, а экспортированного другим инструментом. */
+function objFaceIndex(token, vertexCount) {
+  const vIdx = parseInt(token.split("/")[0], 10);
+  if (!Number.isFinite(vIdx)) return null;
+  return vIdx > 0 ? vIdx : vertexCount + vIdx + 1; // отрицательный — с конца списка вершин
+}
+function parseOBJForImport(text) {
+  const lines = text.split(/\r\n|\n/);
+  const vertices = []; // mine-space [x,y,z], индекс 0 = первая вершина (OBJ 1-based)
+  const groups = new Map(); // token -> { faces: [[a,b,c],...] }
+  let legend = null; // token -> { name, horizon }
+  let currentToken = "__default__";
+  const ensureGroup = (token) => {
+    if (!groups.has(token)) groups.set(token, { faces: [] });
+    return groups.get(token);
+  };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.charCodeAt(0) === 35 /* '#' */) {
+      if (line.startsWith("# LEGEND ")) {
+        try { legend = JSON.parse(line.slice("# LEGEND ".length)); }
+        catch (e) { console.warn("Не удалось разобрать легенду OBJ:", e); }
+      }
+      continue;
+    }
+    if (line.charCodeAt(0) === 118 /* 'v' */ && (line[1] === " " || line[1] === "\t")) {
+      const parts = line.split(/\s+/);
+      const x = parseFloat(parts[1]), y = parseFloat(parts[2]), z = parseFloat(parts[3]);
+      vertices.push(mineFromObjVertex(
+        Number.isFinite(x) ? x : 0, Number.isFinite(y) ? y : 0, Number.isFinite(z) ? z : 0,
+      ));
+      continue;
+    }
+    if (line[0] === "g" && (line[1] === " " || line[1] === "\t")) {
+      // OBJ допускает несколько токенов группы через пробел — нам достаточно первого,
+      // это ровно то, что пишет наш конвертер (один токен на группу).
+      currentToken = line.slice(1).trim().split(/\s+/)[0] || "__default__";
+      continue;
+    }
+    if (line[0] === "f" && (line[1] === " " || line[1] === "\t")) {
+      const toks = line.slice(1).trim().split(/\s+/);
+      const idx = toks.map((t) => objFaceIndex(t, vertices.length)).filter((i) => i !== null);
+      if (idx.length < 3) continue;
+      const g = ensureGroup(currentToken);
+      // fan-триангуляция на случай n-угольной грани (наш конвертер всегда пишет
+      // треугольники, но чужой OBJ мог написать четырёхугольники и больше).
+      for (let i = 1; i < idx.length - 1; i++) g.faces.push([idx[0], idx[i], idx[i + 1]]);
+      continue;
+    }
+  }
+  return { vertices, groups, legend };
+}
+/* Аналог buildLayer/buildLayerFromDTM, но геометрия и группировка уже
+   полностью готовы в самом OBJ — ни лофтинга, ни DTM-триангуляции делать
+   не нужно, только разложить по (имя, горизонт) для дерева слоёв UI.
+   Если легенды в файле нет (обычный OBJ не из нашего конвертера) — именем
+   становится сам токен группы, горизонт — "не определён". */
+async function buildLayerFromOBJ(vertices, groups, legend, filename) {
+  setLoading(true, "Обработка OBJ…");
+  await nextFrame();
+  if (!vertices.length || !groups.size) {
+    setLoading(false);
+    dom.fileMeta.textContent = `В файле «${filename}» не нашлось вершин/граней — проверьте, тот ли это OBJ.`;
+    dom.fileMeta.className = "err";
+    return null;
+  }
+  if (!globalOffset) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const p of vertices) {
+      if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+      if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+      if (p[2] < minZ) minZ = p[2]; if (p[2] > maxZ) maxZ = p[2];
+    }
+    globalOffset = [(minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2];
+  }
+  modelOffset = globalOffset;
+  const [cx, cy, cz] = globalOffset;
+  const toSceneP = (p) => [p[0] - cx, p[2] - cz, -(p[1] - cy)];
+
+  setLoading(true, "Группировка по горизонтам и выработкам…");
+  await nextFrame();
+  // token -> {name, horizon} c fallback, если легенды нет вовсе
+  const infoForToken = (token) => {
+    const info = legend && legend[token];
+    if (info) return { name: info.name || token, horizon: info.horizon || null };
+    return { name: token, horizon: null };
+  };
+  const nameGroups = new Map(); // name -> [{token, faces}]
+  for (const [token, g] of groups) {
+    const { name } = infoForToken(token);
+    if (!nameGroups.has(name)) nameGroups.set(name, []);
+    nameGroups.get(name).push({ token, faces: g.faces });
+  }
+  const MULTI_HZ_KEY = "multi";
+  const grouped = new Map();
+  for (const [name, parts] of nameGroups) {
+    const hzSet = new Set(parts.map((p) => infoForToken(p.token).horizon));
+    const hkey = hzSet.size <= 1 ? ([...hzSet][0] ?? "none") : MULTI_HZ_KEY;
+    if (!grouped.has(hkey)) {
+      let label, sortKey;
+      if (hkey === MULTI_HZ_KEY) { label = "Стволы / сквозные выработки"; sortKey = -1; }
+      else if (hkey === "none") { label = "Без горизонта"; sortKey = 99999; }
+      else { label = `Горизонт ${hkey}`; sortKey = parseInt(hkey, 10); }
+      grouped.set(hkey, { label, sortKey, names: new Map() });
+    }
+    grouped.get(hkey).names.set(name, parts);
+  }
+
+  setLoading(true, "Построение геометрии из OBJ…");
+  await nextFrame();
+  const layerId = "layer" + (++layerSeq);
+  const layerGroup = new THREE.Group();
+  layerGroup.name = "layer:" + layerId;
+  modelGroup.add(layerGroup);
+  const layerName = filename;
+  const layerHorizons = new Map();
+  const horizonKeys = Array.from(grouped.keys()).sort((a, b) => grouped.get(a).sortKey - grouped.get(b).sortKey);
+  let totalPoints = 0, totalSegments = 0;
+  for (let hi = 0; hi < horizonKeys.length; hi++) {
+    const hkey = horizonKeys[hi];
+    const hdata = grouped.get(hkey);
+    const horizonGroup = new THREE.Group();
+    horizonGroup.name = "horizon:" + layerId + "||" + hkey;
+    layerGroup.add(horizonGroup);
+    const leaves = new Map();
+    const baseColor = colorForIndex(hi);
+    for (const [name, parts] of hdata.names) {
+      const solidVerts = [];
+      const bbox = new THREE.Box3();
+      let triCount = 0;
+      for (const { faces } of parts) {
+        for (const [a, b, c] of faces) {
+          const pa = vertices[a - 1], pb = vertices[b - 1], pc = vertices[c - 1];
+          if (!pa || !pb || !pc) continue; // повреждённая ссылка на вершину — пропускаем, не роняем импорт
+          const sa = toSceneP(pa), sb = toSceneP(pb), sc = toSceneP(pc);
+          solidVerts.push(...sa, ...sb, ...sc);
+          triCount++;
+          bbox.expandByPoint(new THREE.Vector3(...sa));
+          bbox.expandByPoint(new THREE.Vector3(...sb));
+          bbox.expandByPoint(new THREE.Vector3(...sc));
+        }
+      }
+      totalPoints += triCount * 3;
+      totalSegments += triCount;
+      if (!solidVerts.length) continue;
+      const leafGroup = new THREE.Group();
+      leafGroup.name = "leaf:" + layerId + "||" + hkey + "||" + name;
+      let geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(solidVerts, 3));
+      geo = BufferGeometryUtils.mergeVertices(geo);
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({
+        color: baseColor, transparent: true, opacity: 0.5,
+        side: THREE.DoubleSide, depthWrite: true, roughness: 0.85, metalness: 0.05,
+      });
+      const solidMesh = new THREE.Mesh(geo, mat);
+      leafGroup.add(solidMesh);
+      horizonGroup.add(leafGroup);
+      const center = bbox.isEmpty() ? new THREE.Vector3() : bbox.getCenter(new THREE.Vector3());
+      const labelDiv = document.createElement("div");
+      labelDiv.className = "label3d";
+      labelDiv.textContent = name;
+      const labelObj = new CSS2DObject(labelDiv);
+      labelObj.position.copy(center);
+      labelObj.visible = false;
+      leafGroup.add(labelObj);
+      const leafData = {
+        key: layerId + "||" + hkey + "||" + name,
+        name, horizonLabel: hdata.label, layerName,
+        group: leafGroup, solidMesh, lineMesh: null, labelObj,
+        color: baseColor, opacity: 0.5, visible: true,
+        length: 0, segCount: triCount,
+        bbox: bbox.isEmpty() ? null : bbox.clone(),
+        rings: [], fromDTM: true, fromOBJ: true,
+      };
+      leafGroup.userData.leafRef = leafData;
+      leaves.set(name, leafData);
+    }
+    layerHorizons.set(hkey, { label: hdata.label, group: horizonGroup, leaves, visible: true });
+    setLoading(true, `Построение геометрии из OBJ… (горизонт ${hi + 1} из ${horizonKeys.length})`);
+    await nextFrame();
+  }
+  layers.set(layerId, {
+    id: layerId, name: layerName, filename, group: layerGroup, visible: true,
+    horizons: layerHorizons, totalPoints, totalSegments,
+  });
+  modelLoaded = true;
+  dom.empty.style.display = "none";
+  dom.shaftControls.style.display = "block";
+  dom.shaftPlaceholder.style.display = "none";
+  const curOpacity = dom.rngOpacity.value / 100;
+  for (const h of layerHorizons.values()) {
+    for (const leaf of h.leaves.values()) {
+      leaf.opacity = curOpacity;
+      if (leaf.solidMesh) leaf.solidMesh.material.opacity = curOpacity;
+      applyLeafColor(leaf);
+    }
+  }
+  buildTree();
+  frameAll();
+  recomputeAndShowStats();
+  setLoading(false);
+  const legendNote = legend ? "" : " (без легенды имён — использованы токены групп)";
+  dom.fileMeta.textContent = `${filename} (OBJ) — добавлено: ${totalSegments.toLocaleString("ru-RU")} треугольников, ${layerHorizons.size} горизонтов${legendNote}`;
+  dom.fileMeta.className = "ok";
+  return layerId;
+}
+async function addOBJLayer(vertices, groups, legend, filename) {
+  isBusy = true;
+  try {
+    const layerId = await buildLayerFromOBJ(vertices, groups, legend, filename);
+    if (layerId) loadedOBJSources.push({ id: layerId, vertices, groups, legend, filename });
+  } catch (err) {
+    console.error(err);
+    setLoading(false);
+    dom.fileMeta.textContent = "Ошибка при обработке OBJ: " + err.message;
+    dom.fileMeta.className = "err";
+  } finally {
+    isBusy = false;
+  }
+}
+/* ============================================================
    MAIN APP
 ============================================================ */
 // Снимок исходной, ещё не тронутой JS-страницы — нужен для сборки нового
@@ -1384,6 +1620,8 @@ let layerSeq = 0;
 const loadedSources = [];    // [{id, parsed, filename}] — история загрузок STR, нужна для перестроения при смене порога соединения
 const loadedDTMSources = []; // [{id, solids, linePoints, filename, strHeader}] — то же для пар STR+DTM (лофтинг им не нужен,
                               // но при rebuildAllLayers их тоже нужно пересоздать, иначе clearAllLayers их просто сотрёт)
+const loadedOBJSources = []; // [{id, vertices, groups, legend, filename}] — то же для готовых .obj (геометрия уже
+                              // триангулирована, ни лофтинг, ни разбор DTM не нужны — просто перекладываем в сцену)
 let selectedLeaf = null;
 let modelLoaded = false;
 let grayscaleMode = false;
@@ -1458,6 +1696,7 @@ function clearAllLayers() {
   layers.clear();
   loadedSources.length = 0;
   loadedDTMSources.length = 0;
+  loadedOBJSources.length = 0;
   globalOffset = null;
   selectedLeaf = null;
   modelLoaded = false;
@@ -1479,6 +1718,8 @@ function removeLayer(layerId) {
   if (idx >= 0) loadedSources.splice(idx, 1);
   const dtmIdx = loadedDTMSources.findIndex((s) => s.id === layerId);
   if (dtmIdx >= 0) loadedDTMSources.splice(dtmIdx, 1);
+  const objIdx = loadedOBJSources.findIndex((s) => s.id === layerId);
+  if (objIdx >= 0) loadedOBJSources.splice(objIdx, 1);
   selectedLeaf = null;
   dom.details.classList.remove("open");
   if (layers.size === 0) {
@@ -1523,6 +1764,7 @@ async function rebuildAllLayers() {
   try {
     const sources = loadedSources.slice();
     const dtmSources = loadedDTMSources.slice();
+    const objSources = loadedOBJSources.slice();
     clearAllLayers();
     for (const src of sources) {
       try {
@@ -1542,6 +1784,21 @@ async function rebuildAllLayers() {
           loadedDTMSources.push({
             id: layerId, solids: src.solids, linePoints: src.linePoints,
             filename: src.filename, strHeader: src.strHeader,
+          });
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    // OBJ-слои — та же история: геометрия уже готова, GAP_FACTOR/SMOOTH_SUBDIV
+    // на неё не влияют, но пересоздать после clearAllLayers() обязательно.
+    for (const src of objSources) {
+      try {
+        const layerId = await buildLayerFromOBJ(src.vertices, src.groups, src.legend, src.filename);
+        if (layerId) {
+          loadedOBJSources.push({
+            id: layerId, vertices: src.vertices, groups: src.groups,
+            legend: src.legend, filename: src.filename,
           });
         }
       } catch (err) {
@@ -2220,15 +2477,35 @@ function handleFiles(files) {
     dom.fileMeta.className = "err";
     return;
   }
+  const objFile = files.find((f) => /\.obj$/i.test(f.name));
   const dtmFile = files.find((f) => /\.dtm$/i.test(f.name));
   const strFile = files.find((f) => /\.(str|txt|bin)$/i.test(f.name));
-  if (dtmFile && strFile) {
+  if (objFile && (dtmFile || strFile)) {
+    dom.fileMeta.textContent = "Выбраны одновременно .obj и .str/.dtm — это разные пути загрузки, выберите что-то одно за раз. Загружаю только .obj.";
+    dom.fileMeta.className = "err";
+    handleOBJFile(objFile);
+  } else if (objFile) {
+    handleOBJFile(objFile);
+  } else if (dtmFile && strFile) {
     handleStrDtmPair(strFile, dtmFile);
   } else if (dtmFile && !strFile) {
     dom.fileMeta.textContent = "DTM нужно загружать вместе с соответствующим STR-файлом — выделите оба файла разом (координаты вершин хранятся только в STR, DTM содержит лишь триангуляцию).";
     dom.fileMeta.className = "err";
   } else if (strFile) {
     handleFile(strFile);
+  }
+}
+async function handleOBJFile(file) {
+  dom.fileMeta.textContent = "Чтение и разбор OBJ…";
+  dom.fileMeta.className = "";
+  try {
+    const text = await file.text();
+    const { vertices, groups, legend } = parseOBJForImport(text);
+    await addOBJLayer(vertices, groups, legend, file.name);
+  } catch (err) {
+    console.error(err);
+    dom.fileMeta.textContent = "Ошибка при разборе OBJ: " + err.message;
+    dom.fileMeta.className = "err";
   }
 }
 async function handleStrDtmPair(strFile, dtmFile) {
@@ -3629,6 +3906,28 @@ function buildSnapshot() {
     }
     layersDTMSnap.push(snap);
   }
+  // OBJ-слои — геометрия уже готова (треугольники из конвертера), но группы
+  // хранятся в Map (не сериализуется в JSON напрямую) — переводим в массив
+  // пар [token, faces] и обратно при восстановлении.
+  const layersOBJSnap = [];
+  for (const entry of loadedOBJSources) {
+    const layerRuntime = layers.get(entry.id);
+    const snap = {
+      filename: entry.filename,
+      vertices: entry.vertices,
+      groups: [...entry.groups].map(([token, g]) => [token, g.faces]),
+      legend: entry.legend,
+    };
+    if (layerRuntime) {
+      snap.leafOverrides = {};
+      for (const [hkey, h] of layerRuntime.horizons) {
+        for (const [name, leaf] of h.leaves) {
+          snap.leafOverrides[hkey + "||" + name] = { color: leaf.color, opacity: leaf.opacity, visible: leaf.visible };
+        }
+      }
+    }
+    layersOBJSnap.push(snap);
+  }
   const cablesSnap = [...cables.values()].map((c) => ({
     nodes: c.nodes.map((p) => [p.x, p.y, p.z]),
     color: c.color, thickness: c.thickness, label: c.label, visible: c.visible,
@@ -3666,6 +3965,7 @@ function buildSnapshot() {
     },
     layers: layersSnap,
     layersDTM: layersDTMSnap,
+    layersOBJ: layersOBJSnap,
     cables: cablesSnap,
     equipment: equipSnap,
     marks: marksSnap,
@@ -3881,6 +4181,28 @@ async function restoreFromSnapshot(state) {
       loadedDTMSources.push({
         id: layerId, solids: entry.solids, linePoints: entry.linePoints,
         filename: entry.filename, strHeader: entry.strHeader,
+      });
+      const layerRuntime = layers.get(layerId);
+      if (!layerRuntime) continue;
+      for (const [hkey, h] of layerRuntime.horizons) {
+        for (const [name, leaf] of h.leaves) {
+          const ov = entry.leafOverrides && entry.leafOverrides[hkey + "||" + name];
+          if (!ov) continue;
+          leaf.color = ov.color; leaf.opacity = ov.opacity;
+          applyLeafColor(leaf);
+          if (leaf.solidMesh) leaf.solidMesh.material.opacity = leaf.opacity;
+          setLeafVisible(leaf, ov.visible);
+        }
+        updateHorizonCheckbox(h);
+      }
+      updateLayerCheckbox(layerRuntime);
+    }
+    for (const entry of state.layersOBJ || []) {
+      const groups = new Map(entry.groups.map(([token, faces]) => [token, { faces }]));
+      const layerId = await buildLayerFromOBJ(entry.vertices, groups, entry.legend, entry.filename);
+      if (!layerId) continue;
+      loadedOBJSources.push({
+        id: layerId, vertices: entry.vertices, groups, legend: entry.legend, filename: entry.filename,
       });
       const layerRuntime = layers.get(layerId);
       if (!layerRuntime) continue;
