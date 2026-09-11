@@ -49,16 +49,15 @@
   #fileInput{ display:none; }
   .save-btn-big{
     display:flex; align-items:center; justify-content:center; gap:8px;
-    width:calc(100% - 24px); margin:0 12px 8px; padding:12px; box-sizing:border-box;
-    border-radius:8px; border:1px solid var(--accent);
-    background:linear-gradient(135deg, var(--accent), var(--accent-2));
-    color:#14171a; font-weight:700; font-size:14px; font-family:inherit; cursor:pointer;
-    box-shadow:0 4px 14px rgba(255,159,28,.25);
-    transition:transform .1s ease, box-shadow .15s ease, filter .15s ease;
+    width:calc(100% - 24px); margin:0 12px 8px; padding:11px; box-sizing:border-box;
+    border-radius:5px; border:1px solid var(--accent);
+    background:var(--accent);
+    color:#14171a; font-weight:600; font-size:13.5px; font-family:inherit; cursor:pointer;
+    transition:filter .12s ease;
   }
-  .save-btn-big:hover{ filter:brightness(1.08); box-shadow:0 6px 18px rgba(255,159,28,.35); transform:translateY(-1px); }
-  .save-btn-big:active{ transform:translateY(0); }
-  .save-btn-big:disabled{ opacity:.5; cursor:default; filter:none; box-shadow:none; transform:none; }
+  .save-btn-big:hover{ filter:brightness(1.08); }
+  .save-btn-big:active{ filter:brightness(0.95); }
+  .save-btn-big:disabled{ opacity:.5; cursor:default; filter:none; }
   #fileMeta{ margin:0 12px 8px; font-size:11.5px; color:var(--text-dim); min-height:14px; }
   #fileMeta.ok{ color:var(--accent-2); }
   #fileMeta.err{ color:var(--danger); }
@@ -202,6 +201,7 @@
     font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.4px;
   }
   .uo-group-header-label{ flex:1; }
+  .uo-group-arrow{ flex-shrink:0; width:10px; color:var(--text-faint); font-size:9px; }
   .uo-row:hover{ background:var(--panel-alt); color:var(--text); }
   .uo-row.selected{ background:rgba(255,159,28,.12); color:var(--text); }
   .uo-row .swatch{ width:9px; height:9px; border-radius:2px; flex-shrink:0; border:1px solid rgba(255,255,255,.15); }
@@ -215,9 +215,10 @@
   .uo-edit-btn:hover{ border-color:var(--accent); color:var(--accent) !important; }
   .uo-details .dtitle{ display:flex; align-items:center; justify-content:space-between; gap:6px; }
   .uo-details .dtitle .dclose{
-    flex-shrink:0; background:none; border:none; color:var(--text-dim); font-size:14px; cursor:pointer; padding:0 4px; line-height:1;
+    flex-shrink:0; background:var(--panel-alt); border:1px solid var(--border); border-radius:4px;
+    color:var(--text-dim); font-size:11px; font-family:inherit; cursor:pointer; padding:4px 10px; line-height:1.2;
   }
-  .uo-details .dtitle .dclose:hover{ color:var(--danger); }
+  .uo-details .dtitle .dclose:hover{ border-color:var(--accent); color:var(--accent); }
   .uo-details{ border-top:1px solid var(--border); padding:10px 12px; flex-shrink:0; display:none; max-height:50%; overflow-y:auto; }
   .uo-details.open{ display:block; }
   .uo-details .dtitle{ font-weight:600; font-size:12.5px; margin-bottom:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -699,7 +700,7 @@
         <div class="uo-list" id="cableList"></div>
         <div class="placeholder" id="cablePlaceholder">Кабельных трасс пока нет.<br>Нажмите «Добавить» и кликайте по тоннелям на модели.</div>
         <div class="uo-details" id="cableDetails">
-          <div class="dtitle"><span id="cableDTitle">—</span><button class="dclose" id="btnCableDClose" title="Закрыть">✕</button></div>
+          <div class="dtitle"><span id="cableDTitle">—</span><button class="dclose" id="btnCableDClose" title="Закрыть">Готово</button></div>
           <div class="drow"><span>Видимость</span><input type="checkbox" id="cableDVisible" checked></div>
           <div class="drow"><span>Цвет</span><input type="color" id="cableDColor" value="#ffcc00"></div>
           <div class="drow"><span>Подпись</span><input type="text" id="cableDLabel" placeholder="Название трассы"></div>
@@ -721,10 +722,6 @@
           <div class="stats" id="cableDStats"></div>
           <div class="node-list" id="cableNodeList"></div>
           <button id="cableDExtend">+ Продолжить трассу от последнего узла</button>
-          <div style="display:flex; gap:6px;">
-            <button id="cableDFocus" style="width:auto; flex:1;">Перейти</button>
-            <button id="cableDHighlight" style="width:auto; flex:1;">✨ Подсветить</button>
-          </div>
           <button id="cableDDelete" class="danger-btn">Удалить трассу</button>
         </div>
       </div>
@@ -761,7 +758,7 @@
         <div class="uo-list" id="equipList"></div>
         <div class="placeholder" id="equipPlaceholder">Объектов оборудования пока нет.</div>
         <div class="uo-details" id="equipDetails">
-          <div class="dtitle"><span id="equipDTitle">—</span><button class="dclose" id="btnEquipDClose" title="Закрыть">✕</button></div>
+          <div class="dtitle"><span id="equipDTitle">—</span><button class="dclose" id="btnEquipDClose" title="Закрыть">Готово</button></div>
           <div class="drow"><span>Видимость</span><input type="checkbox" id="equipDVisible" checked></div>
           <div class="drow"><span>Цвет</span><input type="color" id="equipDColor" value="#4fd6e0"></div>
           <div class="drow"><span>Подпись</span><input type="text" id="equipDLabel" placeholder="Название объекта"></div>
@@ -772,10 +769,6 @@
           <div class="drow"><span>Расположение</span><input type="text" id="equipDLocation" placeholder="Например: гор. 340, ПК 12"></div>
           <div class="drow"><span>IP-адрес</span><input type="text" id="equipDIp" placeholder="192.168.0.1"></div>
           <div class="drow"><span>ID номер</span><input type="text" id="equipDIdNumber" placeholder="Инвентарный/серийный номер"></div>
-          <div style="display:flex; gap:6px;">
-            <button id="equipDFocus" style="width:auto; flex:1;">Перейти</button>
-            <button id="equipDHighlight" style="width:auto; flex:1;">✨ Подсветить</button>
-          </div>
           <button id="equipDDelete" class="danger-btn">Удалить объект</button>
         </div>
       </div>
@@ -802,17 +795,13 @@
         <div class="uo-list" id="markList"></div>
         <div class="placeholder" id="markPlaceholder">Меток пока нет.</div>
         <div class="uo-details" id="markDetails">
-          <div class="dtitle"><span id="markDTitle">—</span><button class="dclose" id="btnMarkDClose" title="Закрыть">✕</button></div>
+          <div class="dtitle"><span id="markDTitle">—</span><button class="dclose" id="btnMarkDClose" title="Закрыть">Готово</button></div>
           <div class="drow"><span>Видимость</span><input type="checkbox" id="markDVisible" checked></div>
           <div class="drow"><span>Цвет</span><input type="color" id="markDColor" value="#ff5b7a"></div>
           <div class="drow"><span>Подпись</span><input type="text" id="markDLabel" placeholder="Название метки"></div>
           <div class="drow" style="align-items:flex-start;">
             <span>Текст</span>
             <textarea id="markDText" placeholder="Комментарий/описание метки" rows="3" style="flex:1; margin-left:8px; background:var(--panel-alt); border:1px solid var(--border); color:var(--text); border-radius:3px; padding:6px; font-size:11.5px; font-family:inherit; resize:vertical;"></textarea>
-          </div>
-          <div style="display:flex; gap:6px;">
-            <button id="markDFocus" style="width:auto; flex:1;">Перейти</button>
-            <button id="markDHighlight" style="width:auto; flex:1;">✨ Подсветить</button>
           </div>
           <button id="markDDelete" class="danger-btn">Удалить метку</button>
         </div>
@@ -1646,8 +1635,6 @@ const dom = {
   cableDStats: document.getElementById("cableDStats"),
   cableNodeList: document.getElementById("cableNodeList"),
   cableDExtend: document.getElementById("cableDExtend"),
-  cableDFocus: document.getElementById("cableDFocus"),
-  cableDHighlight: document.getElementById("cableDHighlight"),
   cableDDelete: document.getElementById("cableDDelete"),
   btnCableDClose: document.getElementById("btnCableDClose"),
   cableLabelToggle: document.getElementById("cableLabelToggle"),
@@ -1668,8 +1655,6 @@ const dom = {
   equipDLocation: document.getElementById("equipDLocation"),
   equipDIp: document.getElementById("equipDIp"),
   equipDIdNumber: document.getElementById("equipDIdNumber"),
-  equipDFocus: document.getElementById("equipDFocus"),
-  equipDHighlight: document.getElementById("equipDHighlight"),
   equipDDelete: document.getElementById("equipDDelete"),
   btnEquipDClose: document.getElementById("btnEquipDClose"),
   equipLabelToggle: document.getElementById("equipLabelToggle"),
@@ -1688,8 +1673,6 @@ const dom = {
   markDLabel: document.getElementById("markDLabel"),
   markDText: document.getElementById("markDText"),
   btnMarkDClose: document.getElementById("btnMarkDClose"),
-  markDFocus: document.getElementById("markDFocus"),
-  markDHighlight: document.getElementById("markDHighlight"),
   markDDelete: document.getElementById("markDDelete"),
   markLabelToggle: document.getElementById("markLabelToggle"),
   markLabelSize: document.getElementById("markLabelSize"),
@@ -3245,6 +3228,7 @@ function deleteCable(id) {
   if (selectedCable === c) { selectedCable = null; dom.cableDetails.classList.remove("open"); }
   buildCableList();
 }
+const collapsedCableGroups = new Set();
 function buildCableList() {
   dom.cableList.innerHTML = "";
   dom.cablePlaceholder.style.display = cables.size ? "none" : "block";
@@ -3260,8 +3244,13 @@ function buildCableList() {
   for (const key of orderedKeys) {
     const groupItems = groups.get(key);
     const groupLabel = CABLE_TYPES[key] ? CABLE_TYPES[key].label : "Другое";
+    const collapsed = collapsedCableGroups.has(key);
     const header = document.createElement("div");
     header.className = "uo-group-header";
+    header.style.cursor = "pointer";
+    const arrow = document.createElement("span");
+    arrow.className = "uo-group-arrow";
+    arrow.textContent = collapsed ? "▸" : "▾";
     const groupChk = document.createElement("input");
     groupChk.type = "checkbox";
     const allVisible = groupItems.every((c) => c.visible);
@@ -3278,9 +3267,16 @@ function buildCableList() {
     const headerLabel = document.createElement("span");
     headerLabel.className = "uo-group-header-label";
     headerLabel.textContent = `${groupLabel} (${groupItems.length})`;
+    header.appendChild(arrow);
     header.appendChild(groupChk);
     header.appendChild(headerLabel);
+    header.addEventListener("click", () => {
+      if (collapsedCableGroups.has(key)) collapsedCableGroups.delete(key);
+      else collapsedCableGroups.add(key);
+      buildCableList();
+    });
     dom.cableList.appendChild(header);
+    if (collapsed) continue;
     for (const c of groupItems) {
       const row = document.createElement("div");
       row.className = "uo-row" + (selectedCable === c ? " selected" : "");
@@ -3300,12 +3296,23 @@ function buildCableList() {
       lname.className = "lname"; lname.textContent = c.label;
       const llen = document.createElement("span");
       llen.className = "llen"; llen.textContent = Math.round(c.length) + " м";
+      const btnFocus = document.createElement("button");
+      btnFocus.className = "uo-edit-btn";
+      btnFocus.textContent = "🎯";
+      btnFocus.title = "Перейти к объекту";
+      btnFocus.addEventListener("click", (e) => { e.stopPropagation(); focusCable(c); });
+      const btnGlow = document.createElement("button");
+      btnGlow.className = "uo-edit-btn";
+      btnGlow.textContent = "✨";
+      btnGlow.title = "Подсветить";
+      btnGlow.addEventListener("click", (e) => { e.stopPropagation(); highlightCable(c); });
       const btnEdit = document.createElement("button");
       btnEdit.className = "uo-edit-btn";
       btnEdit.textContent = "✏️";
       btnEdit.title = "Редактировать";
       btnEdit.addEventListener("click", (e) => { e.stopPropagation(); selectCable(c); });
-      row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname); row.appendChild(llen); row.appendChild(btnEdit);
+      row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname); row.appendChild(llen);
+      row.appendChild(btnFocus); row.appendChild(btnGlow); row.appendChild(btnEdit);
       dom.cableList.appendChild(row);
     }
   }
@@ -3432,17 +3439,17 @@ dom.cableDType.addEventListener("change", () => {
   selectCable(selectedCable);
   buildCableList();
 });
-dom.cableDFocus.addEventListener("click", () => {
-  if (!selectedCable) return;
-  flyTo(new THREE.Box3().setFromObject(selectedCable.mesh), false);
-});
-dom.cableDHighlight.addEventListener("click", () => {
-  if (!selectedCable) return;
+function focusCable(c) {
+  if (!c) return;
+  flyTo(new THREE.Box3().setFromObject(c.mesh), false);
+}
+function highlightCable(c) {
+  if (!c) return;
   // Труба кабеля тонкая, поэтому её "радиус подсветки" считаем от эффективного
   // минимума (см. GLOW_MIN_SCALE_HINT), а не от сырого radius — иначе x5 почти
   // не будет заметен на тонких кабелях, у которых radius меньше этого минимума.
-  toggleHighlight("cable:" + selectedCable.id, selectedCable.mesh, Math.max(selectedCable.radius, GLOW_MIN_SCALE_HINT) * 5);
-});
+  toggleHighlight("cable:" + c.id, c.mesh, Math.max(c.radius, GLOW_MIN_SCALE_HINT) * 5);
+}
 dom.cableDDelete.addEventListener("click", () => {
   if (selectedCable) deleteCable(selectedCable.id);
 });
@@ -3596,6 +3603,7 @@ function placeEquipment(point, overrides) {
   selectEquip(equipData);
   return equipData;
 }
+const collapsedEquipGroups = new Set();
 function buildEquipList() {
   dom.equipList.innerHTML = "";
   dom.equipPlaceholder.style.display = equipment.size ? "none" : "block";
@@ -3611,8 +3619,13 @@ function buildEquipList() {
   for (const key of orderedKeys) {
     const groupItems = groups.get(key);
     const groupLabel = EQUIP_SHAPE_LABELS[key] || "Другое";
+    const collapsed = collapsedEquipGroups.has(key);
     const header = document.createElement("div");
     header.className = "uo-group-header";
+    header.style.cursor = "pointer";
+    const arrow = document.createElement("span");
+    arrow.className = "uo-group-arrow";
+    arrow.textContent = collapsed ? "▸" : "▾";
     const groupChk = document.createElement("input");
     groupChk.type = "checkbox";
     const allVisible = groupItems.every((eq) => eq.visible);
@@ -3629,9 +3642,16 @@ function buildEquipList() {
     const headerLabel = document.createElement("span");
     headerLabel.className = "uo-group-header-label";
     headerLabel.textContent = `${groupLabel} (${groupItems.length})`;
+    header.appendChild(arrow);
     header.appendChild(groupChk);
     header.appendChild(headerLabel);
+    header.addEventListener("click", () => {
+      if (collapsedEquipGroups.has(key)) collapsedEquipGroups.delete(key);
+      else collapsedEquipGroups.add(key);
+      buildEquipList();
+    });
     dom.equipList.appendChild(header);
+    if (collapsed) continue;
     for (const eq of groupItems) {
       const row = document.createElement("div");
       row.className = "uo-row" + (selectedEquip === eq ? " selected" : "");
@@ -3648,12 +3668,23 @@ function buildEquipList() {
       swatch.className = "swatch"; swatch.style.background = "#" + eq.color.toString(16).padStart(6, "0");
       const lname = document.createElement("span");
       lname.className = "lname"; lname.textContent = eq.label;
+      const btnFocus = document.createElement("button");
+      btnFocus.className = "uo-edit-btn";
+      btnFocus.textContent = "🎯";
+      btnFocus.title = "Перейти к объекту";
+      btnFocus.addEventListener("click", (e) => { e.stopPropagation(); focusEquip(eq); });
+      const btnGlow = document.createElement("button");
+      btnGlow.className = "uo-edit-btn";
+      btnGlow.textContent = "✨";
+      btnGlow.title = "Подсветить";
+      btnGlow.addEventListener("click", (e) => { e.stopPropagation(); highlightEquip(eq); });
       const btnEdit = document.createElement("button");
       btnEdit.className = "uo-edit-btn";
       btnEdit.textContent = "✏️";
       btnEdit.title = "Редактировать";
       btnEdit.addEventListener("click", (e) => { e.stopPropagation(); selectEquip(eq); });
-      row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname); row.appendChild(btnEdit);
+      row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname);
+      row.appendChild(btnFocus); row.appendChild(btnGlow); row.appendChild(btnEdit);
       dom.equipList.appendChild(row);
     }
   }
@@ -3723,14 +3754,14 @@ dom.equipDIdNumber.addEventListener("input", () => {
   if (!selectedEquip) return;
   selectedEquip.idNumber = dom.equipDIdNumber.value;
 });
-dom.equipDFocus.addEventListener("click", () => {
-  if (!selectedEquip) return;
-  flyTo(new THREE.Box3().setFromObject(selectedEquip.mesh), false);
-});
-dom.equipDHighlight.addEventListener("click", () => {
-  if (!selectedEquip) return;
-  toggleHighlight("equipment:" + selectedEquip.id, selectedEquip.mesh, selectedEquip.size, "sphere");
-});
+function focusEquip(eq) {
+  if (!eq) return;
+  flyTo(new THREE.Box3().setFromObject(eq.mesh), false);
+}
+function highlightEquip(eq) {
+  if (!eq) return;
+  toggleHighlight("equipment:" + eq.id, eq.mesh, eq.size, "sphere");
+}
 dom.equipDDelete.addEventListener("click", () => {
   if (!selectedEquip) return;
   if (highlightState && highlightState.key === "equipment:" + selectedEquip.id) clearHighlight();
@@ -3848,12 +3879,23 @@ function buildMarkList() {
     swatch.className = "swatch"; swatch.style.background = "#" + m.color.toString(16).padStart(6, "0");
     const lname = document.createElement("span");
     lname.className = "lname"; lname.textContent = m.label;
+    const btnFocus = document.createElement("button");
+    btnFocus.className = "uo-edit-btn";
+    btnFocus.textContent = "🎯";
+    btnFocus.title = "Перейти к объекту";
+    btnFocus.addEventListener("click", (e) => { e.stopPropagation(); focusMark(m); });
+    const btnGlow = document.createElement("button");
+    btnGlow.className = "uo-edit-btn";
+    btnGlow.textContent = "✨";
+    btnGlow.title = "Подсветить";
+    btnGlow.addEventListener("click", (e) => { e.stopPropagation(); highlightMark(m); });
     const btnEdit = document.createElement("button");
     btnEdit.className = "uo-edit-btn";
     btnEdit.textContent = "✏️";
     btnEdit.title = "Редактировать";
     btnEdit.addEventListener("click", (e) => { e.stopPropagation(); selectMark(m); });
-    row.appendChild(swatch); row.appendChild(lname); row.appendChild(btnEdit);
+    row.appendChild(swatch); row.appendChild(lname);
+    row.appendChild(btnFocus); row.appendChild(btnGlow); row.appendChild(btnEdit);
     dom.markList.appendChild(row);
   }
 }
@@ -3907,14 +3949,14 @@ dom.markDText.addEventListener("input", () => {
   if (!selectedMark) return;
   selectedMark.text = dom.markDText.value;
 });
-dom.markDFocus.addEventListener("click", () => {
-  if (!selectedMark) return;
-  flyTo(new THREE.Box3().setFromObject(selectedMark.sprite), false);
-});
-dom.markDHighlight.addEventListener("click", () => {
-  if (!selectedMark) return;
-  toggleHighlight("mark:" + selectedMark.id, selectedMark.sprite, selectedMark.scale);
-});
+function focusMark(m) {
+  if (!m) return;
+  flyTo(new THREE.Box3().setFromObject(m.sprite), false);
+}
+function highlightMark(m) {
+  if (!m) return;
+  toggleHighlight("mark:" + m.id, m.sprite, m.scale);
+}
 dom.markDDelete.addEventListener("click", () => {
   if (!selectedMark) return;
   if (highlightState && highlightState.key === "mark:" + selectedMark.id) clearHighlight();
