@@ -1,0 +1,17 @@
+{
+  "name": "mine-ops-tool-server",
+  "version": "1.0.0",
+  "description": "Backend for Mine Operations Tool: multi-project, multi-user infrastructure editing.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
