@@ -1,0 +1,16 @@
+services:
+  mine-ops-tool:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:3000"
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=3000
+    volumes:
+      - mine-ops-data:/app/server/data
+
+volumes:
+  mine-ops-data:
