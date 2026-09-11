@@ -2257,6 +2257,8 @@ function buildTree() {
     lremove.className = "layer-remove";
     lremove.title = "Убрать этот файл из модели";
     lremove.textContent = "✕";
+    // Удаление слоёв модели — только для admin (см. applyRoleToUI); остальным ролям крестик не нужен и не должен быть виден.
+    if (!window.__auth || window.__auth.role !== "admin") lremove.style.display = "none";
     lhead.appendChild(lcaret); lhead.appendChild(lcheck); lhead.appendChild(lname);
     lhead.appendChild(lcount); lhead.appendChild(lremove);
     layerNode.appendChild(lhead);
