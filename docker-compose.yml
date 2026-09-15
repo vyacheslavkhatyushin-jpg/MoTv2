@@ -27,5 +27,24 @@ services:
     volumes:
       - mine-ops-data:/app/server/data
 
+  # Мониторинг оборудования, Этап 4 — коллектор SPPD/SBeacon (система на
+  # шахте, изначально называли "FlexCom"): живой статус IILB/ISIB и счётчик
+  # людей/меток. SPPD_USERNAME/SPPD_PASSWORD — сервисный аккаунт на самой
+  # системе, задаётся в .env на сервере (в репозитории их не может быть).
+  # Хост 10.20.99.7 доступен только из внутренней сети шахты, поэтому этот
+  # сервис имеет смысл только на реальном сервере, не в облачной разработке.
+  sppd-worker:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["node", "monitor/sppd-worker.js"]
+    restart: unless-stopped
+    environment:
+      - SPPD_BASE_URL=${SPPD_BASE_URL:-http://10.20.99.7}
+      - SPPD_USERNAME=${SPPD_USERNAME}
+      - SPPD_PASSWORD=${SPPD_PASSWORD}
+    volumes:
+      - mine-ops-data:/app/server/data
+
 volumes:
   mine-ops-data:

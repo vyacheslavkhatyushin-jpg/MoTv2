@@ -84,6 +84,21 @@ CREATE TABLE IF NOT EXISTS monitor_events (
 );
 CREATE INDEX IF NOT EXISTS idx_monitor_events_project
   ON monitor_events(project_id, started_at DESC);
+
+-- Эфемерная очередь "новая метка зарегистрировалась на считывателе"
+-- (Этап 4, SPPD/SBeacon). Ряды тут живут секунды: sppd-worker пишет по
+-- одному на каждый замеченный рост счётчика меток, server.js на очередном
+-- цикле рассылки читает свежие (см. lastTagPulseSent) и шлёт клиентам
+-- разовую белую вспышку (spawnMonitorTagPulse), затем сам подчищает
+-- старые ряды таймером — состояние тут не нужно хранить долго.
+CREATE TABLE IF NOT EXISTS monitor_tag_pulses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  equipment_id TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_monitor_tag_pulses_project
+  ON monitor_tag_pulses(project_id, created_at);
 `);
 
 module.exports = db;
