@@ -12,5 +12,20 @@ services:
     volumes:
       - mine-ops-data:/app/server/data
 
+  # Мониторинг оборудования (docs/monitoring-plan.md), Этап 2 — отдельный
+  # процесс, тот же образ и та же SQLite-база (общий volume), но не часть
+  # основного сервера: сетевые таймауты опроса не должны влиять на редактор.
+  ping-worker:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["node", "monitor/ping-worker.js"]
+    restart: unless-stopped
+    environment:
+      - PING_INTERVAL_MS=30000
+      - PING_CONCURRENCY=20
+    volumes:
+      - mine-ops-data:/app/server/data
+
 volumes:
   mine-ops-data:
