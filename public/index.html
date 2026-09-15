@@ -792,6 +792,7 @@
             <select id="equipShapeSelect" style="width:100%; background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:5px; padding:7px 8px; font-family:inherit; font-size:12.5px;">
               <option value="mla">MLA</option>
               <option value="map" selected>MAP</option>
+              <option value="odf">Муфта ODF</option>
               <option value="iilb">IILB</option>
               <option value="isib">ISIB</option>
               <option value="cam">CAM</option>
@@ -3660,6 +3661,14 @@ function buildEquipGeometry(shape, size) {
       antenna.translate(0, s * 0.65, 0);
       return BufferGeometryUtils.mergeGeometries([body, antenna]);
     }
+    case "odf": {
+      // Муфта ODF (оптический кросс/сплайс-муфта) — приплюснутый овальный
+      // корпус с продольным сварным швом посередине.
+      const body = new THREE.CylinderGeometry(s * 0.32, s * 0.32, s * 0.9, 16);
+      body.rotateZ(Math.PI / 2);
+      const seam = new THREE.BoxGeometry(s * 0.9, s * 0.04, s * 0.04);
+      return BufferGeometryUtils.mergeGeometries([body, seam]);
+    }
     case "iilb": {
       // IILB (считыватель на кабеле) — плоский вытянутый корпус
       return new THREE.BoxGeometry(s * 1.1, s * 0.25, s * 0.45);
@@ -3754,11 +3763,11 @@ function buildEquipGeometry(shape, size) {
   }
 }
 const EQUIP_SHAPE_LABELS = {
-  mla: "MLA", map: "MAP", iilb: "IILB", isib: "ISIB", cam: "CAM",
+  mla: "MLA", map: "MAP", odf: "Муфта ODF", iilb: "IILB", isib: "ISIB", cam: "CAM",
   mps: "MPS", mpc: "MPC", mtu: "MTU", mvsa: "MVSA", wifi: "WiFi", mbu: "MBU",
   fs: "FS", tel: "TEL", stativ: "Статив",
 };
-const EQUIP_SHAPE_ORDER = ["mla", "map", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ"];
+const EQUIP_SHAPE_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ"];
 function setEquipVisible(eq, visible) {
   eq.visible = visible;
   eq.mesh.visible = visible;
@@ -5198,6 +5207,7 @@ const CABLE_TYPE_SYSTEMS = {
 };
 const EQUIP_SHAPE_SYSTEMS = {
   map: ["ВОЛС", "Телефония", "ВН"],
+  odf: ["ВОЛС"],
   wifi: ["ВОЛС"],
   mla: ["LFC"], iilb: ["LFC"], isib: ["LFC"], mps: ["LFC"], mpc: ["LFC"],
   mtu: ["LFC"], mvsa: ["LFC"], mbu: ["LFC"],
