@@ -51,13 +51,9 @@
   body.monitoring-mode #navToEditor{ display:inline-flex; }
   #monitorPageTitle{ display:none; padding:14px 12px 6px; font-size:14.5px; font-weight:700; color:var(--text); }
   body.monitoring-mode #monitorPageTitle{ display:block; }
-  /* На странице мониторинга блок "Шахта" остаётся тем же деревом слоёв, что
-     и в редакторе (переиспользуем как есть — фильтр по системе на него не
-     распространяется), просто компактный и над раскрытым #tab-monitor,
-     который дальше сам прокручивается одной колонкой. */
-  body.monitoring-mode #tab-shaft.active{ flex:0 0 230px; min-height:0; border-bottom:1px solid var(--border); }
   body.monitoring-mode #tab-monitor.active{ display:block; overflow-y:auto; flex:1 1 auto; }
   body.monitoring-mode .layer-remove{ display:none !important; }
+  #monitorActiveWrap{ max-height:220px; overflow-y:auto; border-bottom:1px solid var(--border-soft); }
   #monitorSystems{ display:flex; flex-wrap:wrap; gap:6px; }
   .mon-sys-btn{
     background:var(--panel-alt); border:1px solid var(--border); color:var(--text-dim);
@@ -926,7 +922,13 @@
         <div class="placeholder" id="deletionLogPlaceholder">Удалённых объектов пока нет.</div>
       </div>
       <div class="tabpanel" id="tab-monitor">
-        <div class="panel-row" style="display:flex; gap:16px; align-items:center;">
+        <div style="padding:8px 12px 4px; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint);">Активные аварии</div>
+        <div id="monitorActiveWrap">
+          <div class="uo-list" id="monitorActiveList" style="flex:0 0 auto; min-height:0;"></div>
+          <div class="placeholder" id="monitorActivePlaceholder" style="padding:16px; margin:0;">Активных аварий нет.</div>
+        </div>
+
+        <div class="panel-row" style="display:flex; gap:16px; align-items:center; border-top:1px solid var(--border-soft);">
           <span style="font-size:12.5px; color:var(--text-dim);">🟢 <span id="monitorCountUp">0</span></span>
           <span style="font-size:12.5px; color:var(--text-dim);">🔴 <span id="monitorCountDown">0</span></span>
           <span style="font-size:12.5px; color:var(--text-faint);">⚪ <span id="monitorCountUnknown">0</span></span>
@@ -946,9 +948,6 @@
           <div class="mon-sec-body" id="monitorMarksList"></div>
         </div>
 
-        <div style="padding:8px 12px 4px; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); border-top:1px solid var(--border-soft);">Активные аварии</div>
-        <div class="uo-list" id="monitorActiveList" style="flex:0 0 auto; min-height:0;"></div>
-        <div class="placeholder" id="monitorActivePlaceholder" style="padding:16px; margin:0;">Активных аварий нет.</div>
         <div style="padding:8px 12px 4px; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); border-top:1px solid var(--border-soft);">История</div>
         <div class="uo-list" id="monitorHistoryList" style="flex:0 0 auto; min-height:0;"></div>
         <div class="placeholder" id="monitorHistoryPlaceholder" style="padding:16px; margin:0;">История пуста.</div>
@@ -5073,8 +5072,6 @@ function applyMonitoringPageUI() {
   document.querySelectorAll(".tabpanel").forEach((p) => p.classList.remove("active"));
   const monitorPanel = document.getElementById("tab-monitor");
   if (monitorPanel) monitorPanel.classList.add("active");
-  const shaftPanel = document.getElementById("tab-shaft");
-  if (shaftPanel) shaftPanel.classList.add("active");
 }
 applyMonitoringPageUI();
 let serverStateVersion = 0;
