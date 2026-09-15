@@ -496,11 +496,32 @@
     }
   }
 
-  var stored = readStoredSession();
-  if (stored) {
-    unlock(stored);
+  // Локальная резервная копия (см. saveStandaloneCopy()) — это standalone
+  // HTML-файл со встроенным снимком проекта и без какого-либо сервера за
+  // ним, поэтому экран входа тут неприменим: логиниться некуда, а
+  // многопользовательский bootstrap внизу модульного скрипта попытался бы
+  // ходить на относительные /api/... пути, которых при открытии файла с
+  // диска просто нет — снимок так и не подгружался бы. Вместо этого сразу
+  // "пускаем" в локальном офлайн-режиме и ниже, в bootstrap'е, читаем и
+  // восстанавливаем embeddedState напрямую, без обращений к серверу.
+  function readEmbeddedSnapshot(){
+    try {
+      var raw = document.getElementById("embeddedState").textContent;
+      if (!raw || raw.trim() === "null") return null;
+      return JSON.parse(raw);
+    } catch(e){ return null; }
+  }
+  window.__offlineSnapshot = readEmbeddedSnapshot();
+
+  if (window.__offlineSnapshot) {
+    unlock({ username: "офлайн-копия", role: "admin", offline: true });
   } else {
-    userInput.focus();
+    var stored = readStoredSession();
+    if (stored) {
+      unlock(stored);
+    } else {
+      userInput.focus();
+    }
   }
   btn.addEventListener("click", tryLogin);
   passInput.addEventListener("keydown", function(e){ if (e.key === "Enter") tryLogin(); });
@@ -4714,6 +4735,8 @@ function buildSnapshot() {
   };
 }
 function saveStandaloneCopy() {
+  const auth = window.__auth;
+  if (!auth || auth.role !== "admin") return;
   if (isBusy) {
     dom.fileMeta.textContent = "Подождите, идёт загрузка/перестроение модели — попробуйте ещё раз через секунду.";
     dom.fileMeta.className = "err";
@@ -4806,6 +4829,8 @@ async function apiFetch(url, options) {
    не может быть случайно затёрт при перезаписи состояния. */
 const OBJECT_TYPE_LABELS = { cable: "Кабель", equipment: "Оборудование", mark: "Метка", patch: "Заплатка" };
 function recordDeletion(objectType, obj) {
+  // Локальная резервная копия — сервера нет, писать удаление некуда.
+  if (window.__auth && window.__auth.offline) return;
   apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/deletions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -4868,7 +4893,7 @@ function applyRoleToUI() {
 
   // Загрузка/удаление STR-модели и инструмент "Заплатки" — только admin,
   // у остальных ролей эти элементы управления полностью скрыты.
-  const adminOnlyIds = ["dropzoneWrap", "btnClearAll", "tabBtnPatches"];
+  const adminOnlyIds = ["dropzoneWrap", "btnClearAll", "tabBtnPatches", "btnSaveBackup"];
   for (const id of adminOnlyIds) {
     const el = document.getElementById(id);
     if (el) el.style.display = isAdmin ? "" : "none";
@@ -4885,6 +4910,23 @@ function applyRoleToUI() {
 
   const sessionProjectEl = document.getElementById("sessionProject");
   const sessionUserEl = document.getElementById("sessionUser");
+  if (auth && auth.offline) {
+    // Локальная резервная копия: нет ни проекта на сервере, ни реальной
+    // учётной записи — весь блок с "выходом"/пользователями/сохранением
+    // на сервер и журналом удалений тут неприменим и скрывается целиком.
+    if (sessionProjectEl) sessionProjectEl.textContent = "Локальная резервная копия";
+    if (sessionUserEl) sessionUserEl.textContent = "";
+    if (btnUserAdminEl) btnUserAdminEl.style.display = "none";
+    const btnLogoutEl = document.getElementById("btnLogout");
+    if (btnLogoutEl) btnLogoutEl.style.display = "none";
+    const btnSaveAllEl = document.getElementById("btnSaveAll");
+    if (btnSaveAllEl) {
+      btnSaveAllEl.style.display = "none";
+    }
+    const deletedTabBtn = document.querySelector('.tab-btn[data-tab="deleted"]');
+    if (deletedTabBtn) deletedTabBtn.style.display = "none";
+    return;
+  }
   if (sessionProjectEl) sessionProjectEl.textContent = "Проект: " + CURRENT_PROJECT_ID;
   if (sessionUserEl && auth) {
     const roleLabel = { viewer: "просмотр", editor: "редактирование", admin: "администратор" }[auth.role] || auth.role;
@@ -4923,7 +4965,7 @@ async function saveToServer() {
     return;
   }
   const auth = window.__auth;
-  if (!auth || auth.role === "viewer") return;
+  if (!auth || auth.role === "viewer" || auth.offline) return;
   // Сохраняем не весь снимок целиком одним куском, а раздельно: настройки/
   // модель шахты — как раньше, единым полем (их одновременно обычно правит
   // только один admin), а кабели/оборудование/метки/заплатки — как diff
@@ -5355,7 +5397,20 @@ animate();
     await new Promise((r) => setTimeout(r, 150));
   }
   applyRoleToUI();
-  await loadProjectFromServer();
+  if (window.__auth.offline) {
+    // Локальная резервная копия — снимок уже встроен в сам файл (см.
+    // saveStandaloneCopy()/authGate выше), сервер тут не при чём.
+    const snapshot = window.__offlineSnapshot;
+    if (snapshot) {
+      await restoreFromSnapshot(snapshot);
+      setBaseObjects(snapshot);
+      dom.saveStatus.textContent = snapshot.savedAt
+        ? `Локальная резервная копия, сохранена ${new Date(snapshot.savedAt).toLocaleString()}`
+        : "Локальная резервная копия";
+    }
+  } else {
+    await loadProjectFromServer();
+  }
 })();
 </script>
 </body>
