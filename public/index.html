@@ -5545,6 +5545,12 @@ function connectMonitorWS() {
     try {
       const msg = JSON.parse(ev.data);
       if (msg.type === "status") applyMonitorStatus(msg.status || []);
+      else if (msg.type === "tagPulse") {
+        for (const id of msg.equipmentIds || []) {
+          const eq = equipment.get(id);
+          if (eq) spawnMonitorTagPulse(eq);
+        }
+      }
     } catch (err) {
       console.error("Не удалось разобрать сообщение мониторинга:", err);
     }

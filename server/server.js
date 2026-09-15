@@ -59,6 +59,29 @@ function sendStatus(ws, projectId) {
   ws.send(JSON.stringify({ type: "status", status: getMonitorStatus(projectId) }));
 }
 
+// Разовая белая вспышка "новая метка на считывателе" (Этап 4, SPPD/
+// SBeacon) — sppd-worker.js пишет ряды в monitor_tag_pulses по мере
+// обнаружения, этот процесс на каждом цикле рассылки подбирает свежие
+// (после lastTagPulseSent для проекта) и шлёт клиентам. Курсор берём из
+// SQLite (`datetime('now')`), а не из JS Date().toISOString() — форматы
+// разные ("YYYY-MM-DD HH:MM:SS" против "...THH:MM:SS.sssZ"), и обычное
+// сравнение строк ">" сравнивало бы их неверно. lastTagPulseSent
+// стартует с момента запуска сервера, чтобы не пересылать вспышки,
+// накопленные до перезапуска.
+function sqliteNow() {
+  return db.prepare("SELECT datetime('now') AS now").get().now;
+}
+const lastTagPulseSent = new Map(); // projectId -> SQLite datetime string
+const serverStartSqlite = sqliteNow();
+function getFreshTagPulses(projectId) {
+  const since = lastTagPulseSent.get(projectId) || serverStartSqlite;
+  const rows = db
+    .prepare("SELECT equipment_id, created_at FROM monitor_tag_pulses WHERE project_id = ? AND created_at > ? ORDER BY created_at")
+    .all(projectId, since);
+  if (rows.length) lastTagPulseSent.set(projectId, rows[rows.length - 1].created_at);
+  return rows;
+}
+
 server.on("upgrade", (req, socket, head) => {
   let url;
   try {
@@ -91,6 +114,9 @@ server.on("upgrade", (req, socket, head) => {
       monitorClients.get(projectId)?.delete(ws);
     });
     sendStatus(ws, projectId);
+    // Курсор для нового клиента стартует с "сейчас" — не заваливаем его
+    // вспышками, случившимися до подключения.
+    lastTagPulseSent.set(projectId, sqliteNow());
   });
 });
 
@@ -98,9 +124,15 @@ const BROADCAST_INTERVAL_MS = parseInt(process.env.MONITOR_BROADCAST_INTERVAL_MS
 setInterval(() => {
   for (const [projectId, clients] of monitorClients) {
     if (!clients.size) continue;
-    const payload = JSON.stringify({ type: "status", status: getMonitorStatus(projectId) });
+    const statusPayload = JSON.stringify({ type: "status", status: getMonitorStatus(projectId) });
+    const pulses = getFreshTagPulses(projectId);
+    const pulsePayload = pulses.length
+      ? JSON.stringify({ type: "tagPulse", equipmentIds: pulses.map((p) => p.equipment_id) })
+      : null;
     for (const ws of clients) {
-      if (ws.readyState === ws.OPEN) ws.send(payload);
+      if (ws.readyState !== ws.OPEN) continue;
+      ws.send(statusPayload);
+      if (pulsePayload) ws.send(pulsePayload);
     }
   }
 }, BROADCAST_INTERVAL_MS);
