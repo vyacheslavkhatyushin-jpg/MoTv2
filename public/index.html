@@ -444,6 +444,40 @@
   }
   .ua-row button:hover{ border-color:var(--accent); color:var(--accent); }
   .ua-row button.ua-delete:hover{ border-color:var(--danger); color:var(--danger); }
+
+  /* ---- панель подключения к SPPD для проекта (admin), Этап 4 ---- */
+  #sppdConfigOverlay{
+    position:fixed; inset:0; z-index:900; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.55);
+  }
+  #sppdConfigOverlay.hidden{ display:none; }
+  #sppdConfigCard{
+    width:360px; max-width:92vw; background:var(--panel);
+    border:1px solid var(--border); border-radius:10px; padding:18px 20px; box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  #sppdConfigCard h3{ margin:0 0 12px; font-size:14px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between; }
+  #sppdConfigCard h3 button{ background:none; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; line-height:1; padding:2px 6px; }
+  #sppdConfigCard h3 button:hover{ color:var(--text); }
+  #sppdConfigStatus{ font-size:11px; color:var(--text-faint); margin:-6px 0 12px; }
+  .sc-field{ margin-bottom:10px; }
+  .sc-field label{ display:block; font-size:11px; color:var(--text-dim); margin-bottom:4px; }
+  .sc-field input{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:7px 8px; font-size:12.5px; font-family:inherit;
+  }
+  #sppdConfigError{ min-height:14px; font-size:11px; color:var(--danger); margin:4px 0 10px; }
+  .sc-actions{ display:flex; justify-content:space-between; gap:8px; margin-top:6px; }
+  .sc-actions button{
+    border-radius:5px; padding:7px 14px; font-size:12.5px; font-family:inherit; cursor:pointer;
+  }
+  .sc-actions #btnSppdConfigSave{
+    background:var(--accent); border:1px solid var(--accent); color:#14171a; font-weight:600;
+  }
+  .sc-actions #btnSppdConfigSave:hover{ filter:brightness(1.08); }
+  .sc-actions #btnSppdConfigRemove{
+    background:none; border:1px solid var(--border); color:var(--text-dim);
+  }
+  .sc-actions #btnSppdConfigRemove:hover{ border-color:var(--danger); color:var(--danger); }
   .ua-reset-row{ display:none; gap:6px; margin:4px 0 8px; }
   .ua-reset-row.open{ display:flex; }
   .ua-reset-row input{
@@ -589,6 +623,7 @@
       <a id="navToMonitoring" title="Мониторинг оборудования" style="text-decoration:none; display:inline-flex; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📡 Мониторинг</a>
       <a id="navToEditor" title="Вернуться в редактор" style="text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">✏️ Редактор</a>
       <button id="btnUserAdmin" title="Управление пользователями" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">👥 Пользователи</button>
+      <button id="btnSppdConfig" title="Подключение к SPPD для этого проекта" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">⚙ SPPD</button>
       <button id="btnLogout" title="Выйти" style="background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">Выйти</button>
     </div>
     <div class="brand-copyright">© 2026 KazMinerals LLP<br>Все права защищены</div>
@@ -608,6 +643,29 @@
     </div>
     <div id="userAdminError"></div>
     <div id="userAdminList"></div>
+  </div>
+</div>
+<div id="sppdConfigOverlay" class="hidden">
+  <div id="sppdConfigCard">
+    <h3>Подключение к SPPD <button id="btnSppdConfigClose" title="Закрыть">✕</button></h3>
+    <div id="sppdConfigStatus"></div>
+    <div class="sc-field">
+      <label for="scBaseUrl">Адрес сервера</label>
+      <input type="text" id="scBaseUrl" placeholder="http://10.20.99.7" autocomplete="off">
+    </div>
+    <div class="sc-field">
+      <label for="scUsername">Логин (сервисный аккаунт)</label>
+      <input type="text" id="scUsername" placeholder="Логин" autocomplete="off">
+    </div>
+    <div class="sc-field">
+      <label for="scPassword">Пароль</label>
+      <input type="password" id="scPassword" placeholder="Оставить как есть" autocomplete="off">
+    </div>
+    <div id="sppdConfigError"></div>
+    <div class="sc-actions">
+      <button id="btnSppdConfigRemove">Отключить</button>
+      <button id="btnSppdConfigSave">Сохранить</button>
+    </div>
   </div>
 </div>
 <div id="app">
@@ -5570,6 +5628,8 @@ function applyRoleToUI() {
   const canEdit = role === "editor" || role === "admin";
   const btnUserAdminEl = document.getElementById("btnUserAdmin");
   if (btnUserAdminEl) btnUserAdminEl.style.display = isAdmin ? "" : "none";
+  const btnSppdConfigEl = document.getElementById("btnSppdConfig");
+  if (btnSppdConfigEl) btnSppdConfigEl.style.display = isAdmin ? "" : "none";
 
   // Кабели/оборудование/метки/сохранение — доступны editor и admin.
   const editButtonIds = ["btnAddCable", "btnAddEquip", "btnAddMark", "btnSaveAll", "cableDExtend", "btnImportObjects"];
@@ -5613,6 +5673,7 @@ function applyRoleToUI() {
     if (sessionProjectEl) sessionProjectEl.textContent = "Локальная резервная копия";
     if (sessionUserEl) sessionUserEl.textContent = "";
     if (btnUserAdminEl) btnUserAdminEl.style.display = "none";
+    if (btnSppdConfigEl) btnSppdConfigEl.style.display = "none";
     const btnLogoutEl = document.getElementById("btnLogout");
     if (btnLogoutEl) btnLogoutEl.style.display = "none";
     const btnSaveAllEl = document.getElementById("btnSaveAll");
@@ -5870,6 +5931,82 @@ document.getElementById("btnUaAdd").addEventListener("click", async () => {
     loadUserAdminList();
   } catch (err) {
     uaError.textContent = "Не удалось добавить пользователя: " + err.message;
+  }
+});
+
+/* ---------- подключение к SPPD для этого проекта (admin), Этап 4 ----------
+   У каждой шахты (проекта) свой сервер SPPD со своим логином/паролем —
+   настраивается тут, а не общими переменными окружения одного воркера
+   (см. server/monitor/sppd-worker.js и docs/monitoring-plan.md). Пароль
+   сервер на GET никогда не отдаёт — только факт, что он задан; поле
+   остаётся пустым с подсказкой "оставить как есть", и пустое значение при
+   сохранении не затирает уже сохранённый пароль. */
+const scOverlay = document.getElementById("sppdConfigOverlay");
+const scStatus = document.getElementById("sppdConfigStatus");
+const scError = document.getElementById("sppdConfigError");
+function openSppdConfigPanel() {
+  scOverlay.classList.remove("hidden");
+  scError.textContent = "";
+  loadSppdConfig();
+}
+function closeSppdConfigPanel() {
+  scOverlay.classList.add("hidden");
+}
+document.getElementById("btnSppdConfig").addEventListener("click", openSppdConfigPanel);
+document.getElementById("btnSppdConfigClose").addEventListener("click", closeSppdConfigPanel);
+scOverlay.addEventListener("click", (e) => { if (e.target === scOverlay) closeSppdConfigPanel(); });
+
+async function loadSppdConfig() {
+  const urlEl = document.getElementById("scBaseUrl");
+  const userEl = document.getElementById("scUsername");
+  const passEl = document.getElementById("scPassword");
+  passEl.value = "";
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/sppd-config`);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    urlEl.value = data.baseUrl || "";
+    userEl.value = data.username || "";
+    passEl.placeholder = data.configured ? "Оставить как есть" : "Пароль";
+    scStatus.textContent = data.configured
+      ? `Настроено${data.updatedBy ? " — " + data.updatedBy : ""}${data.updatedAt ? ", " + new Date(data.updatedAt).toLocaleString() : ""}`
+      : "Пока не настроено — этот проект не будет опрашиваться sppd-worker.";
+  } catch (err) {
+    scStatus.textContent = "";
+    scError.textContent = "Не удалось загрузить настройку: " + err.message;
+  }
+}
+document.getElementById("btnSppdConfigSave").addEventListener("click", async () => {
+  const baseUrl = document.getElementById("scBaseUrl").value.trim();
+  const username = document.getElementById("scUsername").value.trim();
+  const password = document.getElementById("scPassword").value;
+  scError.textContent = "";
+  if (!/^https?:\/\/\S+$/.test(baseUrl)) { scError.textContent = "Укажите адрес вида http://10.20.99.7."; return; }
+  if (!username) { scError.textContent = "Введите логин сервисного аккаунта."; return; }
+  try {
+    const body = { baseUrl, username };
+    if (password) body.password = password;
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/sppd-config`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || ("HTTP " + resp.status));
+    }
+    loadSppdConfig();
+  } catch (err) {
+    scError.textContent = "Не удалось сохранить: " + err.message;
+  }
+});
+document.getElementById("btnSppdConfigRemove").addEventListener("click", async () => {
+  if (!confirm(`Отключить мониторинг SPPD для проекта «${CURRENT_PROJECT_ID}»?`)) return;
+  scError.textContent = "";
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/sppd-config`, { method: "DELETE" });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    loadSppdConfig();
+  } catch (err) {
+    scError.textContent = "Не удалось отключить: " + err.message;
   }
 });
 

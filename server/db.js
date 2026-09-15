@@ -99,6 +99,22 @@ CREATE TABLE IF NOT EXISTS monitor_tag_pulses (
 );
 CREATE INDEX IF NOT EXISTS idx_monitor_tag_pulses_project
   ON monitor_tag_pulses(project_id, created_at);
+
+-- Подключение к SPPD для этого проекта (Этап 4). У каждой шахты (apk/ipk/
+-- opk) — свой физический сервер SPPD с собственным логином/паролем, поэтому
+-- это не общие переменные окружения одного воркера, а настройка на проект,
+-- задаётся через UI админом (см. server/routes/projects.js). Пароль хранится
+-- как есть (без хеширования) — он нужен воркеру для живого логина на SPPD,
+-- не для проверки; отдаётся клиенту только сам факт настройки, не значение
+-- (см. GET .../monitor/sppd-config).
+CREATE TABLE IF NOT EXISTS project_sppd_config (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  base_url TEXT NOT NULL,
+  username TEXT NOT NULL,
+  password TEXT NOT NULL,
+  updated_by TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 module.exports = db;
