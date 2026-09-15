@@ -42,6 +42,11 @@ const SESSION_TTL_MS = parseInt(process.env.SPPD_SESSION_TTL_MS || String(6 * 36
 const RECONNECT_BASE_MS = parseInt(process.env.SPPD_RECONNECT_BASE_MS || "3000", 10);
 const RECONNECT_MAX_MS = parseInt(process.env.SPPD_RECONNECT_MAX_MS || "30000", 10);
 const TAG_PULSE_MAX_AGE_MS = parseInt(process.env.SPPD_TAG_PULSE_MAX_AGE_MS || String(2 * 60 * 1000), 10);
+// Отладка: SPPD_DEBUG=1 логирует каждый разобранный SB_EVENT/NOFTAG (его Addr
+// и попал ли он в список целей) — включать временно, когда данные почему-то
+// не доходят до monitor_status, чтобы увидеть реальные Addr в потоке и
+// сверить их с sppdAddress, настроенным на оборудовании.
+const DEBUG = process.env.SPPD_DEBUG === "1";
 
 /* ---------- список настроенных сайтов (проектов) ---------- */
 function loadSiteConfigs() {
@@ -199,10 +204,13 @@ function emitTagPulse(target) {
   stmtInsertTagPulse.run(target.projectId, target.equipmentId);
 }
 
-function handleSbEvent(msg, targetsByAddr) {
+function handleSbEvent(msg, targetsByAddr, siteLabel) {
   const data = msg.WSM_DATA;
   if (!data || !data.Addr) return;
   const targets = targetsByAddr.get(String(data.Addr));
+  if (DEBUG) {
+    console.log(`[sppd-worker]${siteLabel ? " [" + siteLabel + "]" : ""} SB_EVENT Addr=${data.Addr} OnLine=${data.State && data.State.OnLine} matched=${targets ? targets.length : 0}`);
+  }
   if (!targets || !targets.length) return;
   if (data.State && typeof data.State.OnLine === "boolean") {
     const metrics = {};
@@ -215,10 +223,13 @@ function handleSbEvent(msg, targetsByAddr) {
 // В памяти между сообщениями: последнее увиденное NOfTag на Addr (по
 // проекту — счётчики на разных сайтах независимы), чтобы вспышку "новая
 // метка" слать только на рост счётчика, а не на каждое сообщение потока.
-function handleNofTag(msg, targetsByAddr, lastTagCountByAddr) {
+function handleNofTag(msg, targetsByAddr, lastTagCountByAddr, siteLabel) {
   const data = msg.WSM_DATA;
   if (!data || !data.Addr) return;
   const targets = targetsByAddr.get(String(data.Addr));
+  if (DEBUG) {
+    console.log(`[sppd-worker]${siteLabel ? " [" + siteLabel + "]" : ""} NOFTAG Addr=${data.Addr} NOfTag=${data.NOfTag} NOfMan=${data.NOfMan} NofVehicle=${data.NofVehicle} matched=${targets ? targets.length : 0}`);
+  }
   if (!targets || !targets.length) return;
   for (const target of targets) applyCounts(target, data.NOfMan, data.NofVehicle);
 
@@ -275,10 +286,16 @@ function connectStream(name, wsBase, path, sessionCookie, onMessage, getClosed) 
   };
 }
 
+function logTargets(projectId, targetsByAddr) {
+  const addrs = [...targetsByAddr.keys()];
+  console.log(`[sppd-worker] [${projectId}] ${addrs.length} sppd-target Addr(s) configured: ${addrs.join(", ") || "(none)"}`);
+}
+
 function startSite(projectId, config) {
   const wsBase = config.baseUrl.replace(/^http/, "ws");
   let closed = false;
   let targetsByAddr = collectSppdTargets(projectId);
+  logTargets(projectId, targetsByAddr);
   const lastTagCountByAddr = new Map();
   let telemetryConn = null;
   let beaconConn = null;
@@ -286,7 +303,9 @@ function startSite(projectId, config) {
   let targetTimer = null;
 
   targetTimer = setInterval(() => {
-    if (!closed) targetsByAddr = collectSppdTargets(projectId);
+    if (closed) return;
+    targetsByAddr = collectSppdTargets(projectId);
+    if (DEBUG) logTargets(projectId, targetsByAddr);
   }, TARGET_REFRESH_MS);
 
   async function connectAll() {
@@ -303,10 +322,10 @@ function startSite(projectId, config) {
     if (telemetryConn) telemetryConn.close();
     if (beaconConn) beaconConn.close();
     telemetryConn = connectStream(`${projectId}/sppd`, wsBase, "/sppd/v1/ws/stream", sessionCookie, (msg) => {
-      if (msg.WSM_TYPE === "SB_EVENT") handleSbEvent(msg, targetsByAddr);
+      if (msg.WSM_TYPE === "SB_EVENT") handleSbEvent(msg, targetsByAddr, projectId);
     }, () => closed);
     beaconConn = connectStream(`${projectId}/sbeacon`, wsBase, "/sbeacon/v1/ws/stream", sessionCookie, (msg) => {
-      if (msg.WSM_TYPE === "NOFTAG") handleNofTag(msg, targetsByAddr, lastTagCountByAddr);
+      if (msg.WSM_TYPE === "NOFTAG") handleNofTag(msg, targetsByAddr, lastTagCountByAddr, projectId);
     }, () => closed);
   }
 
