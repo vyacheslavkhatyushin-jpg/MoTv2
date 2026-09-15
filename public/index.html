@@ -5241,10 +5241,10 @@ function renderDeletionLog(rows) {
     title.style.fontWeight = "600";
     const meta = document.createElement("div");
     meta.style.cssText = "font-size:11px; color:var(--text-dim);";
-    let text = `Удалил: ${r.deleted_by}, ${new Date(r.deleted_at).toLocaleString()}`;
+    let text = `Удалил: ${r.deleted_by}, ${parseServerDate(r.deleted_at).toLocaleString()}`;
     if (r.created_by) {
       text += ` · Создал: ${r.created_by}`;
-      if (r.created_at) text += `, ${new Date(r.created_at).toLocaleString()}`;
+      if (r.created_at) text += `, ${parseServerDate(r.created_at).toLocaleString()}`;
     }
     meta.textContent = text;
     row.appendChild(title);
@@ -5539,8 +5539,24 @@ function renderMonitorLayerLists() {
 document.querySelectorAll(".mon-sec-head[data-mon-toggle]").forEach((head) => {
   head.addEventListener("click", () => head.parentElement.classList.toggle("collapsed"));
 });
+// SQLite's datetime('now') (использован как DEFAULT для нескольких колонок
+// на сервере — project_state.updated_at, deletion_log.deleted_at,
+// project_sppd_config.updated_at и т.п.) отдаёт UTC-время БЕЗ отметки
+// таймзоны, в формате "YYYY-MM-DD HH:MM:SS" (пробел, не "T", без "Z").
+// new Date(...) на таких строках в браузере трактует их как ЛОКАЛЬНОЕ
+// время (а не UTC) — то есть на самом деле никакого пересчёта в локальную
+// зону не происходит, и отображаемое время отстаёт от настоящего ровно на
+// смещение таймзоны (например, на 5 часов для UTC+5). Нормализуем такие
+// строки в ISO+Z перед парсингом; строки, уже пришедшие с явным "Z"/смещением
+// (из JS Date().toISOString() — так пишут ping-worker/sppd-worker и сам
+// клиент), проходят без изменений.
+function parseServerDate(s) {
+  if (!s) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/.exec(s);
+  return m ? new Date(m[1] + "T" + m[2] + "Z") : new Date(s);
+}
 function timeSinceLabel(isoStr) {
-  const ms = Date.now() - Date.parse(isoStr);
+  const ms = Date.now() - parseServerDate(isoStr);
   if (!(ms > 0)) return "только что";
   const min = Math.floor(ms / 60000);
   if (min < 1) return "< 1 мин";
@@ -5636,7 +5652,7 @@ async function loadMonitorHistory() {
       title.textContent = e.equipment_label || e.equipment_id;
       const meta = document.createElement("div");
       meta.style.cssText = "font-size:11px; color:var(--text-dim);";
-      meta.textContent = `Простой ${formatDurationSec(e.duration_sec)} · с ${new Date(e.started_at).toLocaleString()}`;
+      meta.textContent = `Простой ${formatDurationSec(e.duration_sec)} · с ${parseServerDate(e.started_at).toLocaleString()}`;
       row.appendChild(title); row.appendChild(meta);
       dom.monitorHistoryList.appendChild(row);
     }
@@ -5761,7 +5777,7 @@ async function loadProjectFromServer() {
       await restoreFromSnapshot(data.snapshot);
       setBaseObjects(data.snapshot);
       dom.saveStatus.textContent = data.updatedBy
-        ? `Загружено. Последнее сохранение: ${data.updatedBy}, ${new Date(data.updatedAt).toLocaleString()}`
+        ? `Загружено. Последнее сохранение: ${data.updatedBy}, ${parseServerDate(data.updatedAt).toLocaleString()}`
         : "";
     }
   } catch (err) {
@@ -6024,7 +6040,7 @@ async function loadSppdConfig() {
     userEl.value = data.username || "";
     passEl.placeholder = data.configured ? "Оставить как есть" : "Пароль";
     scStatus.textContent = data.configured
-      ? `Настроено${data.updatedBy ? " — " + data.updatedBy : ""}${data.updatedAt ? ", " + new Date(data.updatedAt).toLocaleString() : ""}`
+      ? `Настроено${data.updatedBy ? " — " + data.updatedBy : ""}${data.updatedAt ? ", " + parseServerDate(data.updatedAt).toLocaleString() : ""}`
       : "Пока не настроено — этот проект не будет опрашиваться sppd-worker.";
   } catch (err) {
     scStatus.textContent = "";
