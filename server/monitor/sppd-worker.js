@@ -52,6 +52,13 @@ const SESSION_TTL_MS = parseInt(process.env.SPPD_SESSION_TTL_MS || String(6 * 36
 const RECONNECT_BASE_MS = parseInt(process.env.SPPD_RECONNECT_BASE_MS || "3000", 10);
 const RECONNECT_MAX_MS = parseInt(process.env.SPPD_RECONNECT_MAX_MS || "30000", 10);
 const TAG_PULSE_MAX_AGE_MS = parseInt(process.env.SPPD_TAG_PULSE_MAX_AGE_MS || String(2 * 60 * 1000), 10);
+// SPPD — push-модель (в отличие от ping-worker, который сам активно
+// стучится и получает явный отказ), поэтому если считыватель реально
+// пропал, он просто перестаёт слать SB_EVENT — тишина, а не ошибка. Если
+// от Addr не было НИ ОДНОГО сообщения дольше STALE_AFTER_MS — считаем это
+// "Нет связи" и переводим в state:"down" сами, с записью в monitor_events.
+const STALE_AFTER_MS = parseInt(process.env.SPPD_STALE_AFTER_MS || String(2 * 60 * 1000), 10);
+const STALE_CHECK_MS = parseInt(process.env.SPPD_STALE_CHECK_MS || "30000", 10);
 // Отладка: SPPD_DEBUG=1 логирует каждый разобранный SB_EVENT/NOFTAG (его Addr
 // и попал ли он в список целей) — включать временно, когда данные почему-то
 // не доходят до monitor_status, чтобы увидеть реальные Addr в потоке и
@@ -164,6 +171,18 @@ const stmtFindOpenEvent = db.prepare(`
 const stmtCloseEvent = db.prepare("UPDATE monitor_events SET ended_at = ?, duration_sec = ? WHERE id = ?");
 const stmtInsertTagPulse = db.prepare("INSERT INTO monitor_tag_pulses (project_id, equipment_id) VALUES (?, ?)");
 const stmtCleanupTagPulses = db.prepare("DELETE FROM monitor_tag_pulses WHERE created_at < datetime('now', ?)");
+// Только state/таймстемпы — в отличие от stmtUpsertState, не трогает
+// raw_metrics_json/person_count/vehicle_count при обновлении: "протухшая"
+// метка означает "давно нет вестей", а не "заново собранные нулевые данные".
+const stmtMarkStale = db.prepare(`
+  INSERT INTO monitor_status (project_id, equipment_id, state, last_checked_at, last_change_at)
+  VALUES (@projectId, @equipmentId, 'down', @checkedAt, @changedAt)
+  ON CONFLICT(project_id, equipment_id) DO UPDATE SET
+    state = 'down',
+    last_checked_at = @checkedAt,
+    last_change_at = CASE WHEN monitor_status.state != 'down' THEN @changedAt ELSE monitor_status.last_change_at END
+`);
+const stmtGetLastChecked = db.prepare("SELECT state, last_checked_at FROM monitor_status WHERE project_id = ? AND equipment_id = ?");
 
 function applyOnlineState(target, online, metrics) {
   const nowIso = new Date().toISOString();
@@ -212,6 +231,49 @@ function applyCounts(target, personCount, vehicleCount) {
 
 function emitTagPulse(target) {
   stmtInsertTagPulse.run(target.projectId, target.equipmentId);
+}
+
+function markStaleAsDown(target) {
+  const nowIso = new Date().toISOString();
+  const current = stmtGetStatus.get(target.projectId, target.equipmentId);
+  const changed = !current || current.state !== "down";
+  stmtMarkStale.run({
+    projectId: target.projectId,
+    equipmentId: target.equipmentId,
+    checkedAt: nowIso,
+    changedAt: nowIso,
+  });
+  if (!changed) return;
+  stmtOpenEvent.run({
+    projectId: target.projectId,
+    equipmentId: target.equipmentId,
+    label: target.label,
+    fromState: current ? current.state : null,
+    toState: "down",
+    startedAt: nowIso,
+  });
+}
+
+// Раз в STALE_CHECK_MS проверяет все настроенные на этом сайте цели: если
+// от Addr не было ни одного сообщения дольше STALE_AFTER_MS — считаем это
+// "Нет связи". siteStartedAtMs — точка отсчёта для оборудования, по
+// которому вообще ещё не было ни одной записи в monitor_status (даёт
+// новому/только настроенному считывателю запас времени с момента старта
+// воркера, а не мгновенную красную вспышку до первого ответа).
+function checkStaleness(projectId, targetsByAddr, siteStartedAtMs) {
+  const nowMs = Date.now();
+  for (const targets of targetsByAddr.values()) {
+    for (const target of targets) {
+      const row = stmtGetLastChecked.get(target.projectId, target.equipmentId);
+      const lastSeenMs = row && row.last_checked_at ? Date.parse(row.last_checked_at) : siteStartedAtMs;
+      if (nowMs - lastSeenMs > STALE_AFTER_MS) {
+        markStaleAsDown(target);
+        if (DEBUG) {
+          console.log(`[sppd-worker] [${projectId}] ${target.equipmentId} (${target.label}) — нет данных дольше ${STALE_AFTER_MS}мс, помечено как "Нет связи"`);
+        }
+      }
+    }
+  }
 }
 
 // Во всех трёх обработчиках лог печатается ПЕРЕД любым ранним return —
@@ -346,6 +408,7 @@ function logTargets(projectId, targetsByAddr) {
 
 function startSite(projectId, config) {
   const wsBase = config.baseUrl.replace(/^http/, "ws");
+  const siteStartedAtMs = Date.now();
   let closed = false;
   let targetsByAddr = collectSppdTargets(projectId);
   logTargets(projectId, targetsByAddr);
@@ -353,12 +416,17 @@ function startSite(projectId, config) {
   let beaconConn = null;
   let reloginTimer = null;
   let targetTimer = null;
+  let staleTimer = null;
 
   targetTimer = setInterval(() => {
     if (closed) return;
     targetsByAddr = collectSppdTargets(projectId);
     if (DEBUG) logTargets(projectId, targetsByAddr);
   }, TARGET_REFRESH_MS);
+
+  staleTimer = setInterval(() => {
+    if (!closed) checkStaleness(projectId, targetsByAddr, siteStartedAtMs);
+  }, STALE_CHECK_MS);
 
   async function connectAll() {
     if (closed) return;
@@ -406,6 +474,7 @@ function startSite(projectId, config) {
     stop() {
       closed = true;
       clearInterval(targetTimer);
+      clearInterval(staleTimer);
       clearInterval(reloginTimer);
       if (telemetryConn) telemetryConn.close();
       if (beaconConn) beaconConn.close();
@@ -463,6 +532,8 @@ module.exports = {
   handleSbEvent,
   handleNofTag,
   handleRegTag,
+  markStaleAsDown,
+  checkStaleness,
   login,
   parseSetCookiePairs,
   sameConfig,
