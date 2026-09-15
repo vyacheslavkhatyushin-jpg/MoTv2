@@ -1,0 +1,91 @@
+# Мониторинг оборудования шахты — план
+
+Рабочий документ архитектуры. Полная оформленная версия (с диаграммой и таблицами) опубликована отдельно; здесь — содержание для истории и справки прямо в репозитории.
+
+## Зачем
+
+Модель шахты в MoTv2 уже содержит инвентарь оборудования (координаты, IP, тип). Мониторинг не заводит отдельную базу устройств, а надстраивается над этими же объектами:
+
+- подсветка аварийных участков/оборудования на 3D-модели;
+- append-only лог аварий/отключений (по аналогии с логом удалений);
+- счётчик людей на считывателях IILB/ISIB;
+- единая точка правды поверх трёх независимых источников данных.
+
+## Источники по типам оборудования
+
+| Тип | Источник | Что получаем | Частота |
+|---|---|---|---|
+| IILB, ISIB | SPPD (система HFT), WebSocket | online/offline, RSSI, TxRx, прошивка, число людей на точке | реальное время (push) |
+| MAP, WiFi | Ping (+SNMP по мере подтверждения) | доступность; опционально аптайм/состояние портов | 30–60 сек |
+| CAM | Ping | доступность | 30–60 сек |
+| TEL | Ping шлюза (SPA/ATA) | доступность шлюза — сразу для обоих телефонов на нём | 30–60 сек |
+| MLA, MPS, MPC, MTU, MVSA, MBU, FS, Статив | — | без сети, не мониторится на этом этапе | — |
+| Кабели | — (идея на будущее) | обрыв участка — косвенно, по потере связи с оборудованием на концах | — |
+
+## Интеграция с SPPD (изначально называли «FlexCom»)
+
+Реальная система на `10.20.99.7` — связка сервисов: **SPPD** (телеметрия сетевых устройств), **SBeacon** (трекинг бирок персонала), **GSA** (общешахтная сирена/эвакуация — не используется в этом мониторинге).
+
+**Аутентификация** — стандартная Django-сессия:
+```
+GET  /login/   → cookie csrftoken + csrfmiddlewaretoken из HTML
+POST /login/   → username, password, csrfmiddlewaretoken, next="/", login=""
+     ← 302, Set-Cookie: sessionid=...
+```
+
+**Телеметрия** — `ws://10.20.99.7/sppd/v1/ws/stream`, сообщения приходят по частям на один `Addr`:
+```json
+{"WSM_TYPE":"SB_EVENT","WSM_DATA":{"Addr":"3934","Id":232,
+  "TxRx":{"Rx":98,"Tx":201,"UTime":1789449325},
+  "State":{"UTime":1789449325,"OnLine":true}}}
+```
+
+**Счётчик людей** — `ws://10.20.99.7/sbeacon/v1/ws/stream`:
+```json
+{"WSM_TYPE":"NOFTAG","WSM_DATA":{"Addr":"1000",
+  "NOfTag":265,"NOfTagUnit":256,"NOfMan":254,"NofVehicle":2,"utime":1789449376}}
+```
+Открытый вопрос: общая ли нумерация `Addr` у SPPD и SBeacon для одного физического считывателя — проверяется сверкой на реализации.
+
+**Справочник устройств** — `GET /sppd/v1/insiteexpert/device/get/all` → `{ devices: { "63": { address:"2341", name:"ВВ ворота3", TypeDevice:4099, ... } } }`. `address` — то же, что `Addr` в потоке.
+
+## Ping/SNMP
+
+- **Ping** — обязательный базовый уровень для MAP/WiFi/CAM/TEL, при ~200 устройствах — пакетно (`fping`), а не последовательными процессами.
+- **SNMP** — опционален, добавляется по мере подтверждения по каждому типу. Проверено: community `public` работает (протестировано на коммутаторе MOXA EDS-408A). На MAP/WiFi/CAM напрямую — ещё не проверено.
+
+## Модель данных
+
+Новые поля в объекте `equipment` (внутри JSON-снапшота проекта):
+```
+monitorMethod   "none" | "ping" | "snmp" | "sppd"
+snmpCommunity   string | null
+snmpProfile     string | null
+sppdAddress     string | null   — только для IILB/ISIB
+```
+
+Новые таблицы SQLite:
+```sql
+monitor_status (
+  project_id, equipment_id,
+  state, last_checked_at, last_change_at, latency_ms,
+  person_count, vehicle_count, raw_metrics_json,
+  PRIMARY KEY (project_id, equipment_id)
+)
+
+monitor_events (
+  id, project_id, equipment_id, equipment_label,
+  from_state, to_state, started_at, ended_at, duration_sec,
+  acknowledged_by, acknowledged_at
+)
+```
+
+## План по этапам
+
+1. **Поля и таблицы** — новые поля в `equipment`, таблицы `monitor_status`/`monitor_events`, UI для admin.
+2. **Ping-коллектор** — базовая доступность для MAP/WiFi/CAM/TEL.
+3. **Страница `/<project>/monitoring`** — 3D с автоподсветкой, список аварий, история.
+4. **SPPD-коллектор** — логин, справочник устройств, живой `SB_EVENT`, счётчик людей.
+5. **SNMP поверх ping** — по мере проверки community/OID на конкретных устройствах.
+6. **Сводная `/monitoring`** — по всем проектам.
+7. **Внешние оповещения** (опционально, позже) — Telegram/email.

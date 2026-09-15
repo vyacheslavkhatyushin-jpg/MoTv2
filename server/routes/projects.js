@@ -236,4 +236,36 @@ router.get("/:id/deletions", (req, res) => {
   res.json({ deletions: rows });
 });
 
+// Мониторинг оборудования (см. docs/monitoring-plan.md). На этом этапе
+// таблицы существуют, но их ещё некому заполнять — коллекторы появятся на
+// следующих этапах; эндпоинты уже отдают правильную (пустую) форму ответа,
+// чтобы фронтенд мониторинга можно было строить не дожидаясь их реализации.
+router.get("/:id/monitor/status", (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const rows = db
+    .prepare(
+      `SELECT equipment_id, state, last_checked_at, last_change_at, latency_ms,
+              person_count, vehicle_count, raw_metrics_json
+       FROM monitor_status WHERE project_id = ?`
+    )
+    .all(req.params.id);
+  res.json({ status: rows });
+});
+
+router.get("/:id/monitor/events", (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const rows = db
+    .prepare(
+      `SELECT id, equipment_id, equipment_label, from_state, to_state,
+              started_at, ended_at, duration_sec, acknowledged_by, acknowledged_at
+       FROM monitor_events WHERE project_id = ? ORDER BY started_at DESC, id DESC LIMIT 500`
+    )
+    .all(req.params.id);
+  res.json({ events: rows });
+});
+
 module.exports = router;
