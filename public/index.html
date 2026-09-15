@@ -789,6 +789,17 @@
           <div class="drow"><span>Расположение</span><input type="text" id="equipDLocation" placeholder="Например: гор. 340, ПК 12"></div>
           <div class="drow"><span>IP-адрес</span><input type="text" id="equipDIp" placeholder="192.168.0.1"></div>
           <div class="drow"><span>ID номер</span><input type="text" id="equipDIdNumber" placeholder="Инвентарный/серийный номер"></div>
+          <div class="drow"><span>Мониторинг</span>
+            <select id="equipDMonitorMethod" style="background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 6px; font-family:inherit;">
+              <option value="none">Не мониторится</option>
+              <option value="ping">Ping</option>
+              <option value="snmp">SNMP</option>
+              <option value="sppd" id="equipDMonitorSppdOption">SPPD (позиционирование)</option>
+            </select>
+          </div>
+          <div class="drow" id="equipDSnmpCommunityRow" style="display:none;"><span>SNMP community</span><input type="text" id="equipDSnmpCommunity" placeholder="public"></div>
+          <div class="drow" id="equipDSnmpProfileRow" style="display:none;"><span>SNMP профиль</span><input type="text" id="equipDSnmpProfile" placeholder="по умолчанию"></div>
+          <div class="drow" id="equipDSppdAddressRow" style="display:none;"><span>Адрес SPPD</span><input type="text" id="equipDSppdAddress" placeholder="напр. 3934"></div>
           <button id="equipDDelete" class="danger-btn">Удалить объект</button>
         </div>
       </div>
@@ -1671,6 +1682,14 @@ const dom = {
   equipDLocation: document.getElementById("equipDLocation"),
   equipDIp: document.getElementById("equipDIp"),
   equipDIdNumber: document.getElementById("equipDIdNumber"),
+  equipDMonitorMethod: document.getElementById("equipDMonitorMethod"),
+  equipDMonitorSppdOption: document.getElementById("equipDMonitorSppdOption"),
+  equipDSnmpCommunityRow: document.getElementById("equipDSnmpCommunityRow"),
+  equipDSnmpCommunity: document.getElementById("equipDSnmpCommunity"),
+  equipDSnmpProfileRow: document.getElementById("equipDSnmpProfileRow"),
+  equipDSnmpProfile: document.getElementById("equipDSnmpProfile"),
+  equipDSppdAddressRow: document.getElementById("equipDSppdAddressRow"),
+  equipDSppdAddress: document.getElementById("equipDSppdAddress"),
   equipDDelete: document.getElementById("equipDDelete"),
   btnEquipDClose: document.getElementById("btnEquipDClose"),
   equipLabelToggle: document.getElementById("equipLabelToggle"),
@@ -3580,6 +3599,13 @@ function placeEquipment(point, overrides) {
     location: overrides?.location ?? "",
     ip: overrides?.ip ?? "",
     idNumber: overrides?.idNumber ?? "",
+    // Мониторинг (см. docs/monitoring-plan.md): monitorMethod выбирает,
+    // каким способом опрашивать это конкретное устройство. "sppd" имеет
+    // смысл только для считывателей системы позиционирования (IILB/ISIB).
+    monitorMethod: overrides?.monitorMethod ?? "none",
+    snmpCommunity: overrides?.snmpCommunity ?? "",
+    snmpProfile: overrides?.snmpProfile ?? "",
+    sppdAddress: overrides?.sppdAddress ?? "",
     createdBy: overrides?.createdBy ?? currentUsername(),
     createdAt: overrides?.createdAt ?? new Date().toISOString(),
   };
@@ -3687,6 +3713,27 @@ function selectEquip(eq) {
   dom.equipDLocation.value = eq.location || "";
   dom.equipDIp.value = eq.ip || "";
   dom.equipDIdNumber.value = eq.idNumber || "";
+  dom.equipDMonitorMethod.value = eq.monitorMethod || "none";
+  dom.equipDSnmpCommunity.value = eq.snmpCommunity || "";
+  dom.equipDSnmpProfile.value = eq.snmpProfile || "";
+  dom.equipDSppdAddress.value = eq.sppdAddress || "";
+  updateEquipMonitorRows(eq);
+}
+// SPPD (система позиционирования HFT) имеет смысл только для считывателей
+// IILB/ISIB — для остальных типов оборудования этот вариант в выпадающем
+// списке скрывается, чтобы не вводить в заблуждение (см. docs/monitoring-plan.md).
+function updateEquipMonitorRows(eq) {
+  const canSppd = eq.shape === "iilb" || eq.shape === "isib";
+  dom.equipDMonitorSppdOption.disabled = !canSppd;
+  dom.equipDMonitorSppdOption.hidden = !canSppd;
+  if (!canSppd && dom.equipDMonitorMethod.value === "sppd") {
+    dom.equipDMonitorMethod.value = "none";
+    eq.monitorMethod = "none";
+  }
+  const method = dom.equipDMonitorMethod.value;
+  dom.equipDSnmpCommunityRow.style.display = method === "snmp" ? "" : "none";
+  dom.equipDSnmpProfileRow.style.display = method === "snmp" ? "" : "none";
+  dom.equipDSppdAddressRow.style.display = method === "sppd" ? "" : "none";
 }
 document.getElementById("equipShapeSelect").addEventListener("change", (e) => {
   equipShape = e.target.value;
@@ -3739,6 +3786,23 @@ dom.equipDIp.addEventListener("input", () => {
 dom.equipDIdNumber.addEventListener("input", () => {
   if (!selectedEquip) return;
   selectedEquip.idNumber = dom.equipDIdNumber.value;
+});
+dom.equipDMonitorMethod.addEventListener("change", () => {
+  if (!selectedEquip) return;
+  selectedEquip.monitorMethod = dom.equipDMonitorMethod.value;
+  updateEquipMonitorRows(selectedEquip);
+});
+dom.equipDSnmpCommunity.addEventListener("input", () => {
+  if (!selectedEquip) return;
+  selectedEquip.snmpCommunity = dom.equipDSnmpCommunity.value;
+});
+dom.equipDSnmpProfile.addEventListener("input", () => {
+  if (!selectedEquip) return;
+  selectedEquip.snmpProfile = dom.equipDSnmpProfile.value;
+});
+dom.equipDSppdAddress.addEventListener("input", () => {
+  if (!selectedEquip) return;
+  selectedEquip.sppdAddress = dom.equipDSppdAddress.value;
 });
 function focusEquip(eq) {
   if (!eq) return;
@@ -4658,6 +4722,10 @@ function serializeEquip(eq) {
     shape: eq.shape, size: eq.size, color: eq.color, label: eq.label, visible: eq.visible,
     position: [eq.mesh.position.x, eq.mesh.position.y, eq.mesh.position.z],
     location: eq.location, ip: eq.ip, idNumber: eq.idNumber,
+    monitorMethod: eq.monitorMethod || "none",
+    snmpCommunity: eq.snmpCommunity || "",
+    snmpProfile: eq.snmpProfile || "",
+    sppdAddress: eq.sppdAddress || "",
     createdBy: eq.createdBy, createdAt: eq.createdAt,
   };
 }
@@ -4928,6 +4996,15 @@ function applyRoleToUI() {
   for (const id of adminOnlyIds) {
     const el = document.getElementById(id);
     if (el) el.style.display = isAdmin ? "" : "none";
+  }
+
+  // Настройка мониторинга (метод опроса, SNMP-community, адрес SPPD) —
+  // тоже только admin: это инфраструктурная привязка устройства, а не
+  // повседневное редактирование карточки оборудования.
+  const monitorFieldIds = ["equipDMonitorMethod", "equipDSnmpCommunity", "equipDSnmpProfile", "equipDSppdAddress"];
+  for (const id of monitorFieldIds) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !isAdmin;
   }
   const patchTab = document.getElementById("tab-patches");
   if (patchTab) patchTab.style.display = isAdmin ? "" : "none";

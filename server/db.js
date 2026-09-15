@@ -49,6 +49,41 @@ CREATE TABLE IF NOT EXISTS deletion_log (
 );
 CREATE INDEX IF NOT EXISTS idx_deletion_log_project
   ON deletion_log(project_id, deleted_at DESC);
+
+-- Мониторинг оборудования (см. docs/monitoring-plan.md). monitor_status —
+-- кэш текущего состояния каждого отслеживаемого объекта, перезаписывается
+-- на каждый опрос; источник правды для подсветки на 3D-модели.
+CREATE TABLE IF NOT EXISTS monitor_status (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  equipment_id TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'unknown' CHECK(state IN ('up','down','degraded','unknown')),
+  last_checked_at TEXT,
+  last_change_at TEXT,
+  latency_ms REAL,
+  person_count INTEGER,
+  vehicle_count INTEGER,
+  raw_metrics_json TEXT,
+  PRIMARY KEY (project_id, equipment_id)
+);
+
+-- Append-only лог аварий/отключений — отдельно от monitor_status по той же
+-- логике, что и deletion_log: пишется сразу в момент смены состояния и не
+-- может быть случайно перезаписан при следующем опросе.
+CREATE TABLE IF NOT EXISTS monitor_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  equipment_id TEXT NOT NULL,
+  equipment_label TEXT,
+  from_state TEXT,
+  to_state TEXT NOT NULL,
+  started_at TEXT NOT NULL DEFAULT (datetime('now')),
+  ended_at TEXT,
+  duration_sec INTEGER,
+  acknowledged_by TEXT,
+  acknowledged_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_monitor_events_project
+  ON monitor_events(project_id, started_at DESC);
 `);
 
 module.exports = db;
