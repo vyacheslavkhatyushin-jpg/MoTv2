@@ -18,12 +18,16 @@ function signToken(user) {
   );
 }
 
+function verifyToken(token) {
+  return jwt.verify(token, JWT_SECRET);
+}
+
 function requireAuth(req, res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) return res.status(401).json({ error: "no_token" });
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    req.user = verifyToken(token);
     next();
   } catch (e) {
     return res.status(401).json({ error: "invalid_token" });
@@ -39,4 +43,4 @@ function requireRole(...roles) {
   };
 }
 
-module.exports = { signToken, requireAuth, requireRole };
+module.exports = { signToken, verifyToken, requireAuth, requireRole };

@@ -78,7 +78,7 @@
   #progressWrap{ margin:0 12px 10px; height:3px; background:var(--border-soft); border-radius:2px; overflow:hidden; display:none; }
   #progressBar{ height:100%; width:0%; background:var(--accent); transition:width .1s linear; }
   /* ---- tabs ---- */
-  #tabs{ display:flex; border-bottom:1px solid var(--border); padding:0 8px; gap:1px; flex-shrink:0;}
+  #tabs{ display:flex; border-bottom:1px solid var(--border); padding:0 8px; gap:1px; flex-shrink:0; overflow-x:auto; }
   .tab-btn{
     background:none; border:none; color:var(--text-dim); font-size:11.5px;
     padding:8px 6px 7px; cursor:pointer; border-bottom:2px solid transparent;
@@ -643,6 +643,7 @@
       <button class="tab-btn" data-tab="marks">Метки</button>
       <button class="tab-btn" data-tab="patches" id="tabBtnPatches">Заплатки</button>
       <button class="tab-btn" data-tab="deleted">Удалено</button>
+      <button class="tab-btn" data-tab="monitor" title="Мониторинг">Монитор.</button>
     </div>
     <div id="tabpanels">
       <div class="tabpanel active" id="tab-shaft">
@@ -876,6 +877,19 @@
       <div class="tabpanel" id="tab-deleted">
         <div class="uo-list" id="deletionLogList"></div>
         <div class="placeholder" id="deletionLogPlaceholder">Удалённых объектов пока нет.</div>
+      </div>
+      <div class="tabpanel" id="tab-monitor">
+        <div class="panel-row" style="display:flex; gap:16px; align-items:center;">
+          <span style="font-size:12.5px; color:var(--text-dim);">🟢 <span id="monitorCountUp">0</span></span>
+          <span style="font-size:12.5px; color:var(--text-dim);">🔴 <span id="monitorCountDown">0</span></span>
+          <span style="font-size:12.5px; color:var(--text-faint);">⚪ <span id="monitorCountUnknown">0</span></span>
+        </div>
+        <div style="padding:8px 12px 4px; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint);">Активные аварии</div>
+        <div class="uo-list" id="monitorActiveList"></div>
+        <div class="placeholder" id="monitorActivePlaceholder" style="padding:16px; margin:0;">Активных аварий нет.</div>
+        <div style="padding:8px 12px 4px; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); border-top:1px solid var(--border-soft);">История</div>
+        <div class="uo-list" id="monitorHistoryList"></div>
+        <div class="placeholder" id="monitorHistoryPlaceholder" style="padding:16px; margin:0;">История пуста.</div>
       </div>
     </div>
   </div>
@@ -1732,6 +1746,13 @@ const dom = {
   patchDDelete: document.getElementById("patchDDelete"),
   deletionLogList: document.getElementById("deletionLogList"),
   deletionLogPlaceholder: document.getElementById("deletionLogPlaceholder"),
+  monitorCountUp: document.getElementById("monitorCountUp"),
+  monitorCountDown: document.getElementById("monitorCountDown"),
+  monitorCountUnknown: document.getElementById("monitorCountUnknown"),
+  monitorActiveList: document.getElementById("monitorActiveList"),
+  monitorActivePlaceholder: document.getElementById("monitorActivePlaceholder"),
+  monitorHistoryList: document.getElementById("monitorHistoryList"),
+  monitorHistoryPlaceholder: document.getElementById("monitorHistoryPlaceholder"),
   btnAddLink: document.getElementById("btnAddLink"),
   linkHint: document.getElementById("linkHint"),
   btnCancelLink: document.getElementById("btnCancelLink"),
@@ -2598,6 +2619,7 @@ dom.tabs.forEach((btn) => {
     btn.classList.add("active");
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
     if (btn.dataset.tab === "deleted") loadDeletionLog();
+    if (btn.dataset.tab === "monitor") loadMonitorHistory();
   });
 });
 /* ---------- file loading ---------- */
@@ -2868,6 +2890,106 @@ function updateHighlightPulse() {
     if (layer.mesh.material) layer.mesh.material.opacity = layer.baseOpacity * pulse;
   }
 }
+
+/* ============================================================
+   Автоматическая подсветка по данным мониторинга (см.
+   docs/monitoring-plan.md) — независима от ручной "✨ Подсветить"
+   выше: там одновременно подсвечен максимум один объект на 3 секунды,
+   здесь — потенциально сотни объектов одновременно и постоянно, пока
+   вкладка мониторинга открыта. Поэтому своя, отдельная реализация
+   (та же техника — концентрические полупрозрачные сферы), а не общее
+   состояние с highlightState.
+   "up" — статичное зелёное свечение, не анимируется (дёшево — обычный
+   меш). "down" — красное вдвое крупнее, пульсирует. "unknown"/нет
+   данных — подсветки нет вовсе.
+   MONITOR_TAG_PULSE — короткая (0.5с) белая вспышка на регистрацию
+   бирки на считывателе IILB/ISIB; сама себя убирает. Подключается
+   позже, на этапе SPPD/SBeacon-коллектора (docs/monitoring-plan.md,
+   этап 4) — там, где появится сам источник событий регистрации.
+============================================================ */
+const MONITOR_GLOW_UP = 0x2ecc71;
+const MONITOR_GLOW_DOWN = 0xe74c3c;
+const MONITOR_GLOW_TAG = 0xffffff;
+const MONITOR_TAG_PULSE_MS = 500;
+const monitorGlows = new Map(); // equipmentId -> { layers, pulsing, t0 }
+const monitorTagPulses = []; // [{ layers, t0 }]
+
+function buildMonitorGlowLayers(mesh, hint, color, sizeMult) {
+  const base = Math.max(hint || 0, GLOW_MIN_SCALE_HINT);
+  const layers = [];
+  for (const { offsetFactor, opacityBase } of GLOW_SHELL_LAYERS) {
+    const glow = new THREE.Mesh(
+      new THREE.SphereGeometry(base * sizeMult * (0.6 + offsetFactor), 16, 12),
+      new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: opacityBase,
+        side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    );
+    mesh.add(glow);
+    layers.push({ mesh: glow, baseOpacity: opacityBase });
+  }
+  return layers;
+}
+function disposeGlowLayers(layers) {
+  for (const layer of layers) {
+    const g = layer.mesh;
+    if (g.parent) g.parent.remove(g);
+    g.geometry.dispose();
+    g.material.dispose();
+  }
+}
+function clearMonitorGlow(equipmentId) {
+  const entry = monitorGlows.get(equipmentId);
+  if (!entry) return;
+  disposeGlowLayers(entry.layers);
+  monitorGlows.delete(equipmentId);
+}
+// state: "up" | "down" | "degraded" | "unknown"/что угодно ещё — трактуется
+// как "нет подсветки", чтобы неизвестный статус не выглядел как авария.
+function setMonitorGlow(eq, state) {
+  clearMonitorGlow(eq.id);
+  if (state === "up") {
+    const layers = buildMonitorGlowLayers(eq.mesh, eq.size, MONITOR_GLOW_UP, 1);
+    monitorGlows.set(eq.id, { layers, pulsing: false });
+  } else if (state === "down" || state === "degraded") {
+    const layers = buildMonitorGlowLayers(eq.mesh, eq.size, MONITOR_GLOW_DOWN, 2);
+    monitorGlows.set(eq.id, { layers, pulsing: true, t0: performance.now() });
+  }
+}
+function clearAllMonitorGlows() {
+  for (const id of [...monitorGlows.keys()]) clearMonitorGlow(id);
+}
+// Вызывается коллектором регистраций бирок (этап 4) — на каждую
+// регистрацию на считывателе IILB/ISIB, независимо от того, есть ли уже
+// зелёное/красное свечение статуса на этом же объекте (оба слоя рисуются
+// одновременно, не мешая друг другу).
+function spawnMonitorTagPulse(eq) {
+  const layers = buildMonitorGlowLayers(eq.mesh, eq.size, MONITOR_GLOW_TAG, 1.3);
+  monitorTagPulses.push({ layers, t0: performance.now() });
+}
+function updateMonitorGlows() {
+  for (const entry of monitorGlows.values()) {
+    if (!entry.pulsing) continue;
+    const t = (performance.now() - entry.t0) / 1000;
+    const pulse = Math.max(0.15, 0.55 + 0.45 * Math.sin(t * 6));
+    for (const layer of entry.layers) layer.mesh.material.opacity = layer.baseOpacity * pulse;
+  }
+  if (monitorTagPulses.length) {
+    const now = performance.now();
+    for (let i = monitorTagPulses.length - 1; i >= 0; i--) {
+      const entry = monitorTagPulses[i];
+      const t = now - entry.t0;
+      if (t >= MONITOR_TAG_PULSE_MS) {
+        disposeGlowLayers(entry.layers);
+        monitorTagPulses.splice(i, 1);
+        continue;
+      }
+      const fade = 1 - t / MONITOR_TAG_PULSE_MS;
+      for (const layer of entry.layers) layer.mesh.material.opacity = layer.baseOpacity * fade;
+    }
+  }
+}
+
 function flyTo(box, instant) {
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
@@ -4975,6 +5097,119 @@ function renderDeletionLog(rows) {
   }
 }
 
+/* ---------- мониторинг оборудования: живой статус по WebSocket + история
+   аварий (см. docs/monitoring-plan.md) ---------- */
+function timeSinceLabel(isoStr) {
+  const ms = Date.now() - Date.parse(isoStr);
+  if (!(ms > 0)) return "только что";
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return "< 1 мин";
+  if (min < 60) return min + " мин";
+  const h = Math.floor(min / 60);
+  if (h < 24) return h + " ч " + (min % 60) + " мин";
+  const d = Math.floor(h / 24);
+  return d + " дн " + (h % 24) + " ч";
+}
+function formatDurationSec(sec) {
+  if (sec == null) return "";
+  if (sec < 60) return sec + " с";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return min + " мин";
+  const h = Math.floor(min / 60);
+  return h + " ч " + (min % 60) + " мин";
+}
+function renderMonitorActiveList(rows) {
+  const active = rows
+    .filter((r) => r.state === "down" || r.state === "degraded")
+    .map((r) => ({ row: r, eq: equipment.get(r.equipment_id) }))
+    .filter((x) => x.eq)
+    .sort((a, b) => (a.row.last_change_at || "").localeCompare(b.row.last_change_at || ""));
+  dom.monitorActiveList.innerHTML = "";
+  dom.monitorActivePlaceholder.style.display = active.length ? "none" : "block";
+  for (const { row, eq } of active) {
+    const el = document.createElement("div");
+    el.className = "uo-row";
+    const swatch = document.createElement("span");
+    swatch.className = "swatch"; swatch.style.background = "#e74c3c";
+    const lname = document.createElement("span");
+    lname.className = "lname"; lname.textContent = eq.label;
+    const since = document.createElement("span");
+    since.className = "llen";
+    since.textContent = row.last_change_at ? timeSinceLabel(row.last_change_at) : "";
+    el.appendChild(swatch); el.appendChild(lname); el.appendChild(since);
+    el.addEventListener("click", () => focusEquip(eq));
+    dom.monitorActiveList.appendChild(el);
+  }
+}
+// Полный пересчёт подсветки при каждом сообщении — раз в несколько секунд
+// на ~сотнях объектов это дёшево (пересоздать несколько маленьких сфер),
+// зато не нужно отдельно отслеживать diff между сообщениями.
+function applyMonitorStatus(rows) {
+  clearAllMonitorGlows();
+  let up = 0, down = 0, unknown = 0;
+  for (const row of rows) {
+    if (row.state === "up") up++;
+    else if (row.state === "down" || row.state === "degraded") down++;
+    else unknown++;
+    const eq = equipment.get(row.equipment_id);
+    if (eq) setMonitorGlow(eq, row.state);
+  }
+  if (dom.monitorCountUp) dom.monitorCountUp.textContent = up;
+  if (dom.monitorCountDown) dom.monitorCountDown.textContent = down;
+  if (dom.monitorCountUnknown) dom.monitorCountUnknown.textContent = unknown;
+  if (dom.monitorActiveList) renderMonitorActiveList(rows);
+}
+async function loadMonitorHistory() {
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/events`);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    const closed = (data.events || []).filter((e) => e.ended_at);
+    dom.monitorHistoryList.innerHTML = "";
+    dom.monitorHistoryPlaceholder.style.display = closed.length ? "none" : "block";
+    for (const e of closed) {
+      const row = document.createElement("div");
+      row.className = "uo-row";
+      row.style.cssText = "flex-direction:column; align-items:flex-start; gap:2px; cursor:default;";
+      const title = document.createElement("div");
+      title.style.fontWeight = "600";
+      title.textContent = e.equipment_label || e.equipment_id;
+      const meta = document.createElement("div");
+      meta.style.cssText = "font-size:11px; color:var(--text-dim);";
+      meta.textContent = `Простой ${formatDurationSec(e.duration_sec)} · с ${new Date(e.started_at).toLocaleString()}`;
+      row.appendChild(title); row.appendChild(meta);
+      dom.monitorHistoryList.appendChild(row);
+    }
+  } catch (err) {
+    console.error("Не удалось загрузить историю мониторинга:", err);
+  }
+}
+let monitorWS = null;
+function connectMonitorWS() {
+  const auth = window.__auth;
+  // Локальная резервная копия (offline) или отсутствие сессии — подключаться некуда.
+  if (!auth || !auth.token || auth.offline) return;
+  if (monitorWS) { try { monitorWS.close(); } catch (e) {} }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const url = `${proto}//${location.host}/api/monitor/ws?project=${encodeURIComponent(CURRENT_PROJECT_ID)}&token=${encodeURIComponent(auth.token)}`;
+  const ws = new WebSocket(url);
+  monitorWS = ws;
+  ws.addEventListener("message", (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === "status") applyMonitorStatus(msg.status || []);
+    } catch (err) {
+      console.error("Не удалось разобрать сообщение мониторинга:", err);
+    }
+  });
+  ws.addEventListener("close", () => {
+    if (monitorWS !== ws) return; // уже переподключились другим сокетом
+    monitorWS = null;
+    if (window.__auth) setTimeout(connectMonitorWS, 4000);
+  });
+  ws.addEventListener("error", () => {});
+}
+
 function applyRoleToUI() {
   const auth = window.__auth;
   const role = auth ? auth.role : "viewer";
@@ -5495,6 +5730,7 @@ function animate() {
   controls.update();
   if (isBusy) return;
   updateHighlightPulse();
+  updateMonitorGlows();
   renderer.render(scene, camera);
   labelRenderer.render(scene, camera);
 }
@@ -5518,6 +5754,7 @@ animate();
     }
   } else {
     await loadProjectFromServer();
+    connectMonitorWS();
   }
 })();
 </script>
