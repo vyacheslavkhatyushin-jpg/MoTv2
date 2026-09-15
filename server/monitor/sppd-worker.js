@@ -303,6 +303,20 @@ function connectStream(name, wsBase, path, sessionCookie, onMessage, getClosed) 
       try {
         const msg = JSON.parse(data.toString());
         if (DEBUG) console.log(`[sppd-worker] ${name} raw WSM_TYPE=${msg.WSM_TYPE}`);
+        // WSM_DATA приходит с сервера как ВТОРОЙ раз закодированная JSON-
+        // строка ("WSM_DATA":"{\"Addr\":...}"), а не готовый объект —
+        // из-за этого data.Addr был всегда undefined, все сообщения
+        // (включая совпадающие Addr) молча отбрасывались на первой же
+        // проверке. srvUnixTime тут же — там WSM_DATA просто число в виде
+        // строки ("1789469108"), JSON.parse превращает его в число, что
+        // тоже нормально: этот тип сообщений мы всё равно не обрабатываем.
+        if (typeof msg.WSM_DATA === "string") {
+          try {
+            msg.WSM_DATA = JSON.parse(msg.WSM_DATA);
+          } catch (e) {
+            // оставляем как есть — не JSON-строка, значит и не нужна нам
+          }
+        }
         onMessage(msg);
       } catch (err) {
         console.error(`[sppd-worker] ${name}: bad message:`, err.message);
