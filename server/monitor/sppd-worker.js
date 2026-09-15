@@ -11,9 +11,10 @@ SQLite через общий volume. В отличие от ping-worker (опр�
     оборудования с monitorMethod:"sppd" (в модели это IILB/ISIB).
   - ws://<host>/sbeacon/v1/ws/stream — счётчик меток/людей на считывателе
     (NOFTAG: Addr, NOfTag, NOfMan, NofVehicle) → person_count/vehicle_count
-    того же оборудования, плюс разовая "вспышка" (monitor_tag_pulses) при
-    росте счётчика меток — приближённая замена по-меточным событиям,
-    которых в потоке нет, см. docs.
+    того же оборудования, плюс разовая "вспышка" (monitor_tag_pulses) на
+    каждое сообщение REG_TAG (addr, в нижнем регистре — отдельное поле от
+    Addr в остальных типах сообщений) — точное событие "метка
+    зарегистрировалась", обнаружено в реальном потоке уже после деплоя.
 
 Каждая шахта (проект apk/ipk/opk и т.п.) — это отдельный физический сервер
 SPPD со своим логином/паролем, поэтому конфигурация не глобальная (env), а
@@ -220,10 +221,7 @@ function handleSbEvent(msg, targetsByAddr, siteLabel) {
   }
 }
 
-// В памяти между сообщениями: последнее увиденное NOfTag на Addr (по
-// проекту — счётчики на разных сайтах независимы), чтобы вспышку "новая
-// метка" слать только на рост счётчика, а не на каждое сообщение потока.
-function handleNofTag(msg, targetsByAddr, lastTagCountByAddr, siteLabel) {
+function handleNofTag(msg, targetsByAddr, siteLabel) {
   const data = msg.WSM_DATA;
   if (!data || !data.Addr) return;
   const targets = targetsByAddr.get(String(data.Addr));
@@ -232,21 +230,35 @@ function handleNofTag(msg, targetsByAddr, lastTagCountByAddr, siteLabel) {
   }
   if (!targets || !targets.length) return;
   for (const target of targets) applyCounts(target, data.NOfMan, data.NofVehicle);
+}
 
-  const prevCount = lastTagCountByAddr.get(data.Addr);
-  const nextCount = typeof data.NOfTag === "number" ? data.NOfTag : null;
-  if (nextCount !== null) {
-    if (typeof prevCount === "number" && nextCount > prevCount) {
-      for (const target of targets) emitTagPulse(target);
-    }
-    lastTagCountByAddr.set(data.Addr, nextCount);
+// REG_TAG — дискретное событие "метка зарегистрировалась на считывателе"
+// (обнаружено в реальном потоке SBeacon, изначально не документировано —
+// раньше вспышку приближали по приросту счётчика NOfTag, теперь бьём точно
+// по этому событию). Поле адреса тут в нижнем регистре — "addr", не "Addr"
+// как в SB_EVENT/NOFTAG.
+function handleRegTag(msg, targetsByAddr, siteLabel) {
+  const data = msg.WSM_DATA;
+  const addr = data && (data.addr ?? data.Addr);
+  if (!data || addr === undefined || addr === null) return;
+  const targets = targetsByAddr.get(String(addr));
+  if (DEBUG) {
+    console.log(`[sppd-worker]${siteLabel ? " [" + siteLabel + "]" : ""} REG_TAG addr=${addr} tag_id=${data.tag_id} matched=${targets ? targets.length : 0}`);
   }
+  if (!targets || !targets.length) return;
+  for (const target of targets) emitTagPulse(target);
 }
 
 /* ---------- один "сайт" — проект + свой SPPD-сервер ---------- */
+// Origin/Referer — как у обычного браузера. Node-клиент 'ws' их не шлёт
+// сам по себе, а Django-приложения нередко проверяют Origin на WebSocket-
+// апгрейде так же, как Referer на обычных POST (см. csrfmiddlewaretoken в
+// login()) — без этого сервер может принимать соединение, но молча не
+// рассылать в него данные.
 function connectStream(name, wsBase, path, sessionCookie, onMessage, getClosed) {
   let attempt = 0;
   let ws = null;
+  const httpOrigin = wsBase.replace(/^ws/, "http");
 
   function scheduleReconnect() {
     if (getClosed()) return;
@@ -257,14 +269,18 @@ function connectStream(name, wsBase, path, sessionCookie, onMessage, getClosed) 
 
   function open() {
     if (getClosed()) return;
-    ws = new WebSocket(`${wsBase}${path}`, { headers: { Cookie: sessionCookie } });
+    ws = new WebSocket(`${wsBase}${path}`, {
+      headers: { Cookie: sessionCookie, Origin: httpOrigin, Referer: `${httpOrigin}/` },
+    });
     ws.on("open", () => {
       attempt = 0;
       console.log(`[sppd-worker] ${name} connected`);
     });
     ws.on("message", (data) => {
       try {
-        onMessage(JSON.parse(data.toString()));
+        const msg = JSON.parse(data.toString());
+        if (DEBUG) console.log(`[sppd-worker] ${name} raw WSM_TYPE=${msg.WSM_TYPE}`);
+        onMessage(msg);
       } catch (err) {
         console.error(`[sppd-worker] ${name}: bad message:`, err.message);
       }
@@ -296,7 +312,6 @@ function startSite(projectId, config) {
   let closed = false;
   let targetsByAddr = collectSppdTargets(projectId);
   logTargets(projectId, targetsByAddr);
-  const lastTagCountByAddr = new Map();
   let telemetryConn = null;
   let beaconConn = null;
   let reloginTimer = null;
@@ -325,7 +340,8 @@ function startSite(projectId, config) {
       if (msg.WSM_TYPE === "SB_EVENT") handleSbEvent(msg, targetsByAddr, projectId);
     }, () => closed);
     beaconConn = connectStream(`${projectId}/sbeacon`, wsBase, "/sbeacon/v1/ws/stream", sessionCookie, (msg) => {
-      if (msg.WSM_TYPE === "NOFTAG") handleNofTag(msg, targetsByAddr, lastTagCountByAddr, projectId);
+      if (msg.WSM_TYPE === "NOFTAG") handleNofTag(msg, targetsByAddr, projectId);
+      else if (msg.WSM_TYPE === "REG_TAG") handleRegTag(msg, targetsByAddr, projectId);
     }, () => closed);
   }
 
@@ -393,6 +409,7 @@ module.exports = {
   emitTagPulse,
   handleSbEvent,
   handleNofTag,
+  handleRegTag,
   login,
   parseSetCookiePairs,
   sameConfig,
