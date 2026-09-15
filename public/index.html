@@ -74,10 +74,6 @@
   .mon-status-dot.down{ background:var(--danger); animation:monPulse 1.4s ease-in-out infinite; }
   .mon-status-dot.unk{ background:var(--text-faint); }
   @keyframes monPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
-  .mon-multi-badge{
-    font-size:9px; color:var(--accent-2); border:1px solid var(--accent-2); border-radius:3px;
-    padding:0 4px; flex-shrink:0; line-height:1.5;
-  }
   .mon-counts-badge{
     font-size:10.5px; color:var(--text-dim); flex-shrink:0; white-space:nowrap; padding-right:4px;
   }
@@ -5287,6 +5283,26 @@ let monitorActiveSystem = "all"; // "all" | одно из MONITOR_SYSTEMS
 const monitorCollapsedGroups = new Set(); // "c:<cableType>" | "e:<shape>"
 const monitorStatusById = new Map(); // equipment_id -> последняя строка monitor_status
 
+// Кнопки систем не просто фильтруют списки в панели — сами включают/
+// выключают слои на 3D-модели: выбрали ВОЛС — на модели остаются только
+// кабели/оборудование ВОЛС (плюс сама модель шахты и все метки, которые
+// системами не делятся), выбрали Все — возвращаются все слои. Срабатывает
+// только по клику на кнопку, не на загрузке страницы — то, что было видно
+///скрыто в момент открытия страницы мониторинга (унаследовано из
+// редактора), не трогаем, пока пользователь сам не переключит систему.
+function applyMonitorSystemVisibility() {
+  const filterSystem = monitorActiveSystem;
+  for (const c of cables.values()) {
+    const key = CABLE_TYPES[c.cableType] ? c.cableType : "custom";
+    const inSystem = filterSystem === "all" || (CABLE_TYPE_SYSTEMS[key] || []).includes(filterSystem);
+    setCableVisible(c, inSystem);
+  }
+  for (const eq of equipment.values()) {
+    const key = EQUIP_SHAPE_LABELS[eq.shape] ? eq.shape : "custom";
+    const inSystem = filterSystem === "all" || (EQUIP_SHAPE_SYSTEMS[key] || []).includes(filterSystem);
+    setEquipVisible(eq, inSystem);
+  }
+}
 function renderMonitorSystemButtons() {
   if (!dom.monitorSystems) return;
   dom.monitorSystems.innerHTML = "";
@@ -5297,6 +5313,7 @@ function renderMonitorSystemButtons() {
     btn.textContent = opt.label;
     btn.addEventListener("click", () => {
       monitorActiveSystem = opt.key;
+      applyMonitorSystemVisibility();
       renderMonitorLayerLists();
     });
     dom.monitorSystems.appendChild(btn);
@@ -5460,15 +5477,6 @@ function renderMonitorEquip() {
       rowChk.addEventListener("change", () => setEquipVisible(eq, rowChk.checked));
       row.appendChild(rowChk);
       row.appendChild(monitorStatusDotEl(eq.id));
-      const shapeKey = EQUIP_SHAPE_LABELS[eq.shape] ? eq.shape : "custom";
-      const shapeSystems = EQUIP_SHAPE_SYSTEMS[shapeKey] || [];
-      if (shapeSystems.length > 1) {
-        const badge = document.createElement("span");
-        badge.className = "mon-multi-badge";
-        badge.title = "Обслуживает несколько систем: " + shapeSystems.join(", ");
-        badge.textContent = shapeSystems.length + "×";
-        row.appendChild(badge);
-      }
       const lname = document.createElement("span");
       lname.className = "lname"; lname.textContent = eq.label;
       const countsBadge = monitorCountsBadgeEl(eq.id);
