@@ -78,6 +78,9 @@
     font-size:9px; color:var(--accent-2); border:1px solid var(--accent-2); border-radius:3px;
     padding:0 4px; flex-shrink:0; line-height:1.5;
   }
+  .mon-counts-badge{
+    font-size:10.5px; color:var(--text-dim); flex-shrink:0; white-space:nowrap; padding-right:4px;
+  }
   /* ---- header / drop zone ---- */
   #dropzoneWrap{ display:flex; flex-shrink:0; }
   #dropzone{
@@ -987,10 +990,12 @@
           <div class="placeholder" id="monitorActivePlaceholder" style="padding:16px; margin:0;">Активных аварий нет.</div>
         </div>
 
-        <div class="panel-row" style="display:flex; gap:16px; align-items:center; border-top:1px solid var(--border-soft);">
+        <div class="panel-row" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; border-top:1px solid var(--border-soft);">
           <span style="font-size:12.5px; color:var(--text-dim);">🟢 <span id="monitorCountUp">0</span></span>
           <span style="font-size:12.5px; color:var(--text-dim);">🔴 <span id="monitorCountDown">0</span></span>
           <span style="font-size:12.5px; color:var(--text-faint);">⚪ <span id="monitorCountUnknown">0</span></span>
+          <span id="monitorPeopleTotalWrap" style="font-size:12.5px; color:var(--text-dim); display:none;">👤 <span id="monitorPeopleTotal">0</span></span>
+          <span id="monitorVehiclesTotalWrap" style="font-size:12.5px; color:var(--text-dim); display:none;">🚚 <span id="monitorVehiclesTotal">0</span></span>
         </div>
         <div class="panel-row" id="monitorSystems"></div>
 
@@ -1869,6 +1874,10 @@ const dom = {
   monitorCountUp: document.getElementById("monitorCountUp"),
   monitorCountDown: document.getElementById("monitorCountDown"),
   monitorCountUnknown: document.getElementById("monitorCountUnknown"),
+  monitorPeopleTotalWrap: document.getElementById("monitorPeopleTotalWrap"),
+  monitorPeopleTotal: document.getElementById("monitorPeopleTotal"),
+  monitorVehiclesTotalWrap: document.getElementById("monitorVehiclesTotalWrap"),
+  monitorVehiclesTotal: document.getElementById("monitorVehiclesTotal"),
   monitorActiveList: document.getElementById("monitorActiveList"),
   monitorActivePlaceholder: document.getElementById("monitorActivePlaceholder"),
   monitorHistoryList: document.getElementById("monitorHistoryList"),
@@ -5301,6 +5310,24 @@ function monitorStatusDotEl(equipmentId) {
   span.className = "mon-status-dot " + cls;
   return span;
 }
+// Счётчик людей/техники (SBeacon, только на считывателях IILB/ISIB с
+// monitorMethod:"sppd") — null, если данных по этому объекту вообще нет
+// (не sppd-оборудование, или воркер ещё не прислал ни одного отсчёта).
+function monitorCountsBadgeEl(equipmentId) {
+  const row = monitorStatusById.get(equipmentId);
+  if (!row) return null;
+  const hasPeople = row.person_count !== null && row.person_count !== undefined;
+  const hasVehicles = row.vehicle_count !== null && row.vehicle_count !== undefined;
+  if (!hasPeople && !hasVehicles) return null;
+  const span = document.createElement("span");
+  span.className = "mon-counts-badge";
+  const parts = [];
+  if (hasPeople) parts.push(`👤${row.person_count}`);
+  if (hasVehicles) parts.push(`🚚${row.vehicle_count}`);
+  span.textContent = parts.join(" ");
+  span.title = "Людей/техники на считывателе (SBeacon)";
+  return span;
+}
 function renderMonitorCables() {
   if (!dom.monitorCablesList) return;
   dom.monitorCablesList.innerHTML = "";
@@ -5444,13 +5471,16 @@ function renderMonitorEquip() {
       }
       const lname = document.createElement("span");
       lname.className = "lname"; lname.textContent = eq.label;
+      const countsBadge = monitorCountsBadgeEl(eq.id);
       const btnFocus = document.createElement("button");
       btnFocus.className = "uo-edit-btn"; btnFocus.textContent = "🎯"; btnFocus.title = "Перейти к объекту";
       btnFocus.addEventListener("click", (e) => { e.stopPropagation(); focusEquip(eq); });
       const btnGlow = document.createElement("button");
       btnGlow.className = "uo-edit-btn"; btnGlow.textContent = "✨"; btnGlow.title = "Подсветить";
       btnGlow.addEventListener("click", (e) => { e.stopPropagation(); highlightEquip(eq); });
-      row.appendChild(lname); row.appendChild(btnFocus); row.appendChild(btnGlow);
+      row.appendChild(lname);
+      if (countsBadge) row.appendChild(countsBadge);
+      row.appendChild(btnFocus); row.appendChild(btnGlow);
       dom.monitorEquipList.appendChild(row);
     }
   }
@@ -5550,6 +5580,11 @@ function applyMonitorStatus(rows) {
   clearAllMonitorGlows();
   monitorStatusById.clear();
   let up = 0, down = 0, unknown = 0;
+  // Суммы по людям/технике — только по тем строкам, где счётчик реально
+  // пришёл (не null): SBeacon сам решает, у скольких считывателей он
+  // сейчас есть данные, остальное (кабели/оборудование без SPPD) в сумму
+  // не подмешивается.
+  let peopleTotal = 0, vehiclesTotal = 0, hasPeopleData = false, hasVehiclesData = false;
   for (const row of rows) {
     if (row.state === "up") up++;
     else if (row.state === "down" || row.state === "degraded") down++;
@@ -5557,10 +5592,22 @@ function applyMonitorStatus(rows) {
     monitorStatusById.set(row.equipment_id, row);
     const eq = equipment.get(row.equipment_id);
     if (eq) setMonitorGlow(eq, row.state);
+    if (row.person_count !== null && row.person_count !== undefined) {
+      hasPeopleData = true;
+      peopleTotal += row.person_count;
+    }
+    if (row.vehicle_count !== null && row.vehicle_count !== undefined) {
+      hasVehiclesData = true;
+      vehiclesTotal += row.vehicle_count;
+    }
   }
   if (dom.monitorCountUp) dom.monitorCountUp.textContent = up;
   if (dom.monitorCountDown) dom.monitorCountDown.textContent = down;
   if (dom.monitorCountUnknown) dom.monitorCountUnknown.textContent = unknown;
+  if (dom.monitorPeopleTotalWrap) dom.monitorPeopleTotalWrap.style.display = hasPeopleData ? "" : "none";
+  if (dom.monitorPeopleTotal) dom.monitorPeopleTotal.textContent = peopleTotal;
+  if (dom.monitorVehiclesTotalWrap) dom.monitorVehiclesTotalWrap.style.display = hasVehiclesData ? "" : "none";
+  if (dom.monitorVehiclesTotal) dom.monitorVehiclesTotal.textContent = vehiclesTotal;
   if (dom.monitorActiveList) renderMonitorActiveList(rows);
   if (IS_MONITORING_PAGE) renderMonitorEquip();
 }
