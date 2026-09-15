@@ -37,6 +37,20 @@
     background:var(--panel); border-left:1px solid var(--border);
     display:flex; flex-direction:column; height:100%;
   }
+  /* ---- отдельная страница /<project>/monitoring: только то, что нужно
+     для контроля — свечение на модели + список аварий/история. Никакого
+     редактирования, поэтому вся "рабочая" часть боковой панели скрыта. */
+  body.monitoring-mode #btnSaveAll,
+  body.monitoring-mode #saveStatus,
+  body.monitoring-mode #fileMeta,
+  body.monitoring-mode #actionButtonsRow,
+  body.monitoring-mode #progressWrap,
+  body.monitoring-mode #tabs{ display:none !important; }
+  body.monitoring-mode #navToMonitoring{ display:none !important; }
+  #navToEditor{ display:none; }
+  body.monitoring-mode #navToEditor{ display:inline-flex; }
+  #monitorPageTitle{ display:none; padding:14px 12px 6px; font-size:14.5px; font-weight:700; color:var(--text); }
+  body.monitoring-mode #monitorPageTitle{ display:block; }
   /* ---- header / drop zone ---- */
   #dropzoneWrap{ display:flex; flex-shrink:0; }
   #dropzone{
@@ -545,6 +559,8 @@
     <div id="sessionInfo" style="display:flex; align-items:center; gap:12px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
       <span id="sessionProject"></span>
       <span id="sessionUser"></span>
+      <a id="navToMonitoring" title="Мониторинг оборудования" style="text-decoration:none; display:inline-flex; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📡 Мониторинг</a>
+      <a id="navToEditor" title="Вернуться в редактор" style="text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">✏️ Редактор</a>
       <button id="btnUserAdmin" title="Управление пользователями" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">👥 Пользователи</button>
       <button id="btnLogout" title="Выйти" style="background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">Выйти</button>
     </div>
@@ -619,6 +635,7 @@
     </div>
   </div>
   <div id="sidebar">
+    <div id="monitorPageTitle">📡 Мониторинг оборудования</div>
     <button id="btnSaveAll" class="save-btn-big" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере">☁ Сохранить изменения</button>
     <div id="saveStatus"></div>
     <div id="fileMeta"></div>
@@ -643,7 +660,6 @@
       <button class="tab-btn" data-tab="marks">Метки</button>
       <button class="tab-btn" data-tab="patches" id="tabBtnPatches">Заплатки</button>
       <button class="tab-btn" data-tab="deleted">Удалено</button>
-      <button class="tab-btn" data-tab="monitor" title="Мониторинг">Монитор.</button>
     </div>
     <div id="tabpanels">
       <div class="tabpanel active" id="tab-shaft">
@@ -2619,7 +2635,6 @@ dom.tabs.forEach((btn) => {
     btn.classList.add("active");
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
     if (btn.dataset.tab === "deleted") loadDeletionLog();
-    if (btn.dataset.tab === "monitor") loadMonitorHistory();
   });
 });
 /* ---------- file loading ---------- */
@@ -4990,6 +5005,23 @@ function saveStandaloneCopy() {
    меняется только транспорт.
 ============================================================ */
 const CURRENT_PROJECT_ID = (location.pathname.split("/").filter(Boolean)[0] || "default").toLowerCase();
+// Отдельная страница мониторинга (/<project>/monitoring) — тот же движок и
+// тот же снимок проекта (модель/оборудование/кабели грузятся точно так же),
+// но урезанный интерфейс: только 3D с автоподсветкой и список аварий/
+// история, без редактирования. См. docs/monitoring-plan.md.
+const IS_MONITORING_PAGE = /\/monitoring\/?$/i.test(location.pathname);
+function applyMonitoringPageUI() {
+  const navToMonitoring = document.getElementById("navToMonitoring");
+  const navToEditor = document.getElementById("navToEditor");
+  if (navToMonitoring) navToMonitoring.href = `/${CURRENT_PROJECT_ID}/monitoring`;
+  if (navToEditor) navToEditor.href = `/${CURRENT_PROJECT_ID}`;
+  if (!IS_MONITORING_PAGE) return;
+  document.body.classList.add("monitoring-mode");
+  document.querySelectorAll(".tabpanel").forEach((p) => p.classList.remove("active"));
+  const monitorPanel = document.getElementById("tab-monitor");
+  if (monitorPanel) monitorPanel.classList.add("active");
+}
+applyMonitoringPageUI();
 let serverStateVersion = 0;
 // "База" — последнее известное серверное состояние объектов (то, с чем
 // сравниваем текущие правки при сохранении, чтобы слить изменения по
@@ -5754,7 +5786,10 @@ animate();
     }
   } else {
     await loadProjectFromServer();
-    connectMonitorWS();
+    if (IS_MONITORING_PAGE) {
+      connectMonitorWS();
+      loadMonitorHistory();
+    }
   }
 })();
 </script>
