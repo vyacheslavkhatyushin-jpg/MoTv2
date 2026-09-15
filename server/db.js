@@ -115,6 +115,71 @@ CREATE TABLE IF NOT EXISTS project_sppd_config (
   updated_by TEXT,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Реестр ЗИП (склад запчастей) + заявки на выдачу — отдельный от 3D-модели
+-- модуль (никакой привязки к cables/equipment шахты). ЗИП только
+-- расходуется, возвратов на склад не бывает.
+--
+-- zip_items — справочник позиций. qty_on_hand/qty_reserved — кэш текущего
+-- состояния для быстрого чтения; source of truth по остаткам — append-only
+-- zip_movements (та же логика, что у deletion_log/monitor_events: движение
+-- пишется в момент операции и не может быть тихо переписано).
+-- qty_available (в API, не в таблице) = qty_on_hand - qty_reserved.
+CREATE TABLE IF NOT EXISTS zip_items (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  category TEXT,
+  unit TEXT NOT NULL DEFAULT 'шт',
+  manufacturer TEXT,
+  part_number TEXT,
+  description TEXT,
+  location TEXT,
+  min_qty INTEGER NOT NULL DEFAULT 0,
+  qty_on_hand INTEGER NOT NULL DEFAULT 0,
+  qty_reserved INTEGER NOT NULL DEFAULT 0,
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_zip_items_project ON zip_items(project_id, name);
+
+-- zip_requests — заявка инженера на выдачу. Резерв (qty_reserved у
+-- позиции) происходит не при подаче заявки, а при одобрении — иначе любой
+-- инженер мог бы заявками заблокировать весь остаток до решения админа.
+-- pending → approved (резерв взят) → issued (списано со склада, резерв
+-- снят) либо rejected/cancelled (резерв, если был взят, освобождается).
+CREATE TABLE IF NOT EXISTS zip_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  item_id TEXT NOT NULL REFERENCES zip_items(id) ON DELETE CASCADE,
+  qty INTEGER NOT NULL CHECK(qty > 0),
+  reason TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','issued','cancelled')),
+  requested_by TEXT NOT NULL,
+  requested_at TEXT NOT NULL DEFAULT (datetime('now')),
+  decided_by TEXT,
+  decided_at TEXT,
+  decision_note TEXT,
+  issued_by TEXT,
+  issued_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_zip_requests_project ON zip_requests(project_id, requested_at DESC);
+
+-- zip_movements — append-only лог изменений остатка: 'receipt' (приход на
+-- склад), 'issue' (выдача по заявке — request_id заполнен), 'adjustment'
+-- (ручная корректировка при инвентаризации/списании порчи).
+CREATE TABLE IF NOT EXISTS zip_movements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  item_id TEXT NOT NULL REFERENCES zip_items(id) ON DELETE CASCADE,
+  delta INTEGER NOT NULL,
+  reason TEXT NOT NULL CHECK(reason IN ('receipt','issue','adjustment')),
+  request_id INTEGER REFERENCES zip_requests(id),
+  note TEXT,
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_zip_movements_item ON zip_movements(item_id, created_at DESC);
 `);
 
 module.exports = db;
