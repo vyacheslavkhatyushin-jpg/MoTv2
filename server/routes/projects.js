@@ -268,4 +268,72 @@ router.get("/:id/monitor/events", (req, res) => {
   res.json({ events: rows });
 });
 
+// Настройка подключения к SPPD для этого проекта (Этап 4, см.
+// docs/monitoring-plan.md) — у каждой шахты свой сервер SPPD, поэтому это
+// per-project настройка, а не общая переменная окружения одного воркера.
+// Пароль отдаём только на запись: GET сообщает лишь факт, что что-то
+// настроено (не значение), чтобы не светить его в ответе каждому админу,
+// который просто открыл форму.
+router.get("/:id/monitor/sppd-config", requireRole("admin"), (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const row = db
+    .prepare("SELECT base_url, username, updated_by, updated_at FROM project_sppd_config WHERE project_id = ?")
+    .get(req.params.id);
+  if (!row) return res.json({ configured: false, baseUrl: null, username: null });
+  res.json({
+    configured: true,
+    baseUrl: row.base_url,
+    username: row.username,
+    updatedBy: row.updated_by,
+    updatedAt: row.updated_at,
+  });
+});
+
+router.put("/:id/monitor/sppd-config", requireRole("admin"), (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const { baseUrl, username, password } = req.body || {};
+  if (!baseUrl || !/^https?:\/\/\S+$/.test(baseUrl)) {
+    return res.status(400).json({ error: "invalid_base_url" });
+  }
+  if (!username || !username.trim()) {
+    return res.status(400).json({ error: "missing_username" });
+  }
+  const existing = db.prepare("SELECT password FROM project_sppd_config WHERE project_id = ?").get(req.params.id);
+  // Пароль необязателен при обновлении — пустое поле в форме означает
+  // "оставить как есть", а не "стереть пароль". Обязателен только при
+  // первой настройке, когда сохранять нечего.
+  const nextPassword = password || (existing && existing.password);
+  if (!nextPassword) {
+    return res.status(400).json({ error: "missing_password" });
+  }
+
+  db.prepare(
+    `INSERT INTO project_sppd_config (project_id, base_url, username, password, updated_by, updated_at)
+     VALUES (@id, @baseUrl, @username, @password, @by, datetime('now'))
+     ON CONFLICT(project_id) DO UPDATE SET
+       base_url = @baseUrl, username = @username, password = @password,
+       updated_by = @by, updated_at = datetime('now')`
+  ).run({
+    id: req.params.id,
+    baseUrl: baseUrl.trim(),
+    username: username.trim(),
+    password: nextPassword,
+    by: req.user.username,
+  });
+
+  res.json({ ok: true });
+});
+
+router.delete("/:id/monitor/sppd-config", requireRole("admin"), (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  db.prepare("DELETE FROM project_sppd_config WHERE project_id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+
 module.exports = router;
