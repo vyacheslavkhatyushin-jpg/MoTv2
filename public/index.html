@@ -5800,11 +5800,6 @@ async function saveToServer() {
     marks: diffCollection("marks", marks, serializeMark),
     patches: diffCollection("patches", patches, serializePatch),
   };
-  // Временная диагностика бага "удалённая метка возвращается после
-  // сохранения" — смотрим в консоли (F12), что реально уходит на сервер
-  // (deletes с их base) и что сервер сообщает в ответ (conflicts). Снять
-  // после того, как причина найдена.
-  console.log("[save] marks diff:", JSON.parse(JSON.stringify(body.marks)));
   dom.saveStatus.textContent = "Сохранение…";
   dom.saveStatus.className = "";
   try {
@@ -5815,8 +5810,6 @@ async function saveToServer() {
     });
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
-    console.log("[save] response conflicts.marks:", data.conflicts && data.conflicts.marks);
-    console.log("[save] response snapshot.marks:", data.snapshot && data.snapshot.marks);
     serverStateVersion = data.version;
     if (data.snapshot) setBaseObjects(data.snapshot);
 
