@@ -82,12 +82,23 @@ router.get("/:id/state", (req, res) => {
 // Все остальные объекты в той же коллекции (не задетые конфликтом) сливаются
 // нормально — в отличие от прежней схемы, где конфликт по одному объекту
 // проваливал сохранение всего проекта целиком.
-function mergeCollection(baseArr, incoming) {
+function mergeCollection(baseArr, incoming, context) {
   const byId = new Map((baseArr || []).map((o) => [o.id, o]));
   const conflicts = [];
   for (const entry of (incoming && incoming.upserts) || []) {
     const { id, data, base } = entry || {};
-    if (!id || !data) continue;
+    if (!id || !data) {
+      // Не должно происходить — клиент всегда проставляет id перед
+      // сериализацией, а раньше здесь тихо пропускалось без следа. Раз уже
+      // столкнулись с "фантомными" объектами без id в БД (причина не
+      // установлена), логируем сам факт — если повторится, будет видно
+      // когда/кем/в какой коллекции.
+      console.error(
+        `[mergeCollection] пропущен upsert без id/data (${context}): ` +
+        JSON.stringify({ id, hasData: !!data, label: data && data.label })
+      );
+      continue;
+    }
     const currentObj = byId.get(id) || null;
     const currentJson = currentObj ? JSON.stringify(currentObj) : null;
     const baseJson = base ? JSON.stringify(base) : null;
@@ -103,7 +114,10 @@ function mergeCollection(baseArr, incoming) {
   }
   for (const entry of (incoming && incoming.deletes) || []) {
     const { id, base } = entry || {};
-    if (!id) continue;
+    if (!id) {
+      console.error(`[mergeCollection] пропущен delete без id (${context}): ` + JSON.stringify(entry));
+      continue;
+    }
     const currentObj = byId.get(id);
     if (!currentObj) continue; // уже удалён (в т.ч. кем-то ещё) — конфликта нет, оба хотели одного
     const currentJson = JSON.stringify(currentObj);
@@ -143,15 +157,16 @@ router.put("/:id/state", requireRole("editor", "admin"), (req, res) => {
   const currentVersion = current ? current.version : 0;
   const isAdmin = req.user.role === "admin";
 
-  const cablesResult = mergeCollection(currentSnapshot.cables, body.cables);
-  const equipmentResult = mergeCollection(currentSnapshot.equipment, body.equipment);
-  const marksResult = mergeCollection(currentSnapshot.marks, body.marks);
+  const logCtx = `project=${req.params.id} user=${req.user.username} collection=`;
+  const cablesResult = mergeCollection(currentSnapshot.cables, body.cables, logCtx + "cables");
+  const equipmentResult = mergeCollection(currentSnapshot.equipment, body.equipment, logCtx + "equipment");
+  const marksResult = mergeCollection(currentSnapshot.marks, body.marks, logCtx + "marks");
   // Заплатки — как и загрузка/удаление STR/DTM/OBJ-модели — инструмент
   // только для admin (см. applyRoleToUI на фронтенде); правки заплаток от
   // не-admin просто игнорируются, чтобы UI-ограничение нельзя было обойти
   // прямым вызовом API.
   const patchesResult = isAdmin
-    ? mergeCollection(currentSnapshot.patches, body.patches)
+    ? mergeCollection(currentSnapshot.patches, body.patches, logCtx + "patches")
     : { merged: currentSnapshot.patches || [], conflicts: [] };
 
   const nextSnapshot = {
