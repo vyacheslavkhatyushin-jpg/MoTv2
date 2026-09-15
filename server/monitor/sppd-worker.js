@@ -214,8 +214,16 @@ function emitTagPulse(target) {
   stmtInsertTagPulse.run(target.projectId, target.equipmentId);
 }
 
+// Во всех трёх обработчиках лог печатается ПЕРЕД любым ранним return —
+// раньше он стоял после проверки на data.Addr, и когда сообщение почему-то
+// не проходило эту проверку, мы не видели вообще ничего (именно так и
+// потерялись SB_EVENT для настроенных Addr на живой системе — раньше не
+// могли понять, в чём дело, потому что сам факт отбраковки не логировался).
 function handleSbEvent(msg, targetsByAddr, siteLabel) {
   const data = msg.WSM_DATA;
+  if (DEBUG) {
+    console.log(`[sppd-worker]${siteLabel ? " [" + siteLabel + "]" : ""} SB_EVENT WSM_DATA=${JSON.stringify(data)}`);
+  }
   if (!data || !data.Addr) return;
   const targets = targetsByAddr.get(String(data.Addr));
   if (DEBUG) {
@@ -232,6 +240,9 @@ function handleSbEvent(msg, targetsByAddr, siteLabel) {
 
 function handleNofTag(msg, targetsByAddr, siteLabel) {
   const data = msg.WSM_DATA;
+  if (DEBUG) {
+    console.log(`[sppd-worker]${siteLabel ? " [" + siteLabel + "]" : ""} NOFTAG WSM_DATA=${JSON.stringify(data)}`);
+  }
   if (!data || !data.Addr) return;
   const targets = targetsByAddr.get(String(data.Addr));
   if (DEBUG) {
@@ -248,6 +259,9 @@ function handleNofTag(msg, targetsByAddr, siteLabel) {
 // как в SB_EVENT/NOFTAG.
 function handleRegTag(msg, targetsByAddr, siteLabel) {
   const data = msg.WSM_DATA;
+  if (DEBUG) {
+    console.log(`[sppd-worker]${siteLabel ? " [" + siteLabel + "]" : ""} REG_TAG WSM_DATA=${JSON.stringify(data)}`);
+  }
   const addr = data && (data.addr ?? data.Addr);
   if (!data || addr === undefined || addr === null) return;
   const targets = targetsByAddr.get(String(addr));
@@ -351,9 +365,20 @@ function startSite(projectId, config) {
     // сообщения одного типа наблюдались на обоих сокетах. dispatch() не
     // ломается от лишних типов на любом канале — просто их игнорирует.
     function dispatch(msg) {
-      if (msg.WSM_TYPE === "SB_EVENT") handleSbEvent(msg, targetsByAddr, projectId);
-      else if (msg.WSM_TYPE === "NOFTAG") handleNofTag(msg, targetsByAddr, projectId);
-      else if (msg.WSM_TYPE === "REG_TAG") handleRegTag(msg, targetsByAddr, projectId);
+      // .trim() — на живой системе raw-лог печатал WSM_TYPE, визуально
+      // совпадающий с "SB_EVENT"/"REG_TAG", но строгое сравнение почему-то
+      // не срабатывало ни разу; похоже на непечатаемый символ (пробел,
+      // BOM) в значении, который в консоли не виден.
+      const type = typeof msg.WSM_TYPE === "string" ? msg.WSM_TYPE.trim() : msg.WSM_TYPE;
+      if (DEBUG && type !== msg.WSM_TYPE) {
+        console.log(`[sppd-worker] [${projectId}] WSM_TYPE mismatch after trim: raw=${JSON.stringify(msg.WSM_TYPE)} trimmed=${JSON.stringify(type)}`);
+      }
+      if (type === "SB_EVENT") handleSbEvent(msg, targetsByAddr, projectId);
+      else if (type === "NOFTAG") handleNofTag(msg, targetsByAddr, projectId);
+      else if (type === "REG_TAG") handleRegTag(msg, targetsByAddr, projectId);
+      else if (DEBUG) {
+        console.log(`[sppd-worker] [${projectId}] unhandled WSM_TYPE=${JSON.stringify(msg.WSM_TYPE)}`);
+      }
     }
     telemetryConn = connectStream(`${projectId}/sppd`, wsBase, "/sppd/v1/ws/stream", sessionCookie, dispatch, () => closed);
     beaconConn = connectStream(`${projectId}/sbeacon`, wsBase, "/sbeacon/v1/ws/stream", sessionCookie, dispatch, () => closed);
