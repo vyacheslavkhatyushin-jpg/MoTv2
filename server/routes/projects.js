@@ -71,53 +71,103 @@ router.get("/:id/state", (req, res) => {
   });
 });
 
+// Трёхстороннее слияние одной коллекции объектов (кабели/оборудование/метки/
+// заплатки) по id: incoming.upserts/deletes каждый несут "base" — версию
+// объекта, какой её видел клиент перед правкой (null для новых объектов).
+// Если текущая (серверная) версия объекта совпадает с этой базой — значит,
+// с момента, когда клиент начал править, объект никто больше не трогал, и
+// правку можно применить. Если не совпадает — кто-то другой успел изменить
+// (или удалить) этот же объект первым: сохраняем ЕГО версию, а правку
+// клиента отклоняем и сообщаем об этом отдельно по каждому такому объекту.
+// Все остальные объекты в той же коллекции (не задетые конфликтом) сливаются
+// нормально — в отличие от прежней схемы, где конфликт по одному объекту
+// проваливал сохранение всего проекта целиком.
+function mergeCollection(baseArr, incoming) {
+  const byId = new Map((baseArr || []).map((o) => [o.id, o]));
+  const conflicts = [];
+  for (const entry of (incoming && incoming.upserts) || []) {
+    const { id, data, base } = entry || {};
+    if (!id || !data) continue;
+    const currentObj = byId.get(id) || null;
+    const currentJson = currentObj ? JSON.stringify(currentObj) : null;
+    const baseJson = base ? JSON.stringify(base) : null;
+    if (currentJson === baseJson) {
+      byId.set(id, Object.assign({}, data, { id }));
+    } else {
+      conflicts.push({
+        id,
+        label: (data && data.label) || (currentObj && currentObj.label) || id,
+        action: "upsert",
+      });
+    }
+  }
+  for (const entry of (incoming && incoming.deletes) || []) {
+    const { id, base } = entry || {};
+    if (!id) continue;
+    const currentObj = byId.get(id);
+    if (!currentObj) continue; // уже удалён (в т.ч. кем-то ещё) — конфликта нет, оба хотели одного
+    const currentJson = JSON.stringify(currentObj);
+    const baseJson = base ? JSON.stringify(base) : null;
+    if (currentJson === baseJson) {
+      byId.delete(id);
+    } else {
+      conflicts.push({ id, label: currentObj.label || id, action: "delete" });
+    }
+  }
+  return { merged: [...byId.values()], conflicts };
+}
+
+const EMPTY_SNAPSHOT = {
+  version: 1,
+  settings: {},
+  layers: [],
+  layersDTM: [],
+  layersOBJ: [],
+  cables: [],
+  equipment: [],
+  marks: [],
+  patches: [],
+};
+
 router.put("/:id/state", requireRole("editor", "admin"), (req, res) => {
   const project = db
     .prepare("SELECT id FROM projects WHERE id = ?")
     .get(req.params.id);
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
-  const { snapshot, baseVersion } = req.body || {};
-  if (snapshot === undefined) {
-    return res.status(400).json({ error: "missing_snapshot" });
-  }
-
+  const body = req.body || {};
   const current = db
-    .prepare("SELECT version, updated_by, updated_at FROM project_state WHERE project_id = ?")
+    .prepare("SELECT snapshot_json, version FROM project_state WHERE project_id = ?")
     .get(req.params.id);
+  const currentSnapshot = current ? JSON.parse(current.snapshot_json) : EMPTY_SNAPSHOT;
   const currentVersion = current ? current.version : 0;
+  const isAdmin = req.user.role === "admin";
 
-  if (typeof baseVersion === "number" && baseVersion !== currentVersion) {
-    return res.status(409).json({
-      error: "version_conflict",
-      currentVersion,
-      updatedBy: current ? current.updated_by : null,
-      updatedAt: current ? current.updated_at : null,
-    });
-  }
-
-  // Загрузка/удаление STR/DTM/OBJ-модели ("layers"/"layersDTM"/"layersOBJ")
-  // и заплатки ("patches") — только для admin. editor может редактировать
-  // кабели/оборудование/метки/настройки, но не эти поля: если запрос
-  // пришёл не от admin, эти части снапшота берём из текущей сохранённой
-  // версии, а не из тела запроса, чтобы UI-ограничение нельзя было обойти
+  const cablesResult = mergeCollection(currentSnapshot.cables, body.cables);
+  const equipmentResult = mergeCollection(currentSnapshot.equipment, body.equipment);
+  const marksResult = mergeCollection(currentSnapshot.marks, body.marks);
+  // Заплатки — как и загрузка/удаление STR/DTM/OBJ-модели — инструмент
+  // только для admin (см. applyRoleToUI на фронтенде); правки заплаток от
+  // не-admin просто игнорируются, чтобы UI-ограничение нельзя было обойти
   // прямым вызовом API.
-  if (req.user.role !== "admin") {
-    const existing = current
-      ? JSON.parse(
-          db
-            .prepare("SELECT snapshot_json FROM project_state WHERE project_id = ?")
-            .get(req.params.id).snapshot_json
-        )
-      : null;
-    snapshot.layers = existing ? existing.layers : [];
-    snapshot.layersDTM = existing ? existing.layersDTM : [];
-    snapshot.layersOBJ = existing ? existing.layersOBJ : [];
-    snapshot.patches = existing ? existing.patches : [];
-  }
+  const patchesResult = isAdmin
+    ? mergeCollection(currentSnapshot.patches, body.patches)
+    : { merged: currentSnapshot.patches || [], conflicts: [] };
+
+  const nextSnapshot = {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    settings: body.settings !== undefined ? body.settings : currentSnapshot.settings,
+    layers: isAdmin && body.layers !== undefined ? body.layers : currentSnapshot.layers,
+    layersDTM: isAdmin && body.layersDTM !== undefined ? body.layersDTM : currentSnapshot.layersDTM,
+    layersOBJ: isAdmin && body.layersOBJ !== undefined ? body.layersOBJ : currentSnapshot.layersOBJ,
+    cables: cablesResult.merged,
+    equipment: equipmentResult.merged,
+    marks: marksResult.merged,
+    patches: patchesResult.merged,
+  };
 
   const nextVersion = currentVersion + 1;
-  const snapshotJson = JSON.stringify(snapshot);
   db.prepare(
     `INSERT INTO project_state (project_id, snapshot_json, version, updated_by, updated_at)
      VALUES (@id, @json, @version, @by, datetime('now'))
@@ -125,12 +175,30 @@ router.put("/:id/state", requireRole("editor", "admin"), (req, res) => {
        snapshot_json = @json, version = @version, updated_by = @by, updated_at = datetime('now')`
   ).run({
     id: req.params.id,
-    json: snapshotJson,
+    json: JSON.stringify(nextSnapshot),
     version: nextVersion,
     by: req.user.username,
   });
 
-  res.json({ version: nextVersion, updatedBy: req.user.username });
+  res.json({
+    version: nextVersion,
+    updatedBy: req.user.username,
+    conflicts: {
+      cables: cablesResult.conflicts,
+      equipment: equipmentResult.conflicts,
+      marks: marksResult.conflicts,
+      patches: patchesResult.conflicts,
+    },
+    // Лёгкие коллекции (без геометрии модели) возвращаем целиком, чтобы
+    // клиент мог обновить свою "базу" для следующего слияния — включая
+    // объекты, которые в этом же сохранении добавили/поменяли другие люди.
+    snapshot: {
+      cables: nextSnapshot.cables,
+      equipment: nextSnapshot.equipment,
+      marks: nextSnapshot.marks,
+      patches: nextSnapshot.patches,
+    },
+  });
 });
 
 const OBJECT_TYPES = new Set(["cable", "equipment", "mark", "patch"]);
