@@ -691,6 +691,7 @@
               <option value="vols" selected>ВОЛС</option>
               <option value="lfc">LFC</option>
               <option value="kao">КАО</option>
+              <option value="tk">ТК</option>
               <option value="power">Силовой</option>
               <option value="ftp">FTP</option>
             </select>
@@ -725,6 +726,7 @@
               <option value="vols">ВОЛС</option>
               <option value="lfc">LFC</option>
               <option value="kao">КАО</option>
+              <option value="tk">ТК</option>
               <option value="power">Силовой</option>
               <option value="ftp">FTP</option>
               <option value="custom">Другое</option>
@@ -755,6 +757,9 @@
               <option value="mvsa">MVSA</option>
               <option value="wifi">WiFi</option>
               <option value="mbu">MBU</option>
+              <option value="fs">FS</option>
+              <option value="tel">TEL</option>
+              <option value="stativ">Статив</option>
             </select>
           </div>
           <button class="uo-add-btn" id="btnAddEquip">+ Добавить объект</button>
@@ -2987,10 +2992,11 @@ const CABLE_TYPES = {
   vols:  { label: "ВОЛС",     color: 0xffcc00, thickness: 14, lineType: "solid" },
   lfc:   { label: "LFC",      color: 0x2ecc71, thickness: 11, lineType: "solid" },
   kao:   { label: "КАО",      color: 0x29b6f6, thickness: 8,  lineType: "dashed" },
+  tk:    { label: "ТК",       color: 0x1abc9c, thickness: 6,  lineType: "solid" },
   power: { label: "Силовой",  color: 0xe74c3c, thickness: 5,  lineType: "solid" },
   ftp:   { label: "FTP",      color: 0x9b59b6, thickness: 3,  lineType: "dotted" },
 };
-const CABLE_TYPE_ORDER = ["vols", "lfc", "kao", "power", "ftp"];
+const CABLE_TYPE_ORDER = ["vols", "lfc", "kao", "tk", "power", "ftp"];
 function setCableVisible(c, visible) {
   c.visible = visible;
   c.mesh.visible = visible;
@@ -3511,6 +3517,30 @@ function buildEquipGeometry(shape, size) {
       pin2.translate(s * 0.15, -s * 0.37, 0);
       return BufferGeometryUtils.mergeGeometries([body, pin1, pin2]);
     }
+    case "fs": {
+      // FS (датчик/сигнализатор) — плоский корпус с сигнальной сферой-маячком сверху
+      const body = new THREE.BoxGeometry(s * 0.55, s * 0.35, s * 0.55);
+      const beacon = new THREE.SphereGeometry(s * 0.18, 12, 8);
+      beacon.translate(0, s * 0.28, 0);
+      return BufferGeometryUtils.mergeGeometries([body, beacon]);
+    }
+    case "tel": {
+      // TEL (телефон) — настенный корпус с трубкой сверху
+      const body = new THREE.BoxGeometry(s * 0.55, s * 0.75, s * 0.3);
+      const handset = new THREE.CylinderGeometry(s * 0.08, s * 0.08, s * 0.6, 10);
+      handset.rotateZ(Math.PI / 2);
+      handset.translate(0, s * 0.45, s * 0.2);
+      return BufferGeometryUtils.mergeGeometries([body, handset]);
+    }
+    case "stativ": {
+      // Статив — стойка-подставка: опорная плита, вертикальная стойка и полка сверху
+      const base = new THREE.BoxGeometry(s * 0.7, s * 0.08, s * 0.7);
+      base.translate(0, -s * 0.46, 0);
+      const pole = new THREE.CylinderGeometry(s * 0.05, s * 0.05, s * 0.9, 10);
+      const shelf = new THREE.BoxGeometry(s * 0.6, s * 0.06, s * 0.6);
+      shelf.translate(0, s * 0.42, 0);
+      return BufferGeometryUtils.mergeGeometries([base, pole, shelf]);
+    }
     default:
       return new THREE.SphereGeometry(s * 0.5, 16, 12);
   }
@@ -3518,8 +3548,9 @@ function buildEquipGeometry(shape, size) {
 const EQUIP_SHAPE_LABELS = {
   mla: "MLA", map: "MAP", iilb: "IILB", isib: "ISIB", cam: "CAM",
   mps: "MPS", mpc: "MPC", mtu: "MTU", mvsa: "MVSA", wifi: "WiFi", mbu: "MBU",
+  fs: "FS", tel: "TEL", stativ: "Статив",
 };
-const EQUIP_SHAPE_ORDER = ["mla", "map", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu"];
+const EQUIP_SHAPE_ORDER = ["mla", "map", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ"];
 function setEquipVisible(eq, visible) {
   eq.visible = visible;
   eq.mesh.visible = visible;
