@@ -74,6 +74,7 @@
   .icon-btn-primary:hover{ filter:brightness(1.15); }
   .icon-btn-danger:hover{ border-color:var(--danger); color:var(--danger); }
   #saveStatus{ margin:0 12px 6px; font-size:11px; color:var(--text-dim); min-height:14px; }
+  #saveStatus.err{ color:var(--danger); }
   #progressWrap{ margin:0 12px 10px; height:3px; background:var(--border-soft); border-radius:2px; overflow:hidden; display:none; }
   #progressBar{ height:100%; width:0%; background:var(--accent); transition:width .1s linear; }
   /* ---- tabs ---- */
@@ -1788,6 +1789,15 @@ const equipment = new Map();
 const marks = new Map();
 const patches = new Map();
 let objSeq = 0;
+// Стабильный идентификатор объекта, уникальный между разными пользователями/
+// вкладками (не просто локальный счётчик) — нужен для слияния изменений по
+// объектам при одновременном редактировании (см. saveToServer/mergeCollection
+// на сервере). objSeq выше остаётся только для дефолтных подписей вида
+// "Кабель 3" и к идентификации отношения не имеет.
+function makeObjectId(prefix) {
+  const rnd = Math.random().toString(36).slice(2, 9);
+  return `${prefix}-${Date.now().toString(36)}-${rnd}`;
+}
 let selectedCable = null, selectedEquip = null, selectedMark = null;
 let drawMode = null; // null | "cable" | "equip" | "mark" | "patch" | "link"
 let cableInProgress = null;
@@ -3159,7 +3169,8 @@ function currentUsername() {
   return (window.__auth && window.__auth.username) || "неизвестно";
 }
 function createCable(nodes, overrides) {
-  const id = "cable" + (++objSeq);
+  const id = overrides?.id ?? makeObjectId("cable");
+  objSeq++;
   // overrides присутствует только при восстановлении из снапшота — тогда
   // берём cableType как есть (может быть отсутствовать у кабелей,
   // сохранённых до появления типов — тогда это просто "нетиповой" кабель,
@@ -3577,7 +3588,8 @@ function equipLabelOffset(eq) {
   return new THREE.Vector3(eq.mesh.position.x, eq.mesh.position.y + eq.size * 0.6 + 2, eq.mesh.position.z);
 }
 function placeEquipment(point, overrides) {
-  const id = "equip" + (++objSeq);
+  const id = overrides?.id ?? makeObjectId("equip");
+  objSeq++;
   const shape = overrides?.shape ?? equipShape;
   const size = overrides?.size ?? 10;
   const color = overrides?.color ?? 0x4fd6e0;
@@ -3839,7 +3851,8 @@ function makeMarkTexture(type, color) {
 }
 const MARK_TYPE_LABELS = { star: "Звезда", dot: "Точка", check: "Галочка" };
 function placeMark(point, overrides) {
-  const id = "mark" + (++objSeq);
+  const id = overrides?.id ?? makeObjectId("mark");
+  objSeq++;
   const type = overrides?.markType ?? markType;
   const color = overrides?.color ?? 0xff5b7a;
   const texture = makeMarkTexture(type, color);
@@ -4030,7 +4043,8 @@ function addPatchNode(point) {
   }
 }
 function createPatch(nodes, overrides) {
-  const id = "patch" + (++objSeq);
+  const id = overrides?.id ?? makeObjectId("patch");
+  objSeq++;
   const color = overrides?.color ?? 0x9aa4ad;
   const opacity = overrides?.opacity ?? 0.5;
   const geo = buildPatchGeometry(nodes);
@@ -4231,7 +4245,8 @@ function createLinkPatch(ringA, ringB, overrides) {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.visible = overrides?.visible ?? true;
   scene.add(mesh);
-  const id = "patch" + (++objSeq);
+  const id = overrides?.id ?? makeObjectId("patch");
+  objSeq++;
   const label = overrides?.label ?? ("Труба-связка " + objSeq);
   const allNodes = ringA.concat(ringB).map((p) => new THREE.Vector3(p[0], p[1], p[2]));
   const patchData = {
@@ -4653,6 +4668,46 @@ dom.objectsFileInput.addEventListener("change", () => {
   reader.readAsArrayBuffer(file);
 });
 /* ---- сохранение всей модели в новый standalone HTML ---- */
+// Сериализация пользовательских объектов в JSON-safe вид. Вынесено в
+// отдельные функции (а не только внутри buildSnapshot) — они же используются
+// в saveToServer() для сравнения текущего состояния с базовым при слиянии
+// правок по отдельным объектам (см. mergeCollection на сервере).
+function serializeCable(c) {
+  return {
+    id: c.id,
+    nodes: c.nodes.map((p) => [p.x, p.y, p.z]),
+    color: c.color, thickness: c.thickness, label: c.label, visible: c.visible,
+    cableType: c.cableType, lineType: c.lineType,
+    createdBy: c.createdBy, createdAt: c.createdAt,
+  };
+}
+function serializeEquip(eq) {
+  return {
+    id: eq.id,
+    shape: eq.shape, size: eq.size, color: eq.color, label: eq.label, visible: eq.visible,
+    position: [eq.mesh.position.x, eq.mesh.position.y, eq.mesh.position.z],
+    location: eq.location, ip: eq.ip, idNumber: eq.idNumber,
+    createdBy: eq.createdBy, createdAt: eq.createdAt,
+  };
+}
+function serializeMark(m) {
+  return {
+    id: m.id,
+    markType: m.markType, color: m.color, label: m.label, text: m.text, visible: m.visible,
+    position: [m.sprite.position.x, m.sprite.position.y, m.sprite.position.z],
+    createdBy: m.createdBy, createdAt: m.createdAt,
+  };
+}
+function serializePatch(p) {
+  return {
+    id: p.id,
+    method: p.method || "outline",
+    nodes: p.nodes.map((n) => [n.x, n.y, n.z]),
+    ringA: p.ringA, ringB: p.ringB,
+    color: p.color, opacity: p.opacity, label: p.label, visible: p.visible,
+    createdBy: p.createdBy, createdAt: p.createdAt,
+  };
+}
 function buildSnapshot() {
   const layersSnap = [];
   for (const entry of loadedSources) {
@@ -4715,30 +4770,10 @@ function buildSnapshot() {
     }
     layersOBJSnap.push(snap);
   }
-  const cablesSnap = [...cables.values()].map((c) => ({
-    nodes: c.nodes.map((p) => [p.x, p.y, p.z]),
-    color: c.color, thickness: c.thickness, label: c.label, visible: c.visible,
-    cableType: c.cableType, lineType: c.lineType,
-    createdBy: c.createdBy, createdAt: c.createdAt,
-  }));
-  const equipSnap = [...equipment.values()].map((eq) => ({
-    shape: eq.shape, size: eq.size, color: eq.color, label: eq.label, visible: eq.visible,
-    position: [eq.mesh.position.x, eq.mesh.position.y, eq.mesh.position.z],
-    location: eq.location, ip: eq.ip, idNumber: eq.idNumber,
-    createdBy: eq.createdBy, createdAt: eq.createdAt,
-  }));
-  const marksSnap = [...marks.values()].map((m) => ({
-    markType: m.markType, color: m.color, label: m.label, text: m.text, visible: m.visible,
-    position: [m.sprite.position.x, m.sprite.position.y, m.sprite.position.z],
-    createdBy: m.createdBy, createdAt: m.createdAt,
-  }));
-  const patchesSnap = [...patches.values()].map((p) => ({
-    method: p.method || "outline",
-    nodes: p.nodes.map((n) => [n.x, n.y, n.z]),
-    ringA: p.ringA, ringB: p.ringB,
-    color: p.color, opacity: p.opacity, label: p.label, visible: p.visible,
-    createdBy: p.createdBy, createdAt: p.createdAt,
-  }));
+  const cablesSnap = [...cables.values()].map(serializeCable);
+  const equipSnap = [...equipment.values()].map(serializeEquip);
+  const marksSnap = [...marks.values()].map(serializeMark);
+  const patchesSnap = [...patches.values()].map(serializePatch);
   return {
     version: 1,
     savedAt: new Date().toISOString(),
@@ -4794,6 +4829,42 @@ function saveStandaloneCopy() {
 ============================================================ */
 const CURRENT_PROJECT_ID = (location.pathname.split("/").filter(Boolean)[0] || "default").toLowerCase();
 let serverStateVersion = 0;
+// "База" — последнее известное серверное состояние объектов (то, с чем
+// сравниваем текущие правки при сохранении, чтобы слить изменения по
+// отдельным объектам, а не перезаписывать весь проект целиком). Обновляется
+// после загрузки проекта и после каждого успешного сохранения ответом
+// сервера — см. mergeCollection на сервере (server/routes/projects.js).
+let baseObjects = { cables: new Map(), equipment: new Map(), marks: new Map(), patches: new Map() };
+function setBaseObjects(snap) {
+  baseObjects = {
+    cables: new Map((snap.cables || []).map((o) => [o.id, o])),
+    equipment: new Map((snap.equipment || []).map((o) => [o.id, o])),
+    marks: new Map((snap.marks || []).map((o) => [o.id, o])),
+    patches: new Map((snap.patches || []).map((o) => [o.id, o])),
+  };
+}
+// Сравнивает текущие живые объекты (cables/equipment/marks/patches Map) с
+// baseObjects[key] и возвращает {upserts, deletes} для отправки на сервер:
+// upsert — объект новый или отличается от базовой версии (несём саму базовую
+// версию тоже — сервер по ней определяет, трогал ли объект кто-то ещё);
+// delete — объект был в базе, но исчез локально.
+function diffCollection(key, liveMap, serializeFn) {
+  const base = baseObjects[key];
+  const upserts = [];
+  const deletes = [];
+  for (const obj of liveMap.values()) {
+    const data = serializeFn(obj);
+    const baseObj = base.get(obj.id) || null;
+    if (!baseObj || JSON.stringify(baseObj) !== JSON.stringify(data)) {
+      upserts.push({ id: obj.id, data, base: baseObj });
+    }
+  }
+  const liveIds = new Set([...liveMap.keys()]);
+  for (const [id, baseObj] of base) {
+    if (!liveIds.has(id)) deletes.push({ id, base: baseObj });
+  }
+  return { upserts, deletes };
+}
 
 function apiHeaders(extra) {
   const auth = window.__auth;
@@ -4916,6 +4987,7 @@ async function loadProjectFromServer() {
     serverStateVersion = data.version || 0;
     if (data.snapshot) {
       await restoreFromSnapshot(data.snapshot);
+      setBaseObjects(data.snapshot);
       dom.saveStatus.textContent = data.updatedBy
         ? `Загружено. Последнее сохранение: ${data.updatedBy}, ${new Date(data.updatedAt).toLocaleString()}`
         : "";
@@ -4934,48 +5006,64 @@ async function saveToServer() {
   }
   const auth = window.__auth;
   if (!auth || auth.role === "viewer") return;
-  const snapshot = buildSnapshot();
+  // Сохраняем не весь снимок целиком одним куском, а раздельно: настройки/
+  // модель шахты — как раньше, единым полем (их одновременно обычно правит
+  // только один admin), а кабели/оборудование/метки/заплатки — как diff
+  // относительно baseObjects (последнего известного серверного состояния).
+  // Сервер сливает этот diff с тем, что реально лежит в БД сейчас: если
+  // конкретный объект с момента baseObjects никто больше не менял — правка
+  // применяется; если кто-то другой успел его поменять — сервер оставляет
+  // чужую версию и сообщает об этом конфликте, а все остальные (не
+  // затронутые конфликтом) объекты всё равно сохраняются. Это заменяет
+  // прежнюю схему "весь проект — одной версией", где сохранение конфликтовало
+  // целиком, даже если два человека правили совершенно разные объекты.
+  const full = buildSnapshot();
+  const body = {
+    settings: full.settings,
+    layers: full.layers,
+    layersDTM: full.layersDTM,
+    layersOBJ: full.layersOBJ,
+    cables: diffCollection("cables", cables, serializeCable),
+    equipment: diffCollection("equipment", equipment, serializeEquip),
+    marks: diffCollection("marks", marks, serializeMark),
+    patches: diffCollection("patches", patches, serializePatch),
+  };
   dom.saveStatus.textContent = "Сохранение…";
+  dom.saveStatus.className = "";
   try {
     const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/state`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ snapshot, baseVersion: serverStateVersion }),
+      body: JSON.stringify(body),
     });
-    if (resp.status === 409) {
-      const conflict = await resp.json();
-      const overwrite = confirm(
-        `Кто-то другой (${conflict.updatedBy || "неизвестно"}) сохранил проект позже вас ` +
-        `(${conflict.updatedAt ? new Date(conflict.updatedAt).toLocaleString() : ""}).\n\n` +
-        `Перезаписать его изменения вашей версией? Рекомендуется сначала скачать резервную копию ` +
-        `("Резервная копия HTML"), чтобы не потерять ваши правки, если решите не перезаписывать.\n\n` +
-        `OK — перезаписать сервер моей версией. Отмена — ничего не делать.`
-      );
-      if (overwrite) {
-        const forced = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/state`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ snapshot, baseVersion: conflict.currentVersion }),
-        });
-        const forcedData = await forced.json();
-        if (forced.ok) {
-          serverStateVersion = forcedData.version;
-          dom.saveStatus.textContent = "Сохранено (с перезаписью), версия " + forcedData.version;
-        } else {
-          dom.saveStatus.textContent = "Не удалось сохранить: конфликт версий сохраняется, попробуйте ещё раз.";
-        }
-      } else {
-        dom.saveStatus.textContent = "Сохранение отменено, серверная версия не изменена.";
-      }
-      return;
-    }
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
     serverStateVersion = data.version;
-    dom.saveStatus.textContent = "Сохранено, версия " + data.version;
+    if (data.snapshot) setBaseObjects(data.snapshot);
+
+    const typeLabels = { cables: "Кабель", equipment: "Оборудование", marks: "Метка", patches: "Заплатка" };
+    const conflicts = data.conflicts || {};
+    const conflictLines = [];
+    for (const key of ["cables", "equipment", "marks", "patches"]) {
+      for (const c of conflicts[key] || []) {
+        conflictLines.push(`${typeLabels[key]} «${c.label}» — изменён другим пользователем, ваша правка не сохранена`);
+      }
+    }
+    if (conflictLines.length) {
+      dom.saveStatus.textContent = `Сохранено (версия ${data.version}), но есть конфликты по ${conflictLines.length} объект(ам) — см. предупреждение.`;
+      dom.saveStatus.className = "err";
+      alert(
+        "Эти объекты кто-то успел изменить одновременно с вами, поэтому ваши правки по ним не сохранены:\n\n" +
+        conflictLines.join("\n") +
+        "\n\nОстальные ваши изменения сохранены. Обновите страницу, чтобы увидеть актуальную версию этих объектов, и при необходимости повторите правки заново."
+      );
+    } else {
+      dom.saveStatus.textContent = "Сохранено, версия " + data.version;
+    }
   } catch (err) {
     console.error("Не удалось сохранить проект на сервере:", err);
     dom.saveStatus.textContent = "Ошибка сохранения: " + err.message;
+    dom.saveStatus.className = "err";
   }
 }
 
