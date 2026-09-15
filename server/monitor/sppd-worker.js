@@ -7,14 +7,23 @@ SQLite через общий volume. В отличие от ping-worker (опр�
 проект и обрабатывает события по мере поступления:
 
   - ws://<host>/sppd/v1/ws/stream    — телеметрия устройств
-    (SB_EVENT: Addr, State.OnLine, TxRx, Firmware) → online/offline для
-    оборудования с monitorMethod:"sppd" (в модели это IILB/ISIB).
   - ws://<host>/sbeacon/v1/ws/stream — счётчик меток/людей на считывателе
-    (NOFTAG: Addr, NOfTag, NOfMan, NofVehicle) → person_count/vehicle_count
-    того же оборудования, плюс разовая "вспышка" (monitor_tag_pulses) на
-    каждое сообщение REG_TAG (addr, в нижнем регистре — отдельное поле от
-    Addr в остальных типах сообщений) — точное событие "метка
-    зарегистрировалась", обнаружено в реальном потоке уже после деплоя.
+
+  Названия путей наводят на мысль, что SB_EVENT приходит на первый, а
+  NOFTAG/REG_TAG — на второй, но на живой системе (проверено на apk) это
+  не так: какой тип сообщения придёт на какой сокет — не гарантировано
+  (реально наблюдали SB_EVENT на "sbeacon"-соединении и REG_TAG на
+  "sppd"). Поэтому оба соединения разбирают сообщения одинаково, по
+  WSM_TYPE, а не по тому, откуда они пришли — см. dispatch() в startSite.
+
+  - SB_EVENT (Addr, State.OnLine, TxRx, Firmware) → online/offline для
+    оборудования с monitorMethod:"sppd" (в модели это IILB/ISIB).
+  - NOFTAG (Addr, NOfTag, NOfMan, NofVehicle) → person_count/vehicle_count
+    того же оборудования.
+  - REG_TAG (addr, в нижнем регистре — отдельное поле от Addr в остальных
+    типах) → разовая "вспышка" (monitor_tag_pulses) на каждую регистрацию
+    метки — точное событие, обнаружено в реальном потоке уже после
+    деплоя, не задокументировано изначально.
 
 Каждая шахта (проект apk/ipk/opk и т.п.) — это отдельный физический сервер
 SPPD со своим логином/паролем, поэтому конфигурация не глобальная (env), а
@@ -336,13 +345,18 @@ function startSite(projectId, config) {
     }
     if (telemetryConn) telemetryConn.close();
     if (beaconConn) beaconConn.close();
-    telemetryConn = connectStream(`${projectId}/sppd`, wsBase, "/sppd/v1/ws/stream", sessionCookie, (msg) => {
+    // Разбираем по WSM_TYPE, а не по тому, с какого из двух соединений
+    // пришло сообщение — на живой системе (проверено на apk) SB_EVENT и
+    // REG_TAG/NOFTAG/srvUnixTime не строго привязаны к "своему" пути,
+    // сообщения одного типа наблюдались на обоих сокетах. dispatch() не
+    // ломается от лишних типов на любом канале — просто их игнорирует.
+    function dispatch(msg) {
       if (msg.WSM_TYPE === "SB_EVENT") handleSbEvent(msg, targetsByAddr, projectId);
-    }, () => closed);
-    beaconConn = connectStream(`${projectId}/sbeacon`, wsBase, "/sbeacon/v1/ws/stream", sessionCookie, (msg) => {
-      if (msg.WSM_TYPE === "NOFTAG") handleNofTag(msg, targetsByAddr, projectId);
+      else if (msg.WSM_TYPE === "NOFTAG") handleNofTag(msg, targetsByAddr, projectId);
       else if (msg.WSM_TYPE === "REG_TAG") handleRegTag(msg, targetsByAddr, projectId);
-    }, () => closed);
+    }
+    telemetryConn = connectStream(`${projectId}/sppd`, wsBase, "/sppd/v1/ws/stream", sessionCookie, dispatch, () => closed);
+    beaconConn = connectStream(`${projectId}/sbeacon`, wsBase, "/sbeacon/v1/ws/stream", sessionCookie, dispatch, () => closed);
   }
 
   connectAll();
