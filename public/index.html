@@ -639,16 +639,6 @@
             <input type="range" id="rngOpacity" min="0" max="100" value="50">
             <span class="val" id="rngOpacityVal">50%</span>
           </div>
-          <div class="slider-row">
-            <span>Порог соединения сечений</span>
-            <input type="range" id="rngGapFactor" min="8" max="50" value="25">
-            <span class="val" id="rngGapFactorVal">25</span>
-          </div>
-          <div class="slider-row">
-            <span>Плавность тоннелей</span>
-            <input type="range" id="rngSmoothness" min="0" max="5" value="2">
-            <span class="val" id="rngSmoothnessVal">2</span>
-          </div>
           <input type="search" id="searchTree" placeholder="Поиск по названию выработки…" style="margin-top:8px;">
         </div>
         <div id="tree"></div>
@@ -1028,9 +1018,9 @@ function newellNormal(ring) {
 function offsetRing(ring, normal, d) {
   return ring.map((p) => [p[0] + normal[0]*d, p[1] + normal[1]*d, p[2] + normal[2]*d]);
 }
-let GAP_FACTOR = 25;     // во сколько раз разрыв между сечениями может превышать их радиус, прежде чем считать выработку прерванной (регулируется в панели)
+const GAP_FACTOR = 25;   // во сколько раз разрыв между сечениями может превышать их радиус, прежде чем считать выработку прерванной
 const MAX_RING_N = 28;   // предел передискретизации кольца (ограничивает число треугольников)
-let SMOOTH_SUBDIV = 2;   // сколько дополнительных промежуточных колец вставлять между реальными сечениями (сплайн вдоль оси тоннеля)
+const SMOOTH_SUBDIV = 2; // сколько дополнительных промежуточных колец вставлять между реальными сечениями (сплайн вдоль оси тоннеля)
 /* Catmull-Rom интерполяция одной координаты по 4 контрольным точкам. */
 function catmullRom1D(p0, p1, p2, p3, t) {
   const t2 = t * t, t3 = t2 * t;
@@ -1606,10 +1596,6 @@ const dom = {
   chkLabels: document.getElementById("chkLabels"),
   rngOpacity: document.getElementById("rngOpacity"),
   rngOpacityVal: document.getElementById("rngOpacityVal"),
-  rngGapFactor: document.getElementById("rngGapFactor"),
-  rngGapFactorVal: document.getElementById("rngGapFactorVal"),
-  rngSmoothness: document.getElementById("rngSmoothness"),
-  rngSmoothnessVal: document.getElementById("rngSmoothnessVal"),
   searchTree: document.getElementById("searchTree"),
   btnClearAll: document.getElementById("btnClearAll"),
   btnSaveAll: document.getElementById("btnSaveAll"),
@@ -1761,9 +1747,8 @@ let modelOffset = [0, 0, 0]; // для восстановления реальн
 let globalOffset = null;     // единая система координат для ВСЕХ загруженных файлов (устанавливается по первому)
 const layers = new Map();    // layerId -> { id, name, filename, group, visible, horizons: Map(hkey -> {...}), totalPoints, totalSegments }
 let layerSeq = 0;
-const loadedSources = [];    // [{id, parsed, filename}] — история загрузок STR, нужна для перестроения при смене порога соединения
-const loadedDTMSources = []; // [{id, solids, linePoints, filename, strHeader}] — то же для пар STR+DTM (лофтинг им не нужен,
-                              // но при rebuildAllLayers их тоже нужно пересоздать, иначе clearAllLayers их просто сотрёт)
+const loadedSources = [];    // [{id, parsed, filename}] — история загрузок STR (нужна для экспорта/сохранения снапшота)
+const loadedDTMSources = []; // [{id, solids, linePoints, filename, strHeader}] — то же для пар STR+DTM (лофтинг им не нужен)
 const loadedOBJSources = []; // [{id, vertices, groups, legend, filename}] — то же для готовых .obj (геометрия уже
                               // триангулирована, ни лофтинг, ни разбор DTM не нужны — просто перекладываем в сцену)
 let selectedLeaf = null;
@@ -1910,56 +1895,6 @@ async function addDTMLayer(solids, linePoints, filename, strHeader) {
     setLoading(false);
     dom.fileMeta.textContent = "Ошибка при обработке DTM: " + err.message;
     dom.fileMeta.className = "err";
-  } finally {
-    isBusy = false;
-  }
-}
-async function rebuildAllLayers() {
-  isBusy = true;
-  try {
-    const sources = loadedSources.slice();
-    const dtmSources = loadedDTMSources.slice();
-    const objSources = loadedOBJSources.slice();
-    clearAllLayers();
-    for (const src of sources) {
-      try {
-        const layerId = await buildLayer(src.parsed, src.filename);
-        if (layerId) loadedSources.push({ id: layerId, parsed: src.parsed, filename: src.filename });
-      } catch (err) {
-        console.error(err);
-      }
-    }
-    // DTM-слои не зависят от GAP_FACTOR/SMOOTH_SUBDIV (лофтинга для них нет —
-    // геометрия уже готова), но их всё равно нужно воссоздать после
-    // clearAllLayers(), иначе они просто исчезнут при перестроении STR-слоёв.
-    for (const src of dtmSources) {
-      try {
-        const layerId = await buildLayerFromDTM(src.solids, src.linePoints, src.filename, src.strHeader);
-        if (layerId) {
-          loadedDTMSources.push({
-            id: layerId, solids: src.solids, linePoints: src.linePoints,
-            filename: src.filename, strHeader: src.strHeader,
-          });
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }
-    // OBJ-слои — та же история: геометрия уже готова, GAP_FACTOR/SMOOTH_SUBDIV
-    // на неё не влияют, но пересоздать после clearAllLayers() обязательно.
-    for (const src of objSources) {
-      try {
-        const layerId = await buildLayerFromOBJ(src.vertices, src.groups, src.legend, src.filename);
-        if (layerId) {
-          loadedOBJSources.push({
-            id: layerId, vertices: src.vertices, groups: src.groups,
-            legend: src.legend, filename: src.filename,
-          });
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }
   } finally {
     isBusy = false;
   }
@@ -2571,22 +2506,6 @@ dom.rngOpacity.addEventListener("input", () => {
       }
     }
   }
-});
-dom.rngGapFactor.addEventListener("input", () => {
-  dom.rngGapFactorVal.textContent = dom.rngGapFactor.value;
-});
-dom.rngGapFactor.addEventListener("change", () => {
-  GAP_FACTOR = parseInt(dom.rngGapFactor.value, 10);
-  if (isBusy) return;
-  if (loadedSources.length) rebuildAllLayers();
-});
-dom.rngSmoothness.addEventListener("input", () => {
-  dom.rngSmoothnessVal.textContent = dom.rngSmoothness.value;
-});
-dom.rngSmoothness.addEventListener("change", () => {
-  SMOOTH_SUBDIV = parseInt(dom.rngSmoothness.value, 10);
-  if (isBusy) return;
-  if (loadedSources.length) rebuildAllLayers();
 });
 dom.btnClearAll.addEventListener("click", () => {
   if (!layers.size) return;
@@ -4778,7 +4697,6 @@ function buildSnapshot() {
     version: 1,
     savedAt: new Date().toISOString(),
     settings: {
-      gapFactor: GAP_FACTOR,
       opacity: parseInt(dom.rngOpacity.value, 10),
       grayscale: grayscaleMode,
       labelsOn: dom.chkLabels.checked,
@@ -5221,11 +5139,6 @@ async function restoreFromSnapshot(state) {
   try {
     setLoading(true, "Восстановление сохранённого состояния…");
     await nextFrame();
-    if (state.settings && typeof state.settings.gapFactor === "number") {
-      GAP_FACTOR = state.settings.gapFactor;
-      dom.rngGapFactor.value = GAP_FACTOR;
-      dom.rngGapFactorVal.textContent = GAP_FACTOR;
-    }
     for (const entry of state.layers || []) {
       const layerId = await buildLayer(entry.parsed, entry.filename);
       if (!layerId) continue;
