@@ -25,18 +25,26 @@ if (!row) {
 }
 const snapshot = JSON.parse(row.snapshot_json);
 const marks = snapshot.marks || [];
-const filtered = labelSubstring
-  ? marks.filter((m) => (m.label || "").includes(labelSubstring))
-  : marks;
+// index — позиция в массиве marks, а не порядковый номер среди
+// отфильтрованных: нужна как раз она, чтобы delete-object.js мог найти
+// объект по --index, даже если у него в БД вообще нет поля id (бывает у
+// старых/повреждённых записей — тогда id в выводе просто не появится,
+// JSON.stringify выкидывает undefined-поля).
+const filtered = marks
+  .map((m, index) => ({ m, index }))
+  .filter(({ m }) => !labelSubstring || (m.label || "").includes(labelSubstring));
 
 if (!filtered.length) {
   console.log(`Меток не найдено (всего в проекте: ${marks.length}).`);
   process.exit(0);
 }
-for (const m of filtered) {
+for (const { m, index } of filtered) {
   console.log(JSON.stringify({
-    id: m.id, label: m.label, position: m.position,
+    index, id: m.id, label: m.label, position: m.position,
     createdBy: m.createdBy, createdAt: m.createdAt,
   }));
 }
 console.log(`Показано ${filtered.length} из ${marks.length} меток проекта.`);
+if (marks.some((m) => !m.id)) {
+  console.log(`Внимание: у части меток отсутствует id (не показан выше) — удалять такие можно только по --index, не по id.`);
+}
