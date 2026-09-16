@@ -6665,6 +6665,15 @@ animate();
     await new Promise((r) => setTimeout(r, 150));
   }
   applyRoleToUI();
+  // Кнопки "Пользователи"/"SPPD"/"Пороги" с остальных страниц (Фонари/ЗИП/
+  // Статистика) ведут сюда с ?panel=…, а не дублируют сами модалки —
+  // открываем нужную сразу после входа.
+  const panelParam = new URLSearchParams(location.search).get("panel");
+  if (panelParam && window.__auth.role === "admin") {
+    if (panelParam === "users") openUserAdminPanel();
+    else if (panelParam === "sppd") openSppdConfigPanel();
+    else if (panelParam === "thresholds") openThresholdsPanel();
+  }
   if (window.__auth.offline) {
     // Локальная резервная копия — снимок уже встроен в сам файл (см.
     // saveStandaloneCopy()/authGate выше), сервер тут не при чём.
