@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Лог — Mine Operations Tool</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgODgiPjxwYXRoIGQ9Ik0xMCw3NiBMMTAsMTQgTDUwLDU0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZjlmMWMiIHN0cm9rZS13aWR0aD0iMTUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik01MCw1NCBMOTAsMTQgTDkwLDc2IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZjlmMWMiIHN0cm9rZS13aWR0aD0iMTUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgb3BhY2l0eT0iMC41NSIvPjwvc3ZnPg==">
+<style>
+  :root{
+    --bg:#14171a;
+    --panel:#1b1f23;
+    --panel-alt:#22272b;
+    --panel-alt2:#262c31;
+    --border:#31373d;
+    --border-soft:#282e33;
+    --text:#e4e8eb;
+    --text-dim:#8d979f;
+    --text-faint:#5f6a71;
+    --accent:#ff9f1c;
+    --accent-dim:#8a5713;
+    --accent-2:#39b8b0;
+    --danger:#e6553d;
+    --ok:#2ecc71;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    color-scheme:dark;
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size:13px;
+  }
+  .mono{ font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  ::selection{ background:var(--accent); color:#14171a; }
+
+  /* ---- shell / top bar (переиспользовано из index.html) ---- */
+  #shell{ display:flex; flex-direction:column; width:100vw; height:100vh; }
+  #topBar{
+    flex:0 0 auto; height:56px; display:flex; align-items:center; gap:14px;
+    padding:0 18px; background:linear-gradient(180deg,#1c2126,#14171a);
+    border-bottom:1px solid var(--border); user-select:none;
+  }
+  #topBar .brand-mark{ width:26px; height:auto; flex-shrink:0; }
+  #topBar .brand-titles{ display:flex; flex-direction:column; line-height:1.25; flex-shrink:0; }
+  #topBar .brand-titles .t1{ font-size:15px; font-weight:700; color:var(--text); letter-spacing:.2px; white-space:nowrap; }
+  #topBar .brand-titles .t2{ font-size:11px; color:var(--text-dim); white-space:nowrap; }
+  #topBar .brand-spacer{ flex:1 1 auto; }
+  #topBar .brand-copyright{ font-size:10.5px; color:var(--text-faint); text-align:right; line-height:1.4; }
+  #topBar a, #topBar button{
+    text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;
+    white-space:nowrap; flex-shrink:0; display:inline-flex; align-items:center; gap:5px;
+  }
+  #topBar a:hover, #topBar button:hover{ border-color:var(--accent); color:var(--accent); }
+  #topBar .nav-ic{ width:14px; height:14px; flex-shrink:0; }
+  #topBar #sessionInfo a, #topBar #sessionInfo span{ white-space:nowrap; flex-shrink:0; }
+  #topBar #projectSelect{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text); border-radius:8px;
+    padding:3px 6px; font-family:inherit; font-size:11.5px; cursor:pointer;
+  }
+  #topBar #projectSelect:hover{ border-color:var(--accent); }
+  #topBar #projectSelect option{ background:var(--panel-alt); color:var(--text); }
+  #topBar a.nav-current{ border-color:var(--accent); color:var(--accent); background:rgba(255,159,28,.08); pointer-events:none; cursor:default; }
+  #app{ flex:1 1 auto; min-height:0; overflow-y:auto; }
+
+  /* ---- экран входа (переиспользовано из index.html) ---- */
+  #authGate{
+    position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(1200px 800px at 50% 20%, #1c2126 0%, #0d0f11 70%);
+  }
+  #authGate.hidden{ display:none; }
+  #authCard{
+    width:360px; max-width:90vw; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:28px 26px 22px; box-shadow:0 20px 60px rgba(0,0,0,.45); text-align:center;
+  }
+  #authCard .auth-mark{ width:64px; height:auto; display:block; margin:0 auto 12px; }
+  #authCard h1{ margin:0 0 2px; font-size:22px; font-weight:700; color:var(--text); text-align:center; letter-spacing:.3px; }
+  #authCard .auth-tagline{ font-size:11px; color:var(--text-dim); text-align:center; letter-spacing:.06em; text-transform:uppercase; margin:0 0 16px; }
+  #authCard h2{ margin:0 0 18px; font-size:12px; font-weight:500; color:var(--text-dim); text-align:center; }
+  #authCard label{ display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:6px; text-align:left; }
+  #authCard input[type="password"], #authCard input[type="text"]{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:9px 10px; font-size:13px; font-family:inherit; letter-spacing:1px;
+  }
+  #authCard input[type="password"]:focus, #authCard input[type="text"]:focus{ outline:none; border-color:var(--accent); }
+  #authCard #authError{ min-height:16px; font-size:11.5px; color:var(--danger); margin-top:8px; text-align:left; }
+  #authCard #btnAuthSubmit{
+    width:100%; margin-top:10px; padding:9px; border-radius:5px; border:1px solid var(--accent);
+    background:var(--accent); color:#14171a; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;
+  }
+  #authCard #btnAuthSubmit:hover{ filter:brightness(1.08); }
+  #authCard .authHint{ margin-top:14px; font-size:10.5px; color:var(--text-faint); text-align:center; line-height:1.5; }
+
+  /* ---- страница ---- */
+  .wrap{ max-width:1400px; margin:0 auto; padding:20px 24px 40px; }
+  .pagehead{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:4px; }
+  .crumb{ font-size:11.5px; color:var(--text-faint); }
+  .crumb b{ color:var(--text-dim); font-weight:600; }
+  h1{ margin:2px 0 16px; font-size:19px; font-weight:700; letter-spacing:.1px; }
+
+  .controlbar{
+    display:flex; align-items:center; flex-wrap:wrap; gap:14px;
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:12px 16px; margin-bottom:18px;
+  }
+  .range-toggle{ display:flex; gap:2px; background:var(--panel-alt); border:1px solid var(--border); border-radius:7px; padding:2px; }
+  .range-toggle button{
+    border:none; background:none; color:var(--text-dim); font:inherit; font-size:11.5px; font-weight:600;
+    padding:6px 12px; border-radius:5px; cursor:pointer; transition:background .12s ease, color .12s ease;
+  }
+  .range-toggle button.active{ background:var(--accent); color:#14171a; }
+  .range-toggle button:not(.active):hover{ color:var(--text); }
+  .controlbar .spacer{ flex:1 1 auto; }
+  .global-stat{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-dim); white-space:nowrap; }
+  .global-stat .n{ font-size:15px; font-weight:700; color:var(--text); }
+  .global-stat.crit .n{ color:var(--danger); }
+  .global-stat .dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .global-divider{ width:1px; align-self:stretch; background:var(--border-soft); }
+  #btnRefreshLog{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text-dim);
+    border-radius:6px; padding:6px 12px; font-size:11.5px; cursor:pointer; font-family:inherit;
+  }
+  #btnRefreshLog:hover{ border-color:var(--accent); color:var(--accent); }
+
+  .grid3{ display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:14px; margin-bottom:18px; align-items:start; }
+  @media (max-width:900px){ .grid3{ grid-template-columns:1fr; } }
+
+  .panel{ background:var(--panel); border:1px solid var(--border); border-radius:10px; }
+  .panel-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 16px; border-bottom:1px solid var(--border-soft); }
+  .panel-head h2{ margin:0; font-size:13.5px; font-weight:600; }
+  .panel-head .hint{ font-size:10.5px; color:var(--text-faint); }
+
+  .daychart{ display:flex; align-items:flex-end; gap:6px; height:120px; padding:16px; }
+  .daychart .bar-wrap{ flex:1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:5px; }
+  .daychart .bar{ width:100%; max-width:34px; border-radius:3px 3px 0 0; background:var(--accent); min-height:3px; }
+  .daychart .lbl{ font-size:9.5px; color:var(--text-faint); white-space:nowrap; }
+  .daychart .empty{ color:var(--text-faint); font-size:12px; padding:20px 0; text-align:center; width:100%; }
+
+  .toprow{
+    display:flex; align-items:center; gap:10px; padding:8px 16px; cursor:pointer;
+    border-bottom:1px solid var(--border-soft); font-size:12px;
+  }
+  .toprow:last-child{ border-bottom:none; }
+  .toprow:hover{ background:rgba(255,255,255,.03); }
+  .toprow .name{ flex:0 0 40%; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .toprow .bar{ flex:1; height:7px; border-radius:4px; background:var(--panel-alt2); overflow:hidden; }
+  .toprow .bar .fill{ height:100%; background:var(--accent); }
+  .toprow .count{ flex:0 0 34px; text-align:right; color:var(--text-faint); font-size:11px; }
+  .top-empty{ padding:16px; color:var(--text-faint); text-align:center; font-size:12px; }
+
+  .btn{
+    font-family:inherit; font-size:12px; font-weight:600; border-radius:6px; padding:8px 14px;
+    cursor:pointer; border:1px solid var(--border); background:var(--panel-alt); color:var(--text-dim);
+    display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+  }
+  .btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .btn.primary{ background:var(--accent); border-color:var(--accent); color:#14171a; }
+  .btn.primary:hover{ filter:brightness(1.06); color:#14171a; }
+
+  /* ---- табличный вид ---- */
+  .table-head{ display:flex; align-items:center; flex-wrap:wrap; gap:14px; margin:4px 0 14px; }
+  .back-btn{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text-dim);
+    border-radius:6px; padding:6px 12px; font-size:11.5px; font-family:inherit; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .back-btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .table-head h2{ margin:0; font-size:15.5px; font-weight:700; color:var(--text); }
+  .table-head .spacer{ flex:1 1 auto; }
+
+  .filterbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .filterbar input[type="search"]{
+    flex:1; min-width:180px; background:var(--panel); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:8px 11px; font-family:inherit; font-size:12.5px;
+  }
+  .filterbar select{
+    background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:6px;
+    padding:8px 10px; font-family:inherit; font-size:12px;
+  }
+
+  .table-wrap{ background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
+  table.log-table{ width:100%; border-collapse:collapse; min-width:900px; }
+  table.log-table th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:700;
+    color:var(--text-faint); padding:10px 14px; background:var(--panel-alt); border-bottom:1px solid var(--border);
+    white-space:nowrap; position:sticky; top:0;
+  }
+  table.log-table td{ padding:9px 14px; border-bottom:1px solid var(--border-soft); color:var(--text-dim); font-size:12px; vertical-align:middle; }
+  table.log-table tr:last-child td{ border-bottom:none; }
+  table.log-table tr:hover td{ background:rgba(255,255,255,.02); }
+  td.actor{ color:var(--text); font-weight:600; }
+  td.details{ max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .action-pill{ display:inline-flex; align-items:center; font-size:11px; font-weight:600; padding:3px 9px; border-radius:99px; white-space:nowrap; }
+  .action-pill.create{ background:rgba(46,204,113,.12); color:var(--ok); }
+  .action-pill.update{ background:rgba(255,159,28,.12); color:var(--accent); }
+  .action-pill.delete{ background:rgba(230,85,61,.14); color:var(--danger); }
+  .action-pill.other{ background:var(--panel-alt2); color:var(--text-dim); }
+  .log-empty{ text-align:center; color:var(--text-faint); padding:40px 20px; }
+  .pager{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:14px; font-size:12px; color:var(--text-dim); }
+
+  #logError, #logEmpty{ text-align:center; color:var(--text-faint); padding:60px 20px; line-height:1.6; }
+  #logError{ color:var(--danger); }
+</style>
+</head>
+<body>
+
+<!-- ================= Экран входа по паролю (тот же кэш сессии, что в index.html) ================= -->
+<div id="authGate">
+  <div id="authCard">
+    <svg class="auth-mark" viewBox="0 0 100 88" aria-hidden="true"><path d="M10,76 L10,14 L50,54" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><path d="M50,54 L90,14 L90,76" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/></svg>
+    <h1>MoT</h1>
+    <div class="auth-tagline">Mine Operations Tool</div>
+    <h2>Лог — вход</h2>
+    <label for="authUsername">Логин</label>
+    <input type="text" id="authUsername" autocomplete="username" placeholder="Логин" style="margin-bottom:10px;" />
+    <label for="authPassword">Пароль</label>
+    <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
+    <div id="authError"></div>
+    <button id="btnAuthSubmit">Войти</button>
+    <div class="authHint">Доступ только для авторизованных пользователей.<br>© 2026 MoT. Все права защищены.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var gate = document.getElementById("authGate");
+  var userInput = document.getElementById("authUsername");
+  var passInput = document.getElementById("authPassword");
+  var errorEl = document.getElementById("authError");
+  var btn = document.getElementById("btnAuthSubmit");
+
+  function unlock(session){
+    gate.classList.add("hidden");
+    window.__auth = session;
+    document.dispatchEvent(new CustomEvent("kzmAuthReady"));
+  }
+  function readStoredSession(){
+    try {
+      var raw = localStorage.getItem("kzmAuthSession");
+      if (!raw) return null;
+      var s = JSON.parse(raw);
+      if (s && s.token && s.username && s.role) return s;
+    } catch(e){}
+    return null;
+  }
+  async function tryLogin(){
+    var username = (userInput.value || "").trim();
+    var password = passInput.value || "";
+    if (!username || !password) {
+      errorEl.textContent = "Введите логин и пароль.";
+      return;
+    }
+    btn.disabled = true;
+    try {
+      var resp = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username, password: password }),
+      });
+      if (!resp.ok) {
+        errorEl.textContent = "Неверный логин или пароль.";
+        passInput.value = "";
+        passInput.focus();
+        return;
+      }
+      var data = await resp.json();
+      var session = { token: data.token, username: data.username, role: data.role };
+      try { localStorage.setItem("kzmAuthSession", JSON.stringify(session)); } catch(e){}
+      errorEl.textContent = "";
+      unlock(session);
+    } catch(e) {
+      errorEl.textContent = "Не удалось связаться с сервером.";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  var stored = readStoredSession();
+  if (stored) { unlock(stored); } else { userInput.focus(); }
+  btn.addEventListener("click", tryLogin);
+  passInput.addEventListener("keydown", function(e){ if (e.key === "Enter") tryLogin(); });
+  userInput.addEventListener("keydown", function(e){ if (e.key === "Enter") passInput.focus(); });
+  window.__kzmLogout = function(){
+    try { localStorage.removeItem("kzmAuthSession"); } catch(e){}
+    location.reload();
+  };
+})();
+</script>
+
+<div id="shell">
+  <header id="topBar">
+<svg class="brand-mark" viewBox="0 0 100 88" aria-hidden="true"><path d="M10,76 L10,14 L50,54" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><path d="M50,54 L90,14 L90,76" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/></svg>
+    <div class="brand-titles">
+      <span class="t1">MoT</span>
+      <span class="t2">Лог</span>
+    </div>
+    <div class="brand-spacer"></div>
+    <div id="sessionInfo" style="display:flex; align-items:center; gap:10px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
+      <span id="sessionProject"></span>
+      <select id="projectSelect" title="Переключить проект" style="display:none;"></select>
+      <span id="sessionUser"></span>
+      <a id="navToEditor" title="Редактор модели"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" /><path d="M13.5 6.5l4 4" /></svg> Редактор</a>
+      <a id="navToMonitoring" title="Мониторинг оборудования"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4v8" /><path d="M16 4.5v7" /><path d="M12 5v16" /><path d="M8 5.5v5" /><path d="M4 6v4" /><path d="M20 8h-16" /></svg> Мониторинг</a>
+      <a id="navToStats" title="История аварий"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14" /><path d="M4 20h14" /></svg> Статистика</a>
+      <a id="navToRegistry" title="Реестр ЗИП"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" /><path d="M12 12l8 -4.5" /><path d="M12 12l0 9" /><path d="M12 12l-8 -4.5" /><path d="M16 5.25l-8 4.5" /></svg> ЗИП</a>
+      <a id="navToLamps" title="Фонари"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3" /><path d="M9.7 17l4.6 0" /></svg> Фонари</a>
+      <a id="navToLog" class="nav-current" title="Журнал действий"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8l0 4l2 2" /><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 -4l1.75 -4.5l3.22 2.5m-4.97 2l4.5 1.5" /></svg> Лог</a>
+      <a id="navToUsers" title="Управление пользователями" style="display:none;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M21 21v-2a4 4 0 0 0 -3 -3.85" /></svg> Пользователи</a>
+      <a id="navToSppd" title="Подключение к SPPD для этого проекта" style="display:none;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.785 6l8.215 8.215l-2.054 2.054a5.81 5.81 0 1 1 -8.215 -8.215l2.054 -2.054" /><path d="M4 20l3.5 -3.5" /><path d="M15 4l-3.5 3.5" /><path d="M20 9l-3.5 3.5" /></svg> SPPD</a>
+      <a id="navToThresholds" title="Пороги фиксации аварии для этого проекта" style="display:none;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M13.41 10.59l2.59 -2.59" /><path d="M7 12a5 5 0 0 1 5 -5" /></svg> Пороги</a>
+      <button id="btnLogout" title="Выйти">Выйти</button>
+    </div>
+    <div class="brand-copyright">© 2026 MoT<br>Все права защищены</div>
+  </header>
+
+  <div id="app">
+    <div class="wrap">
+      <div class="pagehead"><span class="crumb"><b>Лог</b> <span id="crumbProject"></span></span></div>
+      <h1>Журнал действий</h1>
+
+      <div id="logError" style="display:none;"></div>
+      <div id="logEmpty" style="display:none;"><b>Недостаточно прав.</b><br>Раздел доступен только администраторам.</div>
+
+      <div id="logContent" style="display:none;">
+        <div class="controlbar">
+          <div class="range-toggle" role="group" aria-label="Период">
+            <button data-range="24h">24 часа</button>
+            <button data-range="7d" class="active">7 дней</button>
+            <button data-range="30d">30 дней</button>
+            <button data-range="all">Всё время</button>
+          </div>
+          <div class="spacer"></div>
+          <div class="global-stat"><span class="n mono" id="kpiTotal">—</span> действий за период</div>
+          <div class="global-divider"></div>
+          <div class="global-stat"><span class="n mono" id="kpiActors">—</span> пользователей</div>
+          <div class="global-divider"></div>
+          <div class="global-stat crit" id="kpiFailedWrap"><span class="dot" style="background:var(--danger);"></span><span class="n mono" id="kpiFailed">—</span> неудачных входов</div>
+          <button id="btnRefreshLog" title="Обновить"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg></button>
+        </div>
+
+        <div id="dashboardView">
+          <div class="grid3">
+            <div class="panel">
+              <div class="panel-head"><h2>Действия по дням</h2><span class="hint" id="dayChartHint"></span></div>
+              <div class="daychart" id="dayChart"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>Топ действий</h2><span class="hint">клик — фильтр</span></div>
+              <div id="topActions"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>Топ пользователей</h2><span class="hint">клик — фильтр</span></div>
+              <div id="topActors"></div>
+            </div>
+          </div>
+          <button id="btnShowTable" class="btn primary">Показать все записи →</button>
+        </div>
+
+        <div id="tableView" style="display:none;">
+          <div class="table-head">
+            <button id="btnBackToDashboard" class="back-btn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l14 0" /><path d="M5 12l6 6" /><path d="M5 12l6 -6" /></svg> Дашборд</button>
+            <h2>Все записи</h2>
+            <div class="spacer"></div>
+            <button id="btnExportLog" class="back-btn" title="Скачать таблицу в CSV"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg> Экспорт CSV</button>
+          </div>
+          <div class="filterbar">
+            <input type="search" id="logSearch" placeholder="Поиск по объекту/пользователю…">
+            <select id="actorFilter"><option value="">Все пользователи</option></select>
+            <select id="actionFilter"><option value="">Все действия</option></select>
+            <select id="projectFilter"><option value="">Все проекты</option></select>
+          </div>
+          <div class="table-wrap"><div id="logTableWrap"></div></div>
+          <div class="pager">
+            <button id="btnPagerPrev" class="back-btn">← Раньше</button>
+            <span id="pagerInfo"></span>
+            <button id="btnPagerNext" class="back-btn">Позже →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+const CURRENT_PROJECT_ID = (location.pathname.split("/").filter(Boolean)[0] || "default").toLowerCase();
+
+function apiHeaders(extra) {
+  const auth = window.__auth;
+  const headers = Object.assign({}, extra || {});
+  if (auth && auth.token) headers["Authorization"] = "Bearer " + auth.token;
+  return headers;
+}
+async function apiFetch(url, options) {
+  const resp = await fetch(url, Object.assign({}, options, { headers: apiHeaders((options && options.headers) || {}) }));
+  if (resp.status === 401) {
+    if (window.__kzmLogout) window.__kzmLogout();
+    throw new Error("Сессия истекла, требуется повторный вход.");
+  }
+  return resp;
+}
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+// created_at приходит из SQLite как "YYYY-MM-DD HH:MM:SS" в UTC (datetime('now'))
+// — это настоящий момент времени на сервере, поэтому (в отличие от времени
+// печатного отчёта фонарей) его правильно показывать в часовом поясе смотрящего.
+function parseServerDate(s) {
+  if (!s) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)/.exec(s);
+  return m ? new Date(s.includes("T") ? s : s.replace(" ", "T") + "Z") : new Date(s);
+}
+function fmtWhen(iso) {
+  const d = parseServerDate(iso);
+  if (!d || isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+const ACTION_LABELS = {
+  "login.success": "Вход выполнен",
+  "login.failed": "Неудачный вход",
+  "project.create": "Проект создан",
+  "project.rename": "Проект переименован",
+  "project.delete": "Проект удалён",
+  "cable.create": "Кабель создан",
+  "cable.update": "Кабель изменён",
+  "cable.delete": "Кабель удалён",
+  "equipment.create": "Оборудование создано",
+  "equipment.update": "Оборудование изменено",
+  "equipment.delete": "Оборудование удалено",
+  "mark.create": "Метка создана",
+  "mark.update": "Метка изменена",
+  "mark.delete": "Метка удалена",
+  "patch.create": "Заплатка создана",
+  "patch.update": "Заплатка изменена",
+  "patch.delete": "Заплатка удалена",
+  "user.create": "Пользователь создан",
+  "user.role_change": "Роль пользователя изменена",
+  "user.password_reset": "Пароль пользователя сброшен",
+  "user.delete": "Пользователь удалён",
+  "zip_item.create": "Позиция ЗИП создана",
+  "zip_item.update": "Позиция ЗИП изменена",
+  "zip_item.delete": "Позиция ЗИП удалена",
+  "zip_item.receipt": "Приход на склад",
+  "zip_item.adjust": "Корректировка остатка",
+  "zip_request.create": "Заявка на ЗИП подана",
+  "zip_request.approve": "Заявка на ЗИП одобрена",
+  "zip_request.reject": "Заявка на ЗИП отклонена",
+  "zip_request.cancel": "Заявка на ЗИП отменена",
+  "zip_request.issue": "Заявка на ЗИП выдана",
+  "lamp_report.upload": "Отчёт по фонарям загружен",
+  "lamp_report.delete": "Отчёт по фонарям удалён",
+  "thresholds.update": "Пороги аварий изменены",
+  "thresholds.reset": "Пороги аварий сброшены",
+  "sppd_config.update": "SPPD-подключение изменено",
+  "sppd_config.remove": "SPPD-подключение удалено",
+};
+function actionLabel(action) { return ACTION_LABELS[action] || action; }
+function actionPillClass(action) {
+  if (action.endsWith(".create") || action.endsWith(".upload") || action.endsWith(".approve") || action.endsWith(".issue") || action === "login.success") return "create";
+  if (action.endsWith(".delete") || action.endsWith(".reject") || action.endsWith(".cancel") || action.endsWith(".reset") || action.endsWith(".remove") || action === "login.failed") return "delete";
+  if (action.endsWith(".update") || action.endsWith(".adjust") || action.endsWith(".receipt") || action.endsWith(".role_change") || action.endsWith(".password_reset") || action.endsWith(".rename")) return "update";
+  return "other";
+}
+
+function summarizeKV(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  const { id, label, ...rest } = obj;
+  const parts = Object.entries(rest).filter(([, v]) => v !== null && v !== undefined && v !== "").map(([k, v]) => `${k}: ${v}`);
+  return parts.length ? parts.join(", ") : null;
+}
+function formatDetails(d) {
+  if (!d) return "—";
+  if (Object.prototype.hasOwnProperty.call(d, "before") || Object.prototype.hasOwnProperty.call(d, "after")) {
+    const b = summarizeKV(d.before) || "—";
+    const a = summarizeKV(d.after) || "—";
+    return `было: ${b} → стало: ${a}`;
+  }
+  return summarizeKV(d) || "—";
+}
+
+let currentRange = "7d";
+let filters = { actor: "", action: "", projectId: "", q: "" };
+let pageOffset = 0;
+const PAGE_SIZE = 100;
+let lastEntries = [];
+let lastTotal = 0;
+
+function rangeQuery() {
+  return currentRange === "all" ? "" : `range=${encodeURIComponent(currentRange)}`;
+}
+
+async function loadFilters() {
+  try {
+    const resp = await apiFetch("/api/audit-log/filters");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const actorSel = document.getElementById("actorFilter");
+    const actionSel = document.getElementById("actionFilter");
+    const projectSel = document.getElementById("projectFilter");
+    actorSel.innerHTML = '<option value="">Все пользователи</option>' + data.actors.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join("");
+    actionSel.innerHTML = '<option value="">Все действия</option>' + data.actions.map((a) => `<option value="${esc(a)}">${esc(actionLabel(a))}</option>`).join("");
+    projectSel.innerHTML = '<option value="">Все проекты</option>' + data.projects.map((p) => `<option value="${esc(p.id)}">${esc(p.name)} (${esc(p.id)})</option>`).join("");
+  } catch (e) {}
+}
+
+function renderDayChart(byDay) {
+  const el = document.getElementById("dayChart");
+  document.getElementById("dayChartHint").textContent = byDay.length ? `по ${byDay.length} дн.` : "";
+  if (!byDay.length) {
+    el.innerHTML = `<div class="empty">Нет данных за период</div>`;
+    return;
+  }
+  const max = Math.max(1, ...byDay.map((d) => d.count));
+  el.innerHTML = byDay.map((d) => {
+    const dt = new Date(d.day + "T00:00:00Z");
+    const lbl = dt.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+    return `<div class="bar-wrap" title="${esc(lbl)} — ${d.count}">
+      <div class="bar" style="height:${Math.max(4, (d.count / max) * 90)}px"></div>
+      <span class="lbl">${esc(lbl)}</span>
+    </div>`;
+  }).join("");
+}
+
+function renderTopList(elId, rows, key, onPick) {
+  const el = document.getElementById(elId);
+  if (!rows.length) {
+    el.innerHTML = `<div class="top-empty">Нет данных</div>`;
+    return;
+  }
+  const max = Math.max(1, ...rows.map((r) => r.count));
+  el.innerHTML = rows.map((r) => {
+    const value = r[key];
+    const label = key === "action" ? actionLabel(value) : value;
+    return `<div class="toprow" data-value="${esc(value)}" title="${esc(label)}">
+      <span class="name">${esc(label)}</span>
+      <div class="bar"><div class="fill" style="width:${(r.count / max) * 100}%"></div></div>
+      <span class="count">${r.count}</span>
+    </div>`;
+  }).join("");
+  el.querySelectorAll(".toprow").forEach((row) => {
+    row.addEventListener("click", () => onPick(row.dataset.value));
+  });
+}
+
+async function loadSummary() {
+  try {
+    const params = new URLSearchParams();
+    if (currentRange !== "all") params.set("range", currentRange);
+    const resp = await apiFetch(`/api/audit-log/summary?${params.toString()}`);
+    if (resp.status === 403) { showForbidden(); return; }
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    document.getElementById("kpiTotal").textContent = data.total;
+    document.getElementById("kpiActors").textContent = data.distinctActors;
+    document.getElementById("kpiFailed").textContent = data.failedLogins;
+    document.getElementById("kpiFailedWrap").style.opacity = data.failedLogins ? "1" : ".55";
+    renderDayChart(data.byDay);
+    renderTopList("topActions", data.byAction, "action", (v) => { filters.action = v; showTableView(); });
+    renderTopList("topActors", data.topActors, "actor", (v) => { filters.actor = v; showTableView(); });
+  } catch (err) {
+    showError("Не удалось загрузить сводку: " + err.message);
+  }
+}
+
+function actionCellHtml(action) {
+  return `<span class="action-pill ${actionPillClass(action)}">${esc(actionLabel(action))}</span>`;
+}
+
+function renderLogTable(entries) {
+  if (!entries.length) {
+    return `<div class="log-empty">Записей не найдено.</div>`;
+  }
+  const rows = entries.map((e) => `
+    <tr>
+      <td class="mono">${esc(fmtWhen(e.createdAt))}</td>
+      <td class="actor">${esc(e.actor)}</td>
+      <td>${esc(e.projectId || "—")}</td>
+      <td>${actionCellHtml(e.action)}</td>
+      <td>${esc(e.entityLabel || e.entityId || "—")}</td>
+      <td class="details" title="${esc(formatDetails(e.details))}">${esc(formatDetails(e.details))}</td>
+      <td class="mono">${esc(e.ip || "—")}</td>
+    </tr>`).join("");
+  return `<table class="log-table"><thead><tr>
+    <th>Время</th><th>Пользователь</th><th>Проект</th><th>Действие</th><th>Объект</th><th>Детали</th><th>IP</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+async function loadTable() {
+  const wrap = document.getElementById("logTableWrap");
+  try {
+    const params = new URLSearchParams();
+    if (currentRange !== "all") params.set("range", currentRange);
+    if (filters.actor) params.set("actor", filters.actor);
+    if (filters.action) params.set("action", filters.action);
+    if (filters.projectId) params.set("projectId", filters.projectId);
+    if (filters.q) params.set("q", filters.q);
+    params.set("limit", PAGE_SIZE);
+    params.set("offset", pageOffset);
+    const resp = await apiFetch(`/api/audit-log?${params.toString()}`);
+    if (resp.status === 403) { showForbidden(); return; }
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    lastEntries = data.entries;
+    lastTotal = data.total;
+    wrap.innerHTML = renderLogTable(data.entries);
+    const from = data.total ? pageOffset + 1 : 0;
+    const to = Math.min(pageOffset + PAGE_SIZE, data.total);
+    document.getElementById("pagerInfo").textContent = data.total ? `${from}–${to} из ${data.total}` : "0 из 0";
+    document.getElementById("btnPagerPrev").disabled = pageOffset === 0;
+    document.getElementById("btnPagerNext").disabled = to >= data.total;
+  } catch (err) {
+    wrap.innerHTML = `<div class="log-empty">Не удалось загрузить записи: ${esc(err.message)}</div>`;
+  }
+}
+
+function csvCell(v) {
+  const s = String(v == null ? "" : v);
+  return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+document.getElementById("btnExportLog").addEventListener("click", () => {
+  const header = ["Время", "Пользователь", "Проект", "Действие", "Объект", "Детали", "IP"];
+  const lines = [header.map(csvCell).join(";")];
+  for (const e of lastEntries) {
+    lines.push([
+      fmtWhen(e.createdAt), e.actor, e.projectId || "", actionLabel(e.action),
+      e.entityLabel || e.entityId || "", formatDetails(e.details), e.ip || "",
+    ].map(csvCell).join(";"));
+  }
+  const csv = "﻿" + lines.join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `log_${CURRENT_PROJECT_ID}_${currentRange}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+function showDashboardView() {
+  document.getElementById("dashboardView").style.display = "";
+  document.getElementById("tableView").style.display = "none";
+  loadSummary();
+}
+function showTableView() {
+  pageOffset = 0;
+  document.getElementById("actorFilter").value = filters.actor;
+  document.getElementById("actionFilter").value = filters.action;
+  document.getElementById("projectFilter").value = filters.projectId;
+  document.getElementById("dashboardView").style.display = "none";
+  document.getElementById("tableView").style.display = "block";
+  loadTable();
+}
+document.getElementById("btnShowTable").addEventListener("click", () => { filters = { actor: "", action: "", projectId: "", q: "" }; document.getElementById("logSearch").value = ""; showTableView(); });
+document.getElementById("btnBackToDashboard").addEventListener("click", showDashboardView);
+
+document.getElementById("actorFilter").addEventListener("change", (e) => { filters.actor = e.target.value; pageOffset = 0; loadTable(); });
+document.getElementById("actionFilter").addEventListener("change", (e) => { filters.action = e.target.value; pageOffset = 0; loadTable(); });
+document.getElementById("projectFilter").addEventListener("change", (e) => { filters.projectId = e.target.value; pageOffset = 0; loadTable(); });
+let searchDebounce = null;
+document.getElementById("logSearch").addEventListener("input", (e) => {
+  filters.q = e.target.value;
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => { pageOffset = 0; loadTable(); }, 300);
+});
+document.getElementById("btnPagerPrev").addEventListener("click", () => { pageOffset = Math.max(0, pageOffset - PAGE_SIZE); loadTable(); });
+document.getElementById("btnPagerNext").addEventListener("click", () => { pageOffset += PAGE_SIZE; loadTable(); });
+
+document.querySelectorAll(".range-toggle button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".range-toggle button").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentRange = btn.dataset.range;
+    if (document.getElementById("tableView").style.display === "none") loadSummary();
+    else loadTable();
+  });
+});
+document.getElementById("btnRefreshLog").addEventListener("click", () => {
+  if (document.getElementById("tableView").style.display === "none") loadSummary();
+  else loadTable();
+});
+document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
+
+function showError(msg) {
+  document.getElementById("logContent").style.display = "none";
+  document.getElementById("logEmpty").style.display = "none";
+  const errEl = document.getElementById("logError");
+  errEl.textContent = msg;
+  errEl.style.display = "block";
+}
+function showForbidden() {
+  document.getElementById("logContent").style.display = "none";
+  document.getElementById("logError").style.display = "none";
+  document.getElementById("logEmpty").style.display = "block";
+}
+
+// Переключатель проекта в топбаре — грузим список один раз, при выборе
+// другого проекта переходим на тот же путь (страницу/фильтры), но для него.
+async function loadProjectSwitcher() {
+  const sel = document.getElementById("projectSelect");
+  if (!sel) return;
+  try {
+    const resp = await apiFetch("/api/projects");
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    sel.textContent = "";
+    let hasCurrent = false;
+    for (const p of data.projects) {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.name + " (" + p.id + ")";
+      if (p.id === CURRENT_PROJECT_ID) { opt.selected = true; hasCurrent = true; }
+      sel.appendChild(opt);
+    }
+    if (!hasCurrent) {
+      const opt = document.createElement("option");
+      opt.value = CURRENT_PROJECT_ID;
+      opt.textContent = CURRENT_PROJECT_ID;
+      opt.selected = true;
+      sel.insertBefore(opt, sel.firstChild);
+    }
+    sel.style.display = "";
+  } catch (e) {}
+}
+document.getElementById("projectSelect").addEventListener("change", (e) => {
+  const newId = e.target.value;
+  if (!newId || newId === CURRENT_PROJECT_ID) return;
+  location.pathname = location.pathname.replace(/^\/[^/]+/, "/" + newId);
+});
+
+function applyRoleUI() {
+  const auth = window.__auth;
+  document.getElementById("sessionProject").textContent = "Проект:";
+  document.getElementById("crumbProject").textContent = "· " + CURRENT_PROJECT_ID;
+  document.getElementById("sessionUser").textContent = auth ? `${auth.username} (${auth.role})` : "";
+  document.getElementById("navToEditor").href = `/${CURRENT_PROJECT_ID}`;
+  document.getElementById("navToMonitoring").href = `/${CURRENT_PROJECT_ID}/monitoring`;
+  document.getElementById("navToStats").href = `/${CURRENT_PROJECT_ID}/monitoring/stats`;
+  document.getElementById("navToRegistry").href = `/${CURRENT_PROJECT_ID}/registry`;
+  document.getElementById("navToLamps").href = `/${CURRENT_PROJECT_ID}/lamps`;
+  document.getElementById("navToLog").href = `/${CURRENT_PROJECT_ID}/log`;
+  const isAdmin = auth && auth.role === "admin";
+  document.getElementById("navToUsers").href = `/${CURRENT_PROJECT_ID}?panel=users`;
+  document.getElementById("navToUsers").style.display = isAdmin ? "inline-flex" : "none";
+  document.getElementById("navToSppd").href = `/${CURRENT_PROJECT_ID}?panel=sppd`;
+  document.getElementById("navToSppd").style.display = isAdmin ? "inline-flex" : "none";
+  document.getElementById("navToThresholds").href = `/${CURRENT_PROJECT_ID}?panel=thresholds`;
+  document.getElementById("navToThresholds").style.display = isAdmin ? "inline-flex" : "none";
+  if (!isAdmin) { showForbidden(); return false; }
+  document.getElementById("logContent").style.display = "block";
+  return true;
+}
+
+function boot() {
+  const isAdmin = applyRoleUI();
+  loadProjectSwitcher();
+  if (!isAdmin) return;
+  loadFilters();
+  showDashboardView();
+}
+if (window.__auth) boot();
+else document.addEventListener("kzmAuthReady", boot, { once: true });
+</script>
+</body>
+</html>
