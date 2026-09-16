@@ -49,14 +49,18 @@
   body.monitoring-mode #navToMonitoring{ display:none !important; }
   #navToEditor{ display:none; }
   body.monitoring-mode #navToEditor{ display:inline-flex; }
-  #monitorPageTitle{ display:none; padding:14px 12px 6px; font-size:14.5px; font-weight:700; color:var(--text); align-items:center; gap:10px; }
-  body.monitoring-mode #monitorPageTitle{ display:flex; }
-  #monitorPageTitle .title-text{ flex:1; min-width:0; }
+  #monitorPageTitle{ display:none; padding:14px 12px 2px; font-size:14.5px; font-weight:700; color:var(--text); }
+  body.monitoring-mode #monitorPageTitle{ display:block; }
   #navToMonitorStats{
-    flex-shrink:0; text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim);
-    border-radius:4px; padding:4px 9px; cursor:pointer; font-family:inherit; font-size:11px; font-weight:500;
+    display:none; align-items:center; justify-content:center; gap:7px;
+    margin:8px 12px 10px; padding:10px; text-decoration:none;
+    border:1px solid var(--accent); border-radius:6px;
+    background:rgba(255,159,28,.1); color:var(--accent);
+    cursor:pointer; font-family:inherit; font-size:13px; font-weight:700;
+    transition:background .12s ease, color .12s ease;
   }
-  #navToMonitorStats:hover{ border-color:var(--accent); color:var(--accent); }
+  body.monitoring-mode #navToMonitorStats{ display:flex; }
+  #navToMonitorStats:hover{ background:var(--accent); color:#14171a; }
   body.monitoring-mode #tab-monitor.active{ display:block; overflow-y:auto; flex:1 1 auto; }
   body.monitoring-mode .layer-remove{ display:none !important; }
   #monitorActiveWrap{ max-height:220px; overflow-y:auto; border-bottom:1px solid var(--border-soft); }
@@ -731,10 +735,8 @@
     </div>
   </div>
   <div id="sidebar">
-    <div id="monitorPageTitle">
-      <span class="title-text">📡 Мониторинг оборудования</span>
-      <a id="navToMonitorStats" title="История аварий по системам">📊 Статистика</a>
-    </div>
+    <div id="monitorPageTitle">📡 Мониторинг оборудования</div>
+    <a id="navToMonitorStats" title="История аварий по системам">📊 Статистика по авариям</a>
     <button id="btnSaveAll" class="save-btn-big" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере">☁ Сохранить изменения</button>
     <div id="saveStatus"></div>
     <div id="fileMeta"></div>
