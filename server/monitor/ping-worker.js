@@ -18,10 +18,26 @@ const db = require("../db");
 const INTERVAL_MS = parseInt(process.env.PING_INTERVAL_MS || "30000", 10);
 const CONCURRENCY = parseInt(process.env.PING_CONCURRENCY || "20", 10);
 const PING_TIMEOUT_SEC = parseInt(process.env.PING_TIMEOUT_SEC || "1", 10);
+const PING_FAIL_THRESHOLD = parseInt(process.env.PING_FAIL_THRESHOLD || "1", 10);
 
-function pingHost(ip) {
+// Пороги — per-project (см. project_monitor_thresholds в db.js, настраивается
+// админом через "⚙ Пороги" в UI). Отсутствие строки для проекта = дефолты из
+// env выше, поэтому существующие проекты без явной настройки ведут себя
+// как раньше.
+const stmtGetThresholds = db.prepare(
+  "SELECT ping_timeout_sec, ping_fail_threshold FROM project_monitor_thresholds WHERE project_id = ?"
+);
+function loadProjectThresholds(projectId) {
+  const row = stmtGetThresholds.get(projectId);
+  return {
+    pingTimeoutSec: row ? row.ping_timeout_sec : PING_TIMEOUT_SEC,
+    failThreshold: row ? row.ping_fail_threshold : PING_FAIL_THRESHOLD,
+  };
+}
+
+function pingHost(ip, timeoutSec) {
   return new Promise((resolve) => {
-    execFile("ping", ["-c", "1", "-W", String(PING_TIMEOUT_SEC), ip], (err, stdout) => {
+    execFile("ping", ["-c", "1", "-W", String(timeoutSec || PING_TIMEOUT_SEC), ip], (err, stdout) => {
       if (err) return resolve({ up: false, latencyMs: null });
       const m = stdout.match(/time[=<]([\d.]+)\s*ms/);
       resolve({ up: true, latencyMs: m ? parseFloat(m[1]) : null });
@@ -57,9 +73,13 @@ function collectPingTargets() {
       console.error(`[ping-worker] bad snapshot_json for project ${projectId}:`, err.message);
       continue;
     }
+    const thresholds = loadProjectThresholds(projectId);
     for (const eq of snapshot.equipment || []) {
       if (eq.monitorMethod === "ping" && eq.ip) {
-        targets.push({ projectId, equipmentId: eq.id, label: eq.label, ip: eq.ip });
+        targets.push({
+          projectId, equipmentId: eq.id, label: eq.label, ip: eq.ip,
+          pingTimeoutSec: thresholds.pingTimeoutSec, failThreshold: thresholds.failThreshold,
+        });
       }
     }
   }
@@ -91,44 +111,68 @@ const stmtCloseEvent = db.prepare(
   "UPDATE monitor_events SET ended_at = ?, duration_sec = ? WHERE id = ?"
 );
 
+// Подряд идущие неудачные пинги на цель, в памяти процесса (сбрасывается
+// при перезапуске воркера — не страшно, худший случай: первый пинг после
+// рестарта снова считается "первым в серии"). Не хранится в БД, потому что
+// это чисто внутренний счётчик debounce, не нужный никому кроме тика,
+// который его и накопил.
+const consecutiveFails = new Map(); // `${projectId}:${equipmentId}` -> count
+
 function applyResult(target, result) {
   const nowIso = new Date().toISOString();
-  const nextState = result.up ? "up" : "down";
+  const key = target.projectId + ":" + target.equipmentId;
   const current = stmtGetStatus.get(target.projectId, target.equipmentId);
-  const changed = !current || current.state !== nextState;
 
-  stmtUpsertStatus.run({
-    projectId: target.projectId,
-    equipmentId: target.equipmentId,
-    state: nextState,
-    checkedAt: nowIso,
-    changedAt: nowIso,
-    latencyMs: result.latencyMs,
-  });
-
-  if (!changed) return;
-
-  if (nextState === "down") {
-    stmtOpenEvent.run({
-      projectId: target.projectId,
-      equipmentId: target.equipmentId,
-      label: target.label,
-      fromState: current ? current.state : null,
-      toState: nextState,
-      startedAt: nowIso,
+  if (result.up) {
+    consecutiveFails.delete(key);
+    const changed = !current || current.state !== "up";
+    stmtUpsertStatus.run({
+      projectId: target.projectId, equipmentId: target.equipmentId, state: "up",
+      checkedAt: nowIso, changedAt: nowIso, latencyMs: result.latencyMs,
     });
-  } else if (current) {
-    // Возврат в строй после падения — закрываем самое недавнее открытое
-    // событие для этого объекта. Если current не было (первая проверка
-    // сразу "up") — писать нечего, аварии никто не наблюдал.
-    const openEvent = stmtFindOpenEvent.get(target.projectId, target.equipmentId);
-    if (openEvent) {
-      const durationSec = Math.max(
-        0,
-        Math.round((Date.parse(nowIso) - Date.parse(openEvent.started_at)) / 1000)
-      );
-      stmtCloseEvent.run(nowIso, durationSec, openEvent.id);
+    if (changed && current) {
+      // Возврат в строй после падения — закрываем самое недавнее открытое
+      // событие для этого объекта. Если current не было (первая проверка
+      // сразу "up") — писать нечего, аварии никто не наблюдал.
+      const openEvent = stmtFindOpenEvent.get(target.projectId, target.equipmentId);
+      if (openEvent) {
+        const durationSec = Math.max(
+          0,
+          Math.round((Date.parse(nowIso) - Date.parse(openEvent.started_at)) / 1000)
+        );
+        stmtCloseEvent.run(nowIso, durationSec, openEvent.id);
+      }
     }
+    return;
+  }
+
+  // Неудачный пинг — фиксируем "down" только после failThreshold подряд
+  // неудач (per-project, по умолчанию 1 — старое поведение: авария с
+  // первого же пропавшего пинга). Пока порог не набран, состояние не
+  // трогаем — только время последней проверки, чтобы один потерянный
+  // пакет не мигал красным на дашборде.
+  const fails = (consecutiveFails.get(key) || 0) + 1;
+  consecutiveFails.set(key, fails);
+  const threshold = target.failThreshold || 1;
+  if (fails < threshold) {
+    stmtUpsertStatus.run({
+      projectId: target.projectId, equipmentId: target.equipmentId,
+      state: current ? current.state : "unknown",
+      checkedAt: nowIso, changedAt: nowIso, latencyMs: null,
+    });
+    return;
+  }
+
+  const changed = !current || current.state !== "down";
+  stmtUpsertStatus.run({
+    projectId: target.projectId, equipmentId: target.equipmentId, state: "down",
+    checkedAt: nowIso, changedAt: nowIso, latencyMs: null,
+  });
+  if (changed) {
+    stmtOpenEvent.run({
+      projectId: target.projectId, equipmentId: target.equipmentId, label: target.label,
+      fromState: current ? current.state : null, toState: "down", startedAt: nowIso,
+    });
   }
 }
 
@@ -142,7 +186,7 @@ async function tick() {
     console.log("[ping-worker] no ping-monitored equipment found");
     return;
   }
-  const results = await runWithConcurrency(targets, CONCURRENCY, (t) => pingHost(t.ip));
+  const results = await runWithConcurrency(targets, CONCURRENCY, (t) => pingHost(t.ip, t.pingTimeoutSec));
   applyResultsTx(targets, results);
   const upCount = results.filter((r) => r.up).length;
   console.log(`[ping-worker] checked ${targets.length} host(s), ${upCount} up, ${targets.length - upCount} down`);

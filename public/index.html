@@ -460,19 +460,19 @@
   .ua-row button.ua-delete:hover{ border-color:var(--danger); color:var(--danger); }
 
   /* ---- панель подключения к SPPD для проекта (admin), Этап 4 ---- */
-  #sppdConfigOverlay{
+  #sppdConfigOverlay, #thresholdsOverlay{
     position:fixed; inset:0; z-index:900; display:flex; align-items:center; justify-content:center;
     background:rgba(0,0,0,.55);
   }
-  #sppdConfigOverlay.hidden{ display:none; }
-  #sppdConfigCard{
+  #sppdConfigOverlay.hidden, #thresholdsOverlay.hidden{ display:none; }
+  #sppdConfigCard, #thresholdsCard{
     width:360px; max-width:92vw; background:var(--panel);
     border:1px solid var(--border); border-radius:10px; padding:18px 20px; box-shadow:0 20px 60px rgba(0,0,0,.5);
   }
-  #sppdConfigCard h3{ margin:0 0 12px; font-size:14px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between; }
-  #sppdConfigCard h3 button{ background:none; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; line-height:1; padding:2px 6px; }
-  #sppdConfigCard h3 button:hover{ color:var(--text); }
-  #sppdConfigStatus{ font-size:11px; color:var(--text-faint); margin:-6px 0 12px; }
+  #sppdConfigCard h3, #thresholdsCard h3{ margin:0 0 12px; font-size:14px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between; }
+  #sppdConfigCard h3 button, #thresholdsCard h3 button{ background:none; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; line-height:1; padding:2px 6px; }
+  #sppdConfigCard h3 button:hover, #thresholdsCard h3 button:hover{ color:var(--text); }
+  #sppdConfigStatus, #thresholdsStatus{ font-size:11px; color:var(--text-faint); margin:-6px 0 12px; }
   .sc-field{ margin-bottom:10px; }
   .sc-field label{ display:block; font-size:11px; color:var(--text-dim); margin-bottom:4px; }
   .sc-field input{
@@ -484,14 +484,14 @@
   .sc-actions button{
     border-radius:5px; padding:7px 14px; font-size:12.5px; font-family:inherit; cursor:pointer;
   }
-  .sc-actions #btnSppdConfigSave{
+  .sc-actions .sc-btn-primary{
     background:var(--accent); border:1px solid var(--accent); color:#14171a; font-weight:600;
   }
-  .sc-actions #btnSppdConfigSave:hover{ filter:brightness(1.08); }
-  .sc-actions #btnSppdConfigRemove{
+  .sc-actions .sc-btn-primary:hover{ filter:brightness(1.08); }
+  .sc-actions .sc-btn-secondary{
     background:none; border:1px solid var(--border); color:var(--text-dim);
   }
-  .sc-actions #btnSppdConfigRemove:hover{ border-color:var(--danger); color:var(--danger); }
+  .sc-actions .sc-btn-secondary:hover{ border-color:var(--danger); color:var(--danger); }
   .ua-reset-row{ display:none; gap:6px; margin:4px 0 8px; }
   .ua-reset-row.open{ display:flex; }
   .ua-reset-row input{
@@ -639,6 +639,7 @@
       <a id="navToRegistry" title="Реестр ЗИП" style="text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📦 ЗИП</a>
       <button id="btnUserAdmin" title="Управление пользователями" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">👥 Пользователи</button>
       <button id="btnSppdConfig" title="Подключение к SPPD для этого проекта" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">⚙ SPPD</button>
+      <button id="btnThresholds" title="Пороги фиксации аварии для этого проекта" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">⚙ Пороги</button>
       <button id="btnLogout" title="Выйти" style="background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">Выйти</button>
     </div>
     <div class="brand-copyright">© 2026 KazMinerals LLP<br>Все права защищены</div>
@@ -678,8 +679,31 @@
     </div>
     <div id="sppdConfigError"></div>
     <div class="sc-actions">
-      <button id="btnSppdConfigRemove">Отключить</button>
-      <button id="btnSppdConfigSave">Сохранить</button>
+      <button id="btnSppdConfigRemove" class="sc-btn-secondary">Отключить</button>
+      <button id="btnSppdConfigSave" class="sc-btn-primary">Сохранить</button>
+    </div>
+  </div>
+</div>
+<div id="thresholdsOverlay" class="hidden">
+  <div id="thresholdsCard">
+    <h3>Пороги фиксации аварии <button id="btnThresholdsClose" title="Закрыть">✕</button></h3>
+    <div id="thresholdsStatus"></div>
+    <div class="sc-field">
+      <label for="thPingTimeout">Таймаут пинга, сек (MAP/CAM/TEL/WiFi)</label>
+      <input type="number" id="thPingTimeout" min="1" max="10" step="1">
+    </div>
+    <div class="sc-field">
+      <label for="thPingFails">Неудачных пингов подряд до аварии</label>
+      <input type="number" id="thPingFails" min="1" max="20" step="1">
+    </div>
+    <div class="sc-field">
+      <label for="thSppdStale">Молчание SPPD до "Нет связи", сек (IILB/ISIB)</label>
+      <input type="number" id="thSppdStale" min="30" max="3600" step="10">
+    </div>
+    <div id="thresholdsError"></div>
+    <div class="sc-actions">
+      <button id="btnThresholdsRemove" class="sc-btn-secondary">Сбросить на умолчания</button>
+      <button id="btnThresholdsSave" class="sc-btn-primary">Сохранить</button>
     </div>
   </div>
 </div>
@@ -5694,6 +5718,8 @@ function applyRoleToUI() {
   if (btnUserAdminEl) btnUserAdminEl.style.display = isAdmin ? "" : "none";
   const btnSppdConfigEl = document.getElementById("btnSppdConfig");
   if (btnSppdConfigEl) btnSppdConfigEl.style.display = isAdmin ? "" : "none";
+  const btnThresholdsEl = document.getElementById("btnThresholds");
+  if (btnThresholdsEl) btnThresholdsEl.style.display = isAdmin ? "" : "none";
 
   // Кабели/оборудование/метки/сохранение — доступны editor и admin.
   const editButtonIds = ["btnAddCable", "btnAddEquip", "btnAddMark", "btnSaveAll", "cableDExtend", "btnImportObjects"];
@@ -5738,6 +5764,7 @@ function applyRoleToUI() {
     if (sessionUserEl) sessionUserEl.textContent = "";
     if (btnUserAdminEl) btnUserAdminEl.style.display = "none";
     if (btnSppdConfigEl) btnSppdConfigEl.style.display = "none";
+    if (btnThresholdsEl) btnThresholdsEl.style.display = "none";
     const btnLogoutEl = document.getElementById("btnLogout");
     if (btnLogoutEl) btnLogoutEl.style.display = "none";
     const btnSaveAllEl = document.getElementById("btnSaveAll");
@@ -6071,6 +6098,80 @@ document.getElementById("btnSppdConfigRemove").addEventListener("click", async (
     loadSppdConfig();
   } catch (err) {
     scError.textContent = "Не удалось отключить: " + err.message;
+  }
+});
+
+/* ---------- пороги фиксации аварии (Кабели/Оборуд. — ping; IILB/ISIB —
+   SPPD), per-project. Отсутствие настройки на сервере = используются
+   старые дефолты воркеров (см. project_monitor_thresholds в db.js). */
+const thOverlay = document.getElementById("thresholdsOverlay");
+const thStatus = document.getElementById("thresholdsStatus");
+const thError = document.getElementById("thresholdsError");
+function openThresholdsPanel() {
+  thOverlay.classList.remove("hidden");
+  thError.textContent = "";
+  loadThresholds();
+}
+function closeThresholdsPanel() {
+  thOverlay.classList.add("hidden");
+}
+document.getElementById("btnThresholds").addEventListener("click", openThresholdsPanel);
+document.getElementById("btnThresholdsClose").addEventListener("click", closeThresholdsPanel);
+thOverlay.addEventListener("click", (e) => { if (e.target === thOverlay) closeThresholdsPanel(); });
+
+async function loadThresholds() {
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    document.getElementById("thPingTimeout").value = data.pingTimeoutSec;
+    document.getElementById("thPingFails").value = data.pingFailThreshold;
+    document.getElementById("thSppdStale").value = data.sppdStaleAfterSec;
+    thStatus.textContent = data.configured
+      ? `Настроено${data.updatedBy ? " — " + data.updatedBy : ""}${data.updatedAt ? ", " + parseServerDate(data.updatedAt).toLocaleString() : ""}`
+      : "Используются значения по умолчанию (ничего явно не настроено).";
+  } catch (err) {
+    thStatus.textContent = "";
+    thError.textContent = "Не удалось загрузить пороги: " + err.message;
+  }
+}
+document.getElementById("btnThresholdsSave").addEventListener("click", async () => {
+  const pingTimeoutSec = parseInt(document.getElementById("thPingTimeout").value, 10);
+  const pingFailThreshold = parseInt(document.getElementById("thPingFails").value, 10);
+  const sppdStaleAfterSec = parseInt(document.getElementById("thSppdStale").value, 10);
+  thError.textContent = "";
+  if (!Number.isInteger(pingTimeoutSec) || pingTimeoutSec < 1 || pingTimeoutSec > 10) {
+    thError.textContent = "Таймаут пинга — целое число от 1 до 10 сек."; return;
+  }
+  if (!Number.isInteger(pingFailThreshold) || pingFailThreshold < 1 || pingFailThreshold > 20) {
+    thError.textContent = "Число неудачных пингов подряд — целое от 1 до 20."; return;
+  }
+  if (!Number.isInteger(sppdStaleAfterSec) || sppdStaleAfterSec < 30 || sppdStaleAfterSec > 3600) {
+    thError.textContent = "Молчание SPPD — целое число от 30 до 3600 сек."; return;
+  }
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pingTimeoutSec, pingFailThreshold, sppdStaleAfterSec }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || ("HTTP " + resp.status));
+    }
+    loadThresholds();
+  } catch (err) {
+    thError.textContent = "Не удалось сохранить: " + err.message;
+  }
+});
+document.getElementById("btnThresholdsRemove").addEventListener("click", async () => {
+  if (!confirm(`Сбросить пороги проекта «${CURRENT_PROJECT_ID}» на значения по умолчанию?`)) return;
+  thError.textContent = "";
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`, { method: "DELETE" });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    loadThresholds();
+  } catch (err) {
+    thError.textContent = "Не удалось сбросить: " + err.message;
   }
 });
 

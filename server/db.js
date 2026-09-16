@@ -116,6 +116,22 @@ CREATE TABLE IF NOT EXISTS project_sppd_config (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Пороги фиксации аварии — per-project (у шахт разная сеть/оборудование,
+-- глобальные env-переменные воркеров одни на все проекты сразу). Отсутствие
+-- строки для проекта = используются старые дефолты воркеров (ping: таймаут
+-- из PING_TIMEOUT_SEC, 1 неудачный пинг подряд; sppd: SPPD_STALE_AFTER_MS) —
+-- так что добавление этой таблицы само по себе ничего не меняет в поведении
+-- для уже работающих проектов, пока админ явно не настроит пороги через UI
+-- (кнопка "⚙ Пороги", см. server/routes/projects.js).
+CREATE TABLE IF NOT EXISTS project_monitor_thresholds (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  ping_timeout_sec INTEGER NOT NULL DEFAULT 1,
+  ping_fail_threshold INTEGER NOT NULL DEFAULT 1,
+  sppd_stale_after_sec INTEGER NOT NULL DEFAULT 120,
+  updated_by TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Реестр ЗИП (склад запчастей) + заявки на выдачу — отдельный от 3D-модели
 -- модуль (никакой привязки к cables/equipment шахты). ЗИП только
 -- расходуется, возвратов на склад не бывает.
