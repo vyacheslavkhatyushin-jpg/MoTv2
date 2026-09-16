@@ -317,8 +317,8 @@
         <div class="reg-toolbar">
           <div class="reg-title">Каталог ЗИП</div>
           <input type="text" id="catalogSearch" class="reg-search" placeholder="Поиск по названию, категории, партномеру…">
-          <button class="btn" id="btnRefreshCatalog">↻ Обновить</button>
-          <button class="btn" id="btnExportCatalog">⬇ Экспорт CSV</button>
+          <button class="btn" id="btnRefreshCatalog"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg> Обновить</button>
+          <button class="btn" id="btnExportCatalog"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg> Экспорт CSV</button>
           <button class="btn btn-primary" id="btnAddItem" style="display:none;">+ Добавить позицию</button>
         </div>
         <div id="catalogTableWrap"></div>
@@ -328,8 +328,8 @@
       <div class="reg-panel" id="panel-myrequests">
         <div class="reg-toolbar">
           <div class="reg-title">Мои заявки</div>
-          <button class="btn" id="btnRefreshMyRequests">↻ Обновить</button>
-          <button class="btn" id="btnExportMyRequests">⬇ Экспорт CSV</button>
+          <button class="btn" id="btnRefreshMyRequests"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg> Обновить</button>
+          <button class="btn" id="btnExportMyRequests"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg> Экспорт CSV</button>
         </div>
         <div id="myRequestsTableWrap"></div>
       </div>
@@ -338,8 +338,8 @@
       <div class="reg-panel" id="panel-pending">
         <div class="reg-toolbar">
           <div class="reg-title">Заявки на рассмотрении и выдачу</div>
-          <button class="btn" id="btnRefreshPending">↻ Обновить</button>
-          <button class="btn" id="btnExportPending">⬇ Экспорт CSV</button>
+          <button class="btn" id="btnRefreshPending"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg> Обновить</button>
+          <button class="btn" id="btnExportPending"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg> Экспорт CSV</button>
         </div>
         <div id="pendingTableWrap"></div>
       </div>
@@ -351,8 +351,8 @@
           <select id="movementsItemFilter" class="reg-search" style="width:260px;">
             <option value="">Все позиции</option>
           </select>
-          <button class="btn" id="btnRefreshMovements">↻ Обновить</button>
-          <button class="btn" id="btnExportMovements">⬇ Экспорт CSV</button>
+          <button class="btn" id="btnRefreshMovements"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg> Обновить</button>
+          <button class="btn" id="btnExportMovements"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg> Экспорт CSV</button>
         </div>
         <div id="movementsTableWrap"></div>
       </div>
@@ -363,7 +363,7 @@
 <!-- ================= Модалка: добавить/редактировать позицию ================= -->
 <div id="itemModal" class="overlay hidden">
   <div class="modal-card">
-    <h3><span id="itemModalTitle">Новая позиция</span><button id="btnItemModalClose">✕</button></h3>
+    <h3><span id="itemModalTitle">Новая позиция</span><button id="btnItemModalClose"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
     <div class="field"><label for="fName">Название *</label><input type="text" id="fName"></div>
     <div class="field-row">
       <div class="field"><label for="fCategory">Категория</label><input type="text" id="fCategory" placeholder="напр. ВОЛС, СКС, питание"></div>
@@ -387,7 +387,7 @@
 <!-- ================= Модалка: приход на склад ================= -->
 <div id="receiptModal" class="overlay hidden">
   <div class="modal-card">
-    <h3><span>Приход на склад</span><button id="btnReceiptModalClose">✕</button></h3>
+    <h3><span>Приход на склад</span><button id="btnReceiptModalClose"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
     <div class="stock-line" id="receiptStockLine"></div>
     <div class="field"><label for="fReceiptQty">Количество</label><input type="number" id="fReceiptQty" min="1" step="1" value="1"></div>
     <div class="field"><label for="fReceiptNote">Примечание</label><textarea id="fReceiptNote" placeholder="напр. накладная № …"></textarea></div>
@@ -402,7 +402,7 @@
 <!-- ================= Модалка: корректировка остатка ================= -->
 <div id="adjustModal" class="overlay hidden">
   <div class="modal-card">
-    <h3><span>Корректировка остатка</span><button id="btnAdjustModalClose">✕</button></h3>
+    <h3><span>Корректировка остатка</span><button id="btnAdjustModalClose"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
     <div class="stock-line" id="adjustStockLine"></div>
     <div class="field"><label for="fAdjustDelta">Изменение (можно отрицательное, напр. -2 при списании порчи)</label><input type="number" id="fAdjustDelta" step="1" value="0"></div>
     <div class="field"><label for="fAdjustNote">Причина *</label><textarea id="fAdjustNote" placeholder="напр. инвентаризация, порча, пересчёт"></textarea></div>
@@ -417,7 +417,7 @@
 <!-- ================= Модалка: подать заявку ================= -->
 <div id="requestModal" class="overlay hidden">
   <div class="modal-card">
-    <h3><span>Заявка на выдачу</span><button id="btnRequestModalClose">✕</button></h3>
+    <h3><span>Заявка на выдачу</span><button id="btnRequestModalClose"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
     <div class="stock-line" id="requestStockLine"></div>
     <div class="field"><label for="fRequestQty">Количество</label><input type="number" id="fRequestQty" min="1" step="1" value="1"></div>
     <div class="field"><label for="fRequestReason">Назначение / причина</label><textarea id="fRequestReason" placeholder="напр. замена неисправного ODF на ВОЛС-14"></textarea></div>
@@ -432,7 +432,7 @@
 <!-- ================= Модалка: решение по заявке (одобрить/отклонить) ================= -->
 <div id="decisionModal" class="overlay hidden">
   <div class="modal-card">
-    <h3><span id="decisionModalTitle">Решение по заявке</span><button id="btnDecisionModalClose">✕</button></h3>
+    <h3><span id="decisionModalTitle">Решение по заявке</span><button id="btnDecisionModalClose"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
     <div class="stock-line" id="decisionStockLine"></div>
     <div class="field"><label for="fDecisionNote">Комментарий (необязательно)</label><textarea id="fDecisionNote"></textarea></div>
     <div class="modal-error" id="decisionModalError"></div>
