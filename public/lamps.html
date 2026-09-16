@@ -39,6 +39,7 @@
     padding:0 18px; background:linear-gradient(180deg,#1c2126,#14171a);
     border-bottom:1px solid var(--border); user-select:none;
   }
+  #topBar .brand-mark{ width:26px; height:auto; flex-shrink:0; }
   #topBar .brand-titles{ display:flex; flex-direction:column; line-height:1.25; }
   #topBar .brand-titles .t1{ font-size:15px; font-weight:700; color:var(--text); letter-spacing:.2px; }
   #topBar .brand-titles .t2{ font-size:11px; color:var(--text-dim); }
@@ -69,7 +70,9 @@
     width:360px; max-width:90vw; background:var(--panel); border:1px solid var(--border);
     border-radius:10px; padding:28px 26px 22px; box-shadow:0 20px 60px rgba(0,0,0,.45); text-align:center;
   }
-  #authCard h1{ margin:0 0 2px; font-size:16px; font-weight:700; color:var(--text); text-align:center; }
+  #authCard .auth-mark{ width:64px; height:auto; display:block; margin:0 auto 12px; }
+  #authCard h1{ margin:0 0 2px; font-size:22px; font-weight:700; color:var(--text); text-align:center; letter-spacing:.3px; }
+  #authCard .auth-tagline{ font-size:11px; color:var(--text-dim); text-align:center; letter-spacing:.06em; text-transform:uppercase; margin:0 0 16px; }
   #authCard h2{ margin:0 0 18px; font-size:12px; font-weight:500; color:var(--text-dim); text-align:center; }
   #authCard label{ display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:6px; text-align:left; }
   #authCard input[type="password"], #authCard input[type="text"]{
@@ -205,15 +208,17 @@
 <!-- ================= Экран входа по паролю (тот же кэш сессии, что в index.html) ================= -->
 <div id="authGate">
   <div id="authCard">
-    <h1>Mine Operations Tool</h1>
-    <h2>KazMinerals LLP — Фонари</h2>
+    <svg class="auth-mark" viewBox="0 0 100 84" aria-hidden="true"><polygon points="30,6 4,78 56,78" fill="var(--accent)"/><polygon points="68,6 42,78 94,78" fill="var(--accent)" opacity="0.55"/></svg>
+    <h1>MoT</h1>
+    <div class="auth-tagline">Mine Operations Tool</div>
+    <h2>Фонари — вход</h2>
     <label for="authUsername">Логин</label>
     <input type="text" id="authUsername" autocomplete="username" placeholder="Логин" style="margin-bottom:10px;" />
     <label for="authPassword">Пароль</label>
     <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
     <div id="authError"></div>
     <button id="btnAuthSubmit">Войти</button>
-    <div class="authHint">Доступ только для авторизованных сотрудников KazMinerals LLP.<br>© 2026 KazMinerals LLP. Все права защищены.</div>
+    <div class="authHint">Доступ только для авторизованных пользователей.<br>© 2026 MoT. Все права защищены.</div>
   </div>
 </div>
 <script>
@@ -283,9 +288,10 @@
 
 <div id="shell">
   <header id="topBar">
+    <svg class="brand-mark" viewBox="0 0 100 84" aria-hidden="true"><polygon points="30,6 4,78 56,78" fill="var(--accent)"/><polygon points="68,6 42,78 94,78" fill="var(--accent)" opacity="0.55"/></svg>
     <div class="brand-titles">
-      <span class="t1">Фонари</span>
-      <span class="t2">KazMinerals LLP — работоспособность</span>
+      <span class="t1">MoT</span>
+      <span class="t2">Фонари</span>
     </div>
     <div class="brand-spacer"></div>
     <div id="sessionInfo" style="display:flex; align-items:center; gap:10px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
@@ -302,7 +308,7 @@
       <a id="navToThresholds" title="Пороги фиксации аварии для этого проекта" style="display:none;">⚙ Пороги</a>
       <button id="btnLogout" title="Выйти">Выйти</button>
     </div>
-    <div class="brand-copyright">© 2026 KazMinerals LLP<br>Все права защищены</div>
+    <div class="brand-copyright">© 2026 MoT<br>Все права защищены</div>
   </header>
 
   <div id="app">
