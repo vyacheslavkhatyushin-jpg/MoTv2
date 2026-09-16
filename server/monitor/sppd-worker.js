@@ -59,6 +59,11 @@ const TAG_PULSE_MAX_AGE_MS = parseInt(process.env.SPPD_TAG_PULSE_MAX_AGE_MS || S
 // "Нет связи" и переводим в state:"down" сами, с записью в monitor_events.
 const STALE_AFTER_MS = parseInt(process.env.SPPD_STALE_AFTER_MS || String(2 * 60 * 1000), 10);
 const STALE_CHECK_MS = parseInt(process.env.SPPD_STALE_CHECK_MS || "30000", 10);
+// Статус на дашборде/3D — всегда сырой (online/offline красит сразу, будь то
+// явный push OnLine:false или обнаруженная тишина). "Авария" как событие в
+// monitor_events фиксируется только после SPPD_FAIL_DURATION_MS непрерывного
+// "down" — per-project, настраивается через ⚙ Пороги (см. getFailDurationMs).
+const SPPD_FAIL_DURATION_MS = parseInt(process.env.SPPD_FAIL_DURATION_SEC || "300", 10) * 1000;
 // Отладка: SPPD_DEBUG=1 логирует каждый разобранный SB_EVENT/NOFTAG (его Addr
 // и попал ли он в список целей) — включать временно, когда данные почему-то
 // не доходят до monitor_status, чтобы увидеть реальные Addr в потоке и
@@ -184,12 +189,51 @@ const stmtMarkStale = db.prepare(`
 `);
 const stmtGetLastChecked = db.prepare("SELECT state, last_checked_at FROM monitor_status WHERE project_id = ? AND equipment_id = ?");
 
+// Момент начала текущей непрерывной серии "down" на цель, в памяти процесса
+// (см. тот же паттерн в ping-worker.js: сбрасывается при перезапуске воркера,
+// не хранится в БД — это внутренний таймер debounce для события). Общий и
+// для явного push OnLine:false, и для обнаруженной тишины — обе ветки идут
+// через один и тот же trackDownAndMaybeOpenEvent().
+const downSince = new Map(); // `${projectId}:${equipmentId}` -> ms timestamp
+
+function trackDownAndMaybeOpenEvent(target, failDurationMs) {
+  const key = target.projectId + ":" + target.equipmentId;
+  const nowMs = Date.now();
+  if (!downSince.has(key)) downSince.set(key, nowMs);
+  const startedMs = downSince.get(key);
+  if (nowMs - startedMs < failDurationMs) return;
+
+  const openEvent = stmtFindOpenEvent.get(target.projectId, target.equipmentId);
+  if (!openEvent) {
+    stmtOpenEvent.run({
+      projectId: target.projectId,
+      equipmentId: target.equipmentId,
+      label: target.label,
+      fromState: "up",
+      toState: "down",
+      startedAt: new Date(startedMs).toISOString(),
+    });
+  }
+}
+
+function clearDownAndMaybeCloseEvent(target, wasDown) {
+  const key = target.projectId + ":" + target.equipmentId;
+  downSince.delete(key);
+  if (!wasDown) return;
+  const nowIso = new Date().toISOString();
+  const openEvent = stmtFindOpenEvent.get(target.projectId, target.equipmentId);
+  if (openEvent) {
+    const durationSec = Math.max(0, Math.round((Date.now() - Date.parse(openEvent.started_at)) / 1000));
+    stmtCloseEvent.run(nowIso, durationSec, openEvent.id);
+  }
+}
+
 function applyOnlineState(target, online, metrics) {
   const nowIso = new Date().toISOString();
   const nextState = online ? "up" : "down";
   const current = stmtGetStatus.get(target.projectId, target.equipmentId);
-  const changed = !current || current.state !== nextState;
 
+  // Статус — сразу, сырой: явный push от считывателя красит немедленно.
   stmtUpsertState.run({
     projectId: target.projectId,
     equipmentId: target.equipmentId,
@@ -199,23 +243,10 @@ function applyOnlineState(target, online, metrics) {
     metrics: metrics ? JSON.stringify(metrics) : null,
   });
 
-  if (!changed) return;
-
-  if (nextState === "down") {
-    stmtOpenEvent.run({
-      projectId: target.projectId,
-      equipmentId: target.equipmentId,
-      label: target.label,
-      fromState: current ? current.state : null,
-      toState: nextState,
-      startedAt: nowIso,
-    });
-  } else if (current) {
-    const openEvent = stmtFindOpenEvent.get(target.projectId, target.equipmentId);
-    if (openEvent) {
-      const durationSec = Math.max(0, Math.round((Date.parse(nowIso) - Date.parse(openEvent.started_at)) / 1000));
-      stmtCloseEvent.run(nowIso, durationSec, openEvent.id);
-    }
+  if (online) {
+    clearDownAndMaybeCloseEvent(target, current && current.state === "down");
+  } else {
+    trackDownAndMaybeOpenEvent(target, getFailDurationMs(target.projectId));
   }
 }
 
@@ -235,34 +266,34 @@ function emitTagPulse(target) {
 
 function markStaleAsDown(target) {
   const nowIso = new Date().toISOString();
-  const current = stmtGetStatus.get(target.projectId, target.equipmentId);
-  const changed = !current || current.state !== "down";
+  // Статус — сразу, как и раньше: тишина дольше sppd_stale_after_sec это и
+  // есть самый ранний момент, когда мы вообще можем узнать о пропаже (см.
+  // checkStaleness) — здесь красим сразу, без дополнительной задержки.
+  // raw_metrics_json/person_count/vehicle_count намеренно не трогаем
+  // (stmtMarkStale, не stmtUpsertState) — "протухшая" метка означает "давно
+  // нет вестей", а не "заново собранные нулевые данные".
   stmtMarkStale.run({
     projectId: target.projectId,
     equipmentId: target.equipmentId,
     checkedAt: nowIso,
     changedAt: nowIso,
   });
-  if (!changed) return;
-  stmtOpenEvent.run({
-    projectId: target.projectId,
-    equipmentId: target.equipmentId,
-    label: target.label,
-    fromState: current ? current.state : null,
-    toState: "down",
-    startedAt: nowIso,
-  });
+  trackDownAndMaybeOpenEvent(target, getFailDurationMs(target.projectId));
 }
 
 // Порог молчания — per-project (см. project_monitor_thresholds в db.js,
 // настраивается админом через "⚙ Пороги" в UI). Отсутствие строки для
 // проекта = STALE_AFTER_MS из env, как раньше.
 const stmtGetStaleThreshold = db.prepare(
-  "SELECT sppd_stale_after_sec FROM project_monitor_thresholds WHERE project_id = ?"
+  "SELECT sppd_stale_after_sec, sppd_fail_duration_sec FROM project_monitor_thresholds WHERE project_id = ?"
 );
 function getStaleAfterMs(projectId) {
   const row = stmtGetStaleThreshold.get(projectId);
   return row ? row.sppd_stale_after_sec * 1000 : STALE_AFTER_MS;
+}
+function getFailDurationMs(projectId) {
+  const row = stmtGetStaleThreshold.get(projectId);
+  return row ? row.sppd_fail_duration_sec * 1000 : SPPD_FAIL_DURATION_MS;
 }
 
 // Раз в STALE_CHECK_MS проверяет все настроенные на этом сайте цели: если
