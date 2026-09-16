@@ -511,6 +511,13 @@ function csvCell(v) {
   const s = String(v == null ? "" : v);
   return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
+// Excel по умолчанию считает наш ";"-разделитель признаком RU-локали, где
+// десятичный разделитель — запятая, а не точка. Голая дробная ячейка вида
+// "24.7" в таком CSV распознаётся Excel не как число, а как дата (24 июля) —
+// подставляем запятую, чтобы часы без связи всегда читались как число.
+function csvNum(n) {
+  return n.toFixed(1).replace(".", ",");
+}
 document.getElementById("btnExportLamps").addEventListener("click", () => {
   if (!currentDetail) return;
   const header = ["Статус", "Таб.№", "ФИО", "Должность", "Подразделение", "Тег/фонарь", "Считыватель", "Посл. регистрация", "Без связи (ч)"];
@@ -520,7 +527,7 @@ document.getElementById("btnExportLamps").addEventListener("click", () => {
     lines.push([
       r.isBroken ? "Неисправен" : "Исправен",
       r.tabNumber, r.fullName, r.position || "", r.department || "", r.lampId || "", r.reader || "",
-      fmtWhen(r.lastSeenAt), Math.round(hoursSince(r.lastSeenAt, generatedAt) * 10) / 10,
+      fmtWhen(r.lastSeenAt), csvNum(hoursSince(r.lastSeenAt, generatedAt)),
     ].map(csvCell).join(";"));
   }
   const csv = "﻿" + lines.join("\r\n");

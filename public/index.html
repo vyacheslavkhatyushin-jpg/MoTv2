@@ -4836,6 +4836,15 @@ function csvEscape(val) {
   if (/[",;\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
   return s;
 }
+// Excel по умолчанию считает список-разделитель "," десятичным, а не наш ";" —
+// голая дробная ячейка вида "24.7" распознаётся как дата (24 июля) вместо
+// числа. Подставляем запятую как разделитель, чтобы такие ячейки (не входящие
+// в составные поля вроде списка узлов, которые уже защищены кавычками) Excel
+// читал как обычное число.
+function csvNum(n) {
+  if (n == null || n === "") return "";
+  return String(n).replace(".", ",");
+}
 function exportInventoryCSV() {
   if (isBusy) {
     dom.fileMeta.textContent = "Подождите, идёт загрузка/перестроение модели — попробуйте ещё раз через секунду.";
@@ -4855,27 +4864,27 @@ function exportInventoryCSV() {
     const nodeCoords = c.nodes.map((n) => { const r = sceneToReal(n); return `${r.x.toFixed(2)},${r.y.toFixed(2)},${r.z.toFixed(2)}`; }).join("; ");
     const first = sceneToReal(c.nodes[0]);
     const cableTypeLabel = CABLE_TYPES[c.cableType]?.label;
-    rows.push([cableTypeLabel ? `Кабель (${cableTypeLabel})` : "Кабель", c.label, "#" + c.color.toString(16).padStart(6, "0"), "Толщина", c.thickness,
-      c.length.toFixed(1), first.x.toFixed(2), first.y.toFixed(2), first.z.toFixed(2), nodeCoords,
+    rows.push([cableTypeLabel ? `Кабель (${cableTypeLabel})` : "Кабель", c.label, "#" + c.color.toString(16).padStart(6, "0"), "Толщина", csvNum(c.thickness),
+      csvNum(c.length.toFixed(1)), csvNum(first.x.toFixed(2)), csvNum(first.y.toFixed(2)), csvNum(first.z.toFixed(2)), nodeCoords,
       "", "", "", c.createdBy || "", fmtDate(c.createdAt)]);
   }
   for (const eq of equipment.values()) {
     const r = sceneToReal(eq.mesh.position);
     rows.push(["Оборудование", eq.label, "#" + eq.color.toString(16).padStart(6, "0"), "Форма / размер",
-      `${EQUIP_SHAPE_LABELS[eq.shape] || eq.shape} / ${eq.size}`, "", r.x.toFixed(2), r.y.toFixed(2), r.z.toFixed(2), "",
+      `${EQUIP_SHAPE_LABELS[eq.shape] || eq.shape} / ${eq.size}`, "", csvNum(r.x.toFixed(2)), csvNum(r.y.toFixed(2)), csvNum(r.z.toFixed(2)), "",
       eq.location || "", eq.ip || "", eq.idNumber || "", eq.createdBy || "", fmtDate(eq.createdAt)]);
   }
   for (const m of marks.values()) {
     const r = sceneToReal(m.sprite.position);
     rows.push(["Метка", m.label, "#" + m.color.toString(16).padStart(6, "0"), "Тип метки",
-      MARK_TYPE_LABELS[m.markType] || m.markType, "", r.x.toFixed(2), r.y.toFixed(2), r.z.toFixed(2), "",
+      MARK_TYPE_LABELS[m.markType] || m.markType, "", csvNum(r.x.toFixed(2)), csvNum(r.y.toFixed(2)), csvNum(r.z.toFixed(2)), "",
       "", "", "", m.createdBy || "", fmtDate(m.createdAt)]);
   }
   for (const p of patches.values()) {
     const nodeCoords = p.nodes.map((n) => { const r = sceneToReal(n); return `${r.x.toFixed(2)},${r.y.toFixed(2)},${r.z.toFixed(2)}`; }).join("; ");
     const first = sceneToReal(p.nodes[0]);
     rows.push(["Заплатка", p.label, "#" + p.color.toString(16).padStart(6, "0"), "Узлов контура",
-      p.nodes.length, "", first.x.toFixed(2), first.y.toFixed(2), first.z.toFixed(2), nodeCoords,
+      p.nodes.length, "", csvNum(first.x.toFixed(2)), csvNum(first.y.toFixed(2)), csvNum(first.z.toFixed(2)), nodeCoords,
       "", "", "", p.createdBy || "", fmtDate(p.createdAt)]);
   }
   if (rows.length === 1) {
