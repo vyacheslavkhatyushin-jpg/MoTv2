@@ -696,12 +696,16 @@
       <input type="number" id="thPingTimeout" min="1" max="10" step="1">
     </div>
     <div class="sc-field">
-      <label for="thPingFails">Простой до фиксации аварии, мин (0 — сразу)</label>
+      <label for="thPingFails">Простой до фиксации аварии, мин — ping (0 — сразу)</label>
       <input type="number" id="thPingFails" min="0" max="60" step="0.5">
     </div>
     <div class="sc-field">
       <label for="thSppdStale">Молчание SPPD до "Нет связи", сек (IILB/ISIB)</label>
       <input type="number" id="thSppdStale" min="30" max="3600" step="10">
+    </div>
+    <div class="sc-field">
+      <label for="thSppdFails">Простой до фиксации аварии, мин — SPPD (0 — сразу)</label>
+      <input type="number" id="thSppdFails" min="0" max="60" step="0.5">
     </div>
     <div id="thresholdsError"></div>
     <div class="sc-actions">
@@ -6130,6 +6134,7 @@ async function loadThresholds() {
     document.getElementById("thPingTimeout").value = data.pingTimeoutSec;
     document.getElementById("thPingFails").value = data.pingFailDurationSec / 60;
     document.getElementById("thSppdStale").value = data.sppdStaleAfterSec;
+    document.getElementById("thSppdFails").value = data.sppdFailDurationSec / 60;
     thStatus.textContent = data.configured
       ? `Настроено${data.updatedBy ? " — " + data.updatedBy : ""}${data.updatedAt ? ", " + parseServerDate(data.updatedAt).toLocaleString() : ""}`
       : "Используются значения по умолчанию (ничего явно не настроено).";
@@ -6142,21 +6147,26 @@ document.getElementById("btnThresholdsSave").addEventListener("click", async () 
   const pingTimeoutSec = parseInt(document.getElementById("thPingTimeout").value, 10);
   const pingFailMinutes = parseFloat(document.getElementById("thPingFails").value);
   const sppdStaleAfterSec = parseInt(document.getElementById("thSppdStale").value, 10);
+  const sppdFailMinutes = parseFloat(document.getElementById("thSppdFails").value);
   thError.textContent = "";
   if (!Number.isInteger(pingTimeoutSec) || pingTimeoutSec < 1 || pingTimeoutSec > 10) {
     thError.textContent = "Таймаут пинга — целое число от 1 до 10 сек."; return;
   }
   if (!Number.isFinite(pingFailMinutes) || pingFailMinutes < 0 || pingFailMinutes > 60) {
-    thError.textContent = "Простой до аварии — число от 0 до 60 мин."; return;
+    thError.textContent = "Простой до аварии (ping) — число от 0 до 60 мин."; return;
   }
   const pingFailDurationSec = Math.round(pingFailMinutes * 60);
   if (!Number.isInteger(sppdStaleAfterSec) || sppdStaleAfterSec < 30 || sppdStaleAfterSec > 3600) {
     thError.textContent = "Молчание SPPD — целое число от 30 до 3600 сек."; return;
   }
+  if (!Number.isFinite(sppdFailMinutes) || sppdFailMinutes < 0 || sppdFailMinutes > 60) {
+    thError.textContent = "Простой до аварии (SPPD) — число от 0 до 60 мин."; return;
+  }
+  const sppdFailDurationSec = Math.round(sppdFailMinutes * 60);
   try {
     const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec }),
+      body: JSON.stringify({ pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec }),
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));

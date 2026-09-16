@@ -122,8 +122,13 @@ CREATE TABLE IF NOT EXISTS project_sppd_config (
 -- Статус на дашборде/3D-модели всегда живой (сырой результат последнего
 -- пинга/SPPD-сигнала) — красим сразу, без задержки. А вот "авария" как
 -- событие в monitor_events (то, что считает аптайм/длительности) фиксируется
--- только после ping_fail_duration_sec непрерывного простоя — одиночный
--- потерянный пакет не должен создавать запись в истории аварий.
+-- только после ...fail_duration_sec непрерывного простоя — одиночный
+-- потерянный пакет или короткий флап не должен создавать запись в истории
+-- аварий. Для SPPD это применимо к обоим путям обнаружения "down" —
+-- и явному push OnLine:false от считывателя, и обнаруженной тишине
+-- (sppd_stale_after_sec — отдельный порог, ЗА СКОЛЬКО тишины мы вообще
+-- решаем, что связи нет; sppd_fail_duration_sec — ПОСЛЕ обнаружения "down"
+-- любым из двух путей, сколько ещё ждать до записи в историю).
 -- Отсутствие строки для проекта = дефолты воркеров ниже; так что добавление
 -- этой таблицы само по себе ничего не меняет для проектов, которые никто не
 -- настраивал через UI (кнопка "⚙ Пороги", см. server/routes/projects.js).
@@ -132,6 +137,7 @@ CREATE TABLE IF NOT EXISTS project_monitor_thresholds (
   ping_timeout_sec INTEGER NOT NULL DEFAULT 1,
   ping_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
   sppd_stale_after_sec INTEGER NOT NULL DEFAULT 120,
+  sppd_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
   updated_by TEXT,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -216,10 +222,16 @@ if (monitorThresholdsCols.some((c) => c.name === "ping_fail_threshold")) {
       ping_timeout_sec INTEGER NOT NULL DEFAULT 1,
       ping_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
       sppd_stale_after_sec INTEGER NOT NULL DEFAULT 120,
+      sppd_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
       updated_by TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+} else if (!monitorThresholdsCols.some((c) => c.name === "sppd_fail_duration_sec")) {
+  // Чисто добавочная миграция (в отличие от переименования выше) — здесь
+  // уже могли быть настоящие сохранённые пороги, поэтому ADD COLUMN с
+  // дефолтом, а не пересоздание таблицы.
+  db.exec("ALTER TABLE project_monitor_thresholds ADD COLUMN sppd_fail_duration_sec INTEGER NOT NULL DEFAULT 300");
 }
 
 module.exports = db;
