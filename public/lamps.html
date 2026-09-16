@@ -78,13 +78,11 @@
   #authCard .authHint{ margin-top:14px; font-size:10.5px; color:var(--text-faint); text-align:center; line-height:1.5; }
 
   /* ---- страница ---- */
-  .wrap{ max-width:1180px; margin:0 auto; padding:20px 20px 40px; }
-  .pagehead{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:6px; }
+  .wrap{ max-width:1800px; margin:0 auto; padding:20px 28px 40px; }
+  .pagehead{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
   .crumb{ font-size:11.5px; color:var(--text-faint); }
   .crumb b{ color:var(--text-dim); font-weight:600; }
-  h1{ margin:2px 0 6px; font-size:19px; font-weight:700; letter-spacing:.1px; }
-  .sub{ margin:0 0 18px; max-width:70ch; color:var(--text-dim); font-size:12px; line-height:1.6; }
-  .sub b{ color:var(--text); }
+  h1{ margin:2px 0 0; font-size:19px; font-weight:700; letter-spacing:.1px; }
 
   .btn{
     font-family:inherit; font-size:12px; font-weight:600; border-radius:6px; padding:8px 14px;
@@ -107,11 +105,17 @@
     background:var(--panel-alt); border:1px solid var(--border); color:var(--text); border-radius:5px;
     padding:5px 8px; font-family:inherit; font-size:11.5px;
   }
-  .trend{ display:flex; align-items:flex-end; gap:2px; height:22px; }
-  .trend .bar{ width:5px; border-radius:1px 1px 0 0; background:var(--ok); min-height:2px; }
-  .trend .bar.warn{ background:var(--danger); }
+  .icon-btn{
+    display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px;
+    border-radius:5px; border:1px solid var(--border); background:var(--panel-alt); color:var(--text-faint);
+    cursor:pointer; font-size:13px;
+  }
+  .icon-btn:hover{ border-color:var(--danger); color:var(--danger); }
+  #uploadStatus{ font-size:11.5px; }
+  #uploadStatus.err{ color:var(--danger); }
+  #uploadStatus.ok{ color:var(--ok); }
 
-  .kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px; }
+  .kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:14px; }
   @media (max-width:820px){ .kpis{ grid-template-columns:repeat(2,1fr); } }
   .kpi{ background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:15px 16px; }
   .kpi .lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-faint); margin-bottom:8px; }
@@ -138,16 +142,20 @@
   .deptrow .nums b{ color:var(--danger); font-weight:600; }
   .dept-empty{ padding:16px; color:var(--text-faint); text-align:center; font-size:12px; }
 
-  .dropzone{
-    border:1.5px dashed var(--border); border-radius:8px; padding:22px 14px; text-align:center;
-    color:var(--text-faint); font-size:12px; line-height:1.6; cursor:pointer;
-  }
-  .dropzone.drag{ border-color:var(--accent); color:var(--accent); background:rgba(255,159,28,.06); }
-  .dropzone .pick{ color:var(--accent); font-weight:600; }
-  .upload-note{ font-size:11px; color:var(--text-faint); margin:12px 0 0; line-height:1.6; }
-  .upload-status{ margin-top:10px; font-size:11.5px; }
-  .upload-status.err{ color:var(--danger); }
-  .upload-status.ok{ color:var(--ok); }
+  #deptList{ column-count:2; column-gap:0; }
+  #deptList .deptrow{ break-inside:avoid; }
+  @media (max-width:920px){ #deptList{ column-count:1; } }
+
+  .trendPanel{ background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 16px 10px; margin-bottom:18px; }
+  .trendPanel .panel-head{ padding:0 0 10px; border-bottom:none; }
+  .trendChart{ display:flex; align-items:flex-end; gap:4px; height:90px; }
+  .trendChart .bar-wrap{ flex:1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:5px; cursor:default; }
+  .trendChart .bar{ width:100%; max-width:34px; border-radius:3px 3px 0 0; background:var(--ok); min-height:3px; transition:filter .1s; }
+  .trendChart .bar.warn{ background:var(--danger); }
+  .trendChart .bar-wrap:hover .bar{ filter:brightness(1.2); }
+  .trendChart .pct{ font-size:10.5px; color:var(--text-faint); font-variant-numeric:tabular-nums; }
+  .trendChart .bar-wrap:hover .pct{ color:var(--text); }
+  .trendChart .empty{ color:var(--text-faint); font-size:12px; padding:20px 0; text-align:center; width:100%; }
 
   .controlbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
   .controlbar input[type="search"]{
@@ -184,9 +192,6 @@
 
   #lampsError, #lampsEmpty{ text-align:center; color:var(--text-faint); padding:60px 20px; line-height:1.6; }
   #lampsError{ color:var(--danger); }
-
-  footer.note{ margin-top:12px; font-size:11px; color:var(--text-faint); line-height:1.6; }
-  footer.note b{ color:var(--text-dim); }
 </style>
 </head>
 <body>
@@ -296,30 +301,20 @@
         <div>
           <span class="crumb"><b>Фонари</b> <span id="crumbProject"></span></span>
           <h1>Работоспособность фонарей</h1>
-          <p class="sub">Тег шахтёра = фонарь. <b>Исправен</b> — была регистрация на считывателе не позже <b id="thresholdLabel">24 ч</b> назад (от времени в самом отчёте); иначе — <b>неисправен</b>.</p>
         </div>
-        <button id="btnUploadOpen" class="btn primary" style="display:none;">⤓ Загрузить отчёт</button>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span id="uploadStatus"></span>
+          <input type="file" id="fileInput" accept=".xls,.xlsx" style="display:none;">
+          <button id="btnUploadOpen" class="btn primary" style="display:none;">⤓ Загрузить отчёт</button>
+        </div>
       </div>
 
       <div class="reportbar">
         <span id="reportbarSummary">Отчётов ещё нет</span>
         <div class="spacer"></div>
-        <div class="trend" id="trendChart" title="Тренд % исправности по последним загрузкам"></div>
         <span>История:</span>
         <select id="reportSelect"></select>
-      </div>
-
-      <div id="uploadPanel" class="panel" style="display:none; margin-bottom:18px;">
-        <div class="panel-head"><h2>Загрузить новый отчёт</h2><button id="btnUploadClose" class="btn">✕</button></div>
-        <div style="padding:16px;">
-          <div class="dropzone" id="dropzone">
-            Перетащите .xls/.xlsx сюда<br>или<br>
-            <span class="pick">выберите файл</span>
-            <input type="file" id="fileInput" accept=".xls,.xlsx" style="display:none;">
-          </div>
-          <p class="upload-note">Формат — экспорт SPPD/SBeacon «Отчёт: Текущие местоположение» (apk/ipk/opk — разные форматы файла поддерживаются одним разбором). Дата отчёта берётся из шапки файла, порог неисправности — из «⚙ Пороги» в редакторе.</p>
-          <div class="upload-status" id="uploadStatus"></div>
-        </div>
+        <button id="btnDeleteReport" class="icon-btn" title="Удалить этот отчёт" style="display:none;">🗑</button>
       </div>
 
       <div id="lampsError" style="display:none;"></div>
@@ -331,6 +326,11 @@
           <div class="kpi"><div class="lbl">Исправно</div><div class="val ok" id="kpiOk">—</div><div class="cap">регистрация в пределах порога</div></div>
           <div class="kpi"><div class="lbl">Неисправно</div><div class="val danger" id="kpiBroken">—</div><div class="cap">молчание дольше порога</div></div>
           <div class="kpi"><div class="lbl">% исправности</div><div class="val" id="kpiUptime">—</div><div class="cap" id="kpiUptimeCap"></div></div>
+        </div>
+
+        <div class="trendPanel">
+          <div class="panel-head"><h2>Тренд % исправности</h2><span class="hint">по последним загрузкам отчёта</span></div>
+          <div class="trendChart" id="trendChart"></div>
         </div>
 
         <div class="grid2">
@@ -356,7 +356,6 @@
         </div>
 
         <div class="table-wrap"><div id="lampsTableWrap"></div></div>
-        <footer class="note">Сортировка по умолчанию — <b>неисправные сверху</b>, дальше по давности молчания. Заголовки столбцов кликабельны.</footer>
       </div>
     </div>
   </div>
@@ -560,10 +559,17 @@ function renderDepartments(departments) {
 function renderTrend(reports) {
   const el = document.getElementById("trendChart");
   const ordered = reports.slice().reverse(); // старые -> новые
+  if (!ordered.length) {
+    el.innerHTML = `<div class="empty">Нет данных для тренда</div>`;
+    return;
+  }
   el.innerHTML = ordered.map((r) => {
     const pct = r.uptimePct == null ? 0 : r.uptimePct;
     const warn = pct < 90;
-    return `<div class="bar${warn ? " warn" : ""}" style="height:${Math.max(8, pct / 100 * 22)}px" title="${esc(fmtWhen(r.generatedAt))} — ${pct}%"></div>`;
+    return `<div class="bar-wrap" title="${esc(fmtWhen(r.generatedAt))} — ${pct}%">
+      <span class="pct">${pct}%</span>
+      <div class="bar${warn ? " warn" : ""}" style="height:${Math.max(4, pct / 100 * 60)}px"></div>
+    </div>`;
   }).join("");
 }
 
@@ -619,7 +625,6 @@ async function showReport(reportId) {
     document.getElementById("kpiBroken").textContent = detail.report.brokenCount;
     document.getElementById("kpiUptime").textContent = detail.report.uptimePct == null ? "—" : detail.report.uptimePct + "%";
     document.getElementById("kpiUptimeCap").textContent = "порог: " + detail.lampFailAfterHours + " ч";
-    document.getElementById("thresholdLabel").textContent = detail.lampFailAfterHours + " ч";
 
     document.getElementById("reportMeta").innerHTML = `
       <div>Дата отчёта: <b>${esc(fmtWhen(detail.report.generatedAt))}</b></div>
@@ -629,6 +634,7 @@ async function showReport(reportId) {
 
     renderDepartments(detail.departments);
     renderLampsTable();
+    updateDeleteButtonVisibility();
   } catch (err) {
     contentEl.style.display = "none";
     emptyEl.style.display = "none";
@@ -637,8 +643,33 @@ async function showReport(reportId) {
   }
 }
 
+function updateDeleteButtonVisibility() {
+  const auth = window.__auth;
+  const isAdmin = auth && auth.role === "admin";
+  document.getElementById("btnDeleteReport").style.display = isAdmin && currentReportId ? "inline-flex" : "none";
+}
+
 document.getElementById("reportSelect").addEventListener("change", (e) => {
   if (e.target.value) showReport(e.target.value);
+});
+
+document.getElementById("btnDeleteReport").addEventListener("click", async () => {
+  if (!currentReportId) return;
+  if (!confirm("Удалить выбранный отчёт безвозвратно? Это действие нельзя отменить.")) return;
+  const btn = document.getElementById("btnDeleteReport");
+  btn.disabled = true;
+  try {
+    const resp = await apiFetch(
+      `/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/lamps/reports/${encodeURIComponent(currentReportId)}`,
+      { method: "DELETE" }
+    );
+    if (!resp.ok && resp.status !== 404) throw new Error("HTTP " + resp.status);
+    await refreshAll();
+  } catch (err) {
+    alert("Не удалось удалить отчёт: " + err.message);
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 async function refreshAll() {
@@ -648,8 +679,11 @@ async function refreshAll() {
       document.getElementById("reportSelect").value = reports[0].id;
       await showReport(reports[0].id);
     } else {
+      currentReportId = null;
+      currentDetail = null;
       document.getElementById("lampsEmpty").style.display = "block";
       document.getElementById("lampsContent").style.display = "none";
+      updateDeleteButtonVisibility();
     }
   } catch (err) {
     document.getElementById("lampsError").textContent = "Не удалось загрузить список отчётов: " + err.message;
@@ -658,20 +692,8 @@ async function refreshAll() {
 }
 
 /* ---------- загрузка отчёта ---------- */
-const uploadPanel = document.getElementById("uploadPanel");
-document.getElementById("btnUploadOpen").addEventListener("click", () => { uploadPanel.style.display = "block"; });
-document.getElementById("btnUploadClose").addEventListener("click", () => { uploadPanel.style.display = "none"; });
-
-const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
-dropzone.addEventListener("click", () => fileInput.click());
-dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
-dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag"));
-dropzone.addEventListener("drop", (e) => {
-  e.preventDefault();
-  dropzone.classList.remove("drag");
-  if (e.dataTransfer.files && e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
-});
+document.getElementById("btnUploadOpen").addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => {
   if (fileInput.files && fileInput.files.length) uploadFile(fileInput.files[0]);
   fileInput.value = "";
@@ -679,7 +701,7 @@ fileInput.addEventListener("change", () => {
 
 async function uploadFile(file) {
   const statusEl = document.getElementById("uploadStatus");
-  statusEl.className = "upload-status";
+  statusEl.className = "";
   statusEl.textContent = "Загрузка «" + file.name + "»…";
   try {
     const buf = await file.arrayBuffer();
@@ -692,11 +714,11 @@ async function uploadFile(file) {
       throw new Error(err.message || err.error || ("HTTP " + resp.status));
     }
     const summary = await resp.json();
-    statusEl.className = "upload-status ok";
+    statusEl.className = "ok";
     statusEl.textContent = `Загружено: ${summary.totalCount} записей, ${summary.brokenCount} неисправно.`;
     await refreshAll();
   } catch (err) {
-    statusEl.className = "upload-status err";
+    statusEl.className = "err";
     statusEl.textContent = "Не удалось загрузить: " + err.message;
   }
 }
