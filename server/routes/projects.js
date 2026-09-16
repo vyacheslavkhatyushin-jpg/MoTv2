@@ -546,18 +546,21 @@ router.delete("/:id/monitor/sppd-config", requireRole("admin"), (req, res) => {
 });
 
 // Пороги фиксации аварии — per-project (см. project_monitor_thresholds в
-// db.js). Отсутствие строки означает "используются дефолты воркеров",
-// поэтому GET всегда возвращает конкретные числа (дефолт, если не
-// настроено), а не null — ping-worker.js/sppd-worker.js читают эту же
-// таблицу напрямую и точно так же откатываются к дефолтам.
-const THRESHOLD_DEFAULTS = { pingTimeoutSec: 1, pingFailThreshold: 1, sppdStaleAfterSec: 120 };
+// db.js). Статус на дашборде/3D всегда живой (сырой пинг/SPPD-сигнал);
+// pingFailDurationSec — сколько секунд непрерывного простоя нужно набрать,
+// прежде чем это запишется как авария в monitor_events (а не просто мигнёт
+// красным на один пропавший пакет). Отсутствие строки означает "используются
+// дефолты воркеров", поэтому GET всегда возвращает конкретные числа (дефолт,
+// если не настроено), а не null — ping-worker.js/sppd-worker.js читают эту
+// же таблицу напрямую и точно так же откатываются к дефолтам.
+const THRESHOLD_DEFAULTS = { pingTimeoutSec: 1, pingFailDurationSec: 300, sppdStaleAfterSec: 120 };
 
 function serializeThresholds(row) {
   if (!row) return Object.assign({ configured: false }, THRESHOLD_DEFAULTS);
   return {
     configured: true,
     pingTimeoutSec: row.ping_timeout_sec,
-    pingFailThreshold: row.ping_fail_threshold,
+    pingFailDurationSec: row.ping_fail_duration_sec,
     sppdStaleAfterSec: row.sppd_stale_after_sec,
     updatedBy: row.updated_by,
     updatedAt: row.updated_at,
@@ -576,12 +579,14 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
-  const { pingTimeoutSec, pingFailThreshold, sppdStaleAfterSec } = req.body || {};
+  const { pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec } = req.body || {};
   if (!Number.isInteger(pingTimeoutSec) || pingTimeoutSec < 1 || pingTimeoutSec > 10) {
     return res.status(400).json({ error: "invalid_ping_timeout_sec" });
   }
-  if (!Number.isInteger(pingFailThreshold) || pingFailThreshold < 1 || pingFailThreshold > 20) {
-    return res.status(400).json({ error: "invalid_ping_fail_threshold" });
+  // 0 разрешён явно — "фиксировать аварию сразу", как было раньше до этой
+  // настройки, для тех, кому debounce не нужен.
+  if (!Number.isInteger(pingFailDurationSec) || pingFailDurationSec < 0 || pingFailDurationSec > 3600) {
+    return res.status(400).json({ error: "invalid_ping_fail_duration_sec" });
   }
   if (!Number.isInteger(sppdStaleAfterSec) || sppdStaleAfterSec < 30 || sppdStaleAfterSec > 3600) {
     return res.status(400).json({ error: "invalid_sppd_stale_after_sec" });
@@ -589,14 +594,14 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
 
   db.prepare(
     `INSERT INTO project_monitor_thresholds
-       (project_id, ping_timeout_sec, ping_fail_threshold, sppd_stale_after_sec, updated_by, updated_at)
-     VALUES (@id, @pingTimeoutSec, @pingFailThreshold, @sppdStaleAfterSec, @by, datetime('now'))
+       (project_id, ping_timeout_sec, ping_fail_duration_sec, sppd_stale_after_sec, updated_by, updated_at)
+     VALUES (@id, @pingTimeoutSec, @pingFailDurationSec, @sppdStaleAfterSec, @by, datetime('now'))
      ON CONFLICT(project_id) DO UPDATE SET
-       ping_timeout_sec = @pingTimeoutSec, ping_fail_threshold = @pingFailThreshold,
+       ping_timeout_sec = @pingTimeoutSec, ping_fail_duration_sec = @pingFailDurationSec,
        sppd_stale_after_sec = @sppdStaleAfterSec, updated_by = @by, updated_at = datetime('now')`
   ).run({
     id: req.params.id,
-    pingTimeoutSec, pingFailThreshold, sppdStaleAfterSec,
+    pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec,
     by: req.user.username,
   });
 

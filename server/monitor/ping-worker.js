@@ -18,20 +18,20 @@ const db = require("../db");
 const INTERVAL_MS = parseInt(process.env.PING_INTERVAL_MS || "30000", 10);
 const CONCURRENCY = parseInt(process.env.PING_CONCURRENCY || "20", 10);
 const PING_TIMEOUT_SEC = parseInt(process.env.PING_TIMEOUT_SEC || "1", 10);
-const PING_FAIL_THRESHOLD = parseInt(process.env.PING_FAIL_THRESHOLD || "1", 10);
+const PING_FAIL_DURATION_SEC = parseInt(process.env.PING_FAIL_DURATION_SEC || "300", 10);
 
 // Пороги — per-project (см. project_monitor_thresholds в db.js, настраивается
 // админом через "⚙ Пороги" в UI). Отсутствие строки для проекта = дефолты из
 // env выше, поэтому существующие проекты без явной настройки ведут себя
 // как раньше.
 const stmtGetThresholds = db.prepare(
-  "SELECT ping_timeout_sec, ping_fail_threshold FROM project_monitor_thresholds WHERE project_id = ?"
+  "SELECT ping_timeout_sec, ping_fail_duration_sec FROM project_monitor_thresholds WHERE project_id = ?"
 );
 function loadProjectThresholds(projectId) {
   const row = stmtGetThresholds.get(projectId);
   return {
     pingTimeoutSec: row ? row.ping_timeout_sec : PING_TIMEOUT_SEC,
-    failThreshold: row ? row.ping_fail_threshold : PING_FAIL_THRESHOLD,
+    failDurationSec: row ? row.ping_fail_duration_sec : PING_FAIL_DURATION_SEC,
   };
 }
 
@@ -78,7 +78,7 @@ function collectPingTargets() {
       if (eq.monitorMethod === "ping" && eq.ip) {
         targets.push({
           projectId, equipmentId: eq.id, label: eq.label, ip: eq.ip,
-          pingTimeoutSec: thresholds.pingTimeoutSec, failThreshold: thresholds.failThreshold,
+          pingTimeoutSec: thresholds.pingTimeoutSec, failDurationSec: thresholds.failDurationSec,
         });
       }
     }
@@ -111,67 +111,58 @@ const stmtCloseEvent = db.prepare(
   "UPDATE monitor_events SET ended_at = ?, duration_sec = ? WHERE id = ?"
 );
 
-// Подряд идущие неудачные пинги на цель, в памяти процесса (сбрасывается
-// при перезапуске воркера — не страшно, худший случай: первый пинг после
-// рестарта снова считается "первым в серии"). Не хранится в БД, потому что
-// это чисто внутренний счётчик debounce, не нужный никому кроме тика,
-// который его и накопил.
-const consecutiveFails = new Map(); // `${projectId}:${equipmentId}` -> count
+// Момент начала текущей непрерывной серии неудачных пингов на цель, в
+// памяти процесса (сбрасывается при перезапуске воркера — не страшно,
+// худший случай: серия после рестарта считается начавшейся заново, "авария"
+// зафиксируется на failDurationSec позже реального начала простоя). Не
+// хранится в БД — это внутренний таймер debounce для события, не нужный
+// никому кроме тика, который его и завёл.
+const downSince = new Map(); // `${projectId}:${equipmentId}` -> ms timestamp
 
 function applyResult(target, result) {
-  const nowIso = new Date().toISOString();
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
   const key = target.projectId + ":" + target.equipmentId;
   const current = stmtGetStatus.get(target.projectId, target.equipmentId);
+  const rawState = result.up ? "up" : "down";
+
+  // Статус на дашборде/3D-модели — всегда сырой результат последнего пинга,
+  // без debounce: "нет пинга" красит красным немедленно, вне зависимости от
+  // того, сколько длится простой и настроен ли порог для аварии.
+  stmtUpsertStatus.run({
+    projectId: target.projectId, equipmentId: target.equipmentId, state: rawState,
+    checkedAt: nowIso, changedAt: nowIso, latencyMs: result.latencyMs,
+  });
 
   if (result.up) {
-    consecutiveFails.delete(key);
-    const changed = !current || current.state !== "up";
-    stmtUpsertStatus.run({
-      projectId: target.projectId, equipmentId: target.equipmentId, state: "up",
-      checkedAt: nowIso, changedAt: nowIso, latencyMs: result.latencyMs,
-    });
-    if (changed && current) {
-      // Возврат в строй после падения — закрываем самое недавнее открытое
-      // событие для этого объекта. Если current не было (первая проверка
-      // сразу "up") — писать нечего, аварии никто не наблюдал.
+    downSince.delete(key);
+    if (current && current.state === "down") {
+      // Возврат в строй — если авария успела зафиксироваться как событие
+      // (простой набрал failDurationSec), закрываем его. Если не успела
+      // (флап короче порога) — открытого события и не было, закрывать нечего.
       const openEvent = stmtFindOpenEvent.get(target.projectId, target.equipmentId);
       if (openEvent) {
-        const durationSec = Math.max(
-          0,
-          Math.round((Date.parse(nowIso) - Date.parse(openEvent.started_at)) / 1000)
-        );
+        const durationSec = Math.max(0, Math.round((nowMs - Date.parse(openEvent.started_at)) / 1000));
         stmtCloseEvent.run(nowIso, durationSec, openEvent.id);
       }
     }
     return;
   }
 
-  // Неудачный пинг — фиксируем "down" только после failThreshold подряд
-  // неудач (per-project, по умолчанию 1 — старое поведение: авария с
-  // первого же пропавшего пинга). Пока порог не набран, состояние не
-  // трогаем — только время последней проверки, чтобы один потерянный
-  // пакет не мигал красным на дашборде.
-  const fails = (consecutiveFails.get(key) || 0) + 1;
-  consecutiveFails.set(key, fails);
-  const threshold = target.failThreshold || 1;
-  if (fails < threshold) {
-    stmtUpsertStatus.run({
-      projectId: target.projectId, equipmentId: target.equipmentId,
-      state: current ? current.state : "unknown",
-      checkedAt: nowIso, changedAt: nowIso, latencyMs: null,
-    });
-    return;
-  }
+  // Неудачный пинг — отслеживаем длительность непрерывного простоя и
+  // фиксируем "аварию" как событие только после failDurationSec (per-project,
+  // по умолчанию 300 с). До этого момента событие не пишется — одиночный
+  // потерянный пакет или короткий флап не попадает в историю аварий/аптайм.
+  if (!downSince.has(key)) downSince.set(key, nowMs);
+  const startedMs = downSince.get(key);
+  const durationSec = target.failDurationSec ?? PING_FAIL_DURATION_SEC;
+  if (nowMs - startedMs < durationSec * 1000) return;
 
-  const changed = !current || current.state !== "down";
-  stmtUpsertStatus.run({
-    projectId: target.projectId, equipmentId: target.equipmentId, state: "down",
-    checkedAt: nowIso, changedAt: nowIso, latencyMs: null,
-  });
-  if (changed) {
+  const openEvent = stmtFindOpenEvent.get(target.projectId, target.equipmentId);
+  if (!openEvent) {
     stmtOpenEvent.run({
       projectId: target.projectId, equipmentId: target.equipmentId, label: target.label,
-      fromState: current ? current.state : null, toState: "down", startedAt: nowIso,
+      fromState: "up", toState: "down", startedAt: new Date(startedMs).toISOString(),
     });
   }
 }
