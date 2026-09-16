@@ -242,7 +242,12 @@
     font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.4px;
   }
   .uo-group-header-label{ flex:1; }
-  .uo-group-arrow{ flex-shrink:0; width:10px; color:var(--text-faint); font-size:9px; }
+  .uo-group-arrow{ flex-shrink:0; width:10px; color:var(--text-faint); font-size:10px; transition:transform .12s ease; }
+  .uo-group-header.uo-group-open .uo-group-arrow{ transform:rotate(90deg); }
+  /* Дочерние строки под заголовком группы — небольшой отступ вправо,
+     как у leaf-row относительно horizon-head на вкладке "Шахта". */
+  #cableList .uo-row, #equipList .uo-row,
+  #monitorCablesList .uo-row, #monitorEquipList .uo-row{ padding-left:22px; }
   .uo-row:hover{ background:var(--panel-alt); color:var(--text); }
   .uo-row.selected{ background:rgba(255,159,28,.12); color:var(--text); }
   .uo-row .swatch{ width:9px; height:9px; border-radius:2px; flex-shrink:0; border:1px solid rgba(255,255,255,.15); }
@@ -3487,11 +3492,11 @@ function buildCableList() {
     const groupLabel = CABLE_TYPES[key] ? CABLE_TYPES[key].label : "Другое";
     const collapsed = collapsedCableGroups.has(key);
     const header = document.createElement("div");
-    header.className = "uo-group-header";
+    header.className = "uo-group-header" + (collapsed ? "" : " uo-group-open");
     header.style.cursor = "pointer";
     const arrow = document.createElement("span");
     arrow.className = "uo-group-arrow";
-    arrow.textContent = collapsed ? "▸" : "▾";
+    arrow.textContent = "▶";
     const groupChk = document.createElement("input");
     groupChk.type = "checkbox";
     const allVisible = groupItems.every((c) => c.visible);
@@ -3904,11 +3909,11 @@ function buildEquipList() {
     const groupLabel = EQUIP_SHAPE_LABELS[key] || "Другое";
     const collapsed = collapsedEquipGroups.has(key);
     const header = document.createElement("div");
-    header.className = "uo-group-header";
+    header.className = "uo-group-header" + (collapsed ? "" : " uo-group-open");
     header.style.cursor = "pointer";
     const arrow = document.createElement("span");
     arrow.className = "uo-group-arrow";
-    arrow.textContent = collapsed ? "▸" : "▾";
+    arrow.textContent = "▶";
     const groupChk = document.createElement("input");
     groupChk.type = "checkbox";
     const allVisible = groupItems.every((eq) => eq.visible);
@@ -5378,11 +5383,11 @@ function renderMonitorCables() {
     const gk = "c:" + key;
     const collapsed = monitorCollapsedGroups.has(gk);
     const header = document.createElement("div");
-    header.className = "uo-group-header";
+    header.className = "uo-group-header" + (collapsed ? "" : " uo-group-open");
     header.style.cursor = "pointer";
     const arrow = document.createElement("span");
     arrow.className = "uo-group-arrow";
-    arrow.textContent = collapsed ? "▸" : "▾";
+    arrow.textContent = "▶";
     const groupChk = document.createElement("input");
     groupChk.type = "checkbox";
     const allVisible = groupItems.every((c) => c.visible);
@@ -5454,11 +5459,11 @@ function renderMonitorEquip() {
     const gk = "e:" + key;
     const collapsed = monitorCollapsedGroups.has(gk);
     const header = document.createElement("div");
-    header.className = "uo-group-header";
+    header.className = "uo-group-header" + (collapsed ? "" : " uo-group-open");
     header.style.cursor = "pointer";
     const arrow = document.createElement("span");
     arrow.className = "uo-group-arrow";
-    arrow.textContent = collapsed ? "▸" : "▾";
+    arrow.textContent = "▶";
     const groupChk = document.createElement("input");
     groupChk.type = "checkbox";
     const allVisible = groupItems.every((eq) => eq.visible);
