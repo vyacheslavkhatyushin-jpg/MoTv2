@@ -46,6 +46,10 @@
   body.monitoring-mode #actionButtonsRow,
   body.monitoring-mode #progressWrap,
   body.monitoring-mode #tabs{ display:none !important; }
+  /* Кнопки-ссылки в топбаре не должны переноситься на две строки (иконка
+     отдельно от подписи) и не должны сжиматься меньше своей ширины — их
+     сжимает/переносит только текст внутри, если в строке не хватает места. */
+  #topBar #sessionInfo a{ white-space:nowrap; flex-shrink:0; }
   /* Кнопка активного раздела остаётся на месте (не пропадает) — просто
      подсвечивается и перестаёт быть кликабельной; см. applyMonitoringPageUI(). */
   #topBar a.nav-current{
