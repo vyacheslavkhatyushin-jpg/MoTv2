@@ -668,7 +668,7 @@
   </header>
 <div id="userAdminOverlay" class="hidden">
   <div id="userAdminCard">
-    <h3>Пользователи <button id="btnUserAdminClose" title="Закрыть">✕</button></h3>
+    <h3>Пользователи <button id="btnUserAdminClose" title="Закрыть"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
     <div class="ua-add-row">
       <input type="text" id="uaNewLogin" placeholder="Логин" autocomplete="off">
       <input type="password" id="uaNewPassword" placeholder="Пароль" autocomplete="off">
@@ -685,7 +685,7 @@
 </div>
 <div id="sppdConfigOverlay" class="hidden">
   <div id="sppdConfigCard">
-    <h3>Подключение к SPPD <button id="btnSppdConfigClose" title="Закрыть">✕</button></h3>
+    <h3>Подключение к SPPD <button id="btnSppdConfigClose" title="Закрыть"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
     <div id="sppdConfigStatus"></div>
     <div class="sc-field">
       <label for="scBaseUrl">Адрес сервера</label>
@@ -708,7 +708,7 @@
 </div>
 <div id="thresholdsOverlay" class="hidden">
   <div id="thresholdsCard">
-    <h3>Пороги фиксации аварии <button id="btnThresholdsClose" title="Закрыть">✕</button></h3>
+    <h3>Пороги фиксации аварии <button id="btnThresholdsClose" title="Закрыть"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
     <div id="thresholdsStatus"></div>
     <div style="font-size:11px; color:var(--text-faint); line-height:1.5; margin:-4px 0 12px;">
       Статус на дашборде/3D-модели красится сразу по факту пинга/сигнала — эти пороги влияют только на то, когда простой запишется как авария в историю.
@@ -796,22 +796,22 @@
     </div>
   </div>
   <div id="sidebar">
-    <div id="monitorPageTitle">📡 Мониторинг оборудования</div>
-    <button id="btnSaveAll" class="save-btn-big" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере">☁ Сохранить изменения</button>
+    <div id="monitorPageTitle"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 4v8" /><path d="M16 4.5v7" /><path d="M12 5v16" /><path d="M8 5.5v5" /><path d="M4 6v4" /><path d="M20 8h-16" /></svg> Мониторинг оборудования</div>
+    <button id="btnSaveAll" class="save-btn-big" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1" /><path d="M9 15l3 -3l3 3" /><path d="M12 12l0 9" /></svg> Сохранить изменения</button>
     <div id="saveStatus"></div>
     <div id="fileMeta"></div>
     <div id="actionButtonsRow">
       <div id="dropzoneWrap">
-        <div id="dropzone" title="Загрузить модель шахты (.str/.dtm/.obj) — клик или перетащите файл сюда">📁</div>
+        <div id="dropzone" title="Загрузить модель шахты (.str/.dtm/.obj) — клик или перетащите файл сюда"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2" /></svg></div>
         <input type="file" id="fileInput" accept=".str,.txt,.bin,.dtm,.obj" multiple>
       </div>
-      <button id="btnSaveBackup" class="icon-btn" title="Скачать локальную резервную копию — standalone HTML со всеми изменениями">💾</button>
-      <button id="btnExportInventory" class="icon-btn" title="Выгрузить кабели/оборудование/метки в CSV">📋</button>
-      <button id="btnExportSTR" class="icon-btn" title="Выгрузить всю модель (выработки, кабели, оборудование, метки) в один .str файл">🗺</button>
-      <button id="btnExportObjects" class="icon-btn" title="Выгрузить только кабели/оборудование/метки/заплатки (без модели шахты) в .str со всеми атрибутами — для последующей загрузки обратно в этот инструмент">📤</button>
-      <button id="btnImportObjects" class="icon-btn" title="Загрузить .str, ранее выгруженный кнопкой «Объекты .str» — восстановит кабели/оборудование/метки/заплатки, сгруппированными по типу">📥</button>
+      <button id="btnSaveBackup" class="icon-btn" title="Скачать локальную резервную копию — standalone HTML со всеми изменениями"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2" /><path d="M10 14a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M14 4l0 4l-6 0l0 -4" /></svg></button>
+      <button id="btnExportInventory" class="icon-btn" title="Выгрузить кабели/оборудование/метки в CSV"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14" /><path d="M3 10h18" /><path d="M10 3v18" /></svg></button>
+      <button id="btnExportSTR" class="icon-btn" title="Выгрузить всю модель (выработки, кабели, оборудование, метки) в один .str файл"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M11.5 21h-4.5a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v5m-5 6h7m-3 -3l3 3l-3 3" /></svg></button>
+      <button id="btnExportObjects" class="icon-btn" title="Выгрузить только кабели/оборудование/метки/заплатки (без модели шахты) в .str со всеми атрибутами — для последующей загрузки обратно в этот инструмент"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg></button>
+      <button id="btnImportObjects" class="icon-btn" title="Загрузить .str, ранее выгруженный кнопкой «Объекты .str» — восстановит кабели/оборудование/метки/заплатки, сгруппированными по типу"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 9l5 -5l5 5" /><path d="M12 4l0 12" /></svg></button>
       <input type="file" id="objectsFileInput" accept=".str" style="display:none;">
-      <button id="btnClearAll" class="icon-btn icon-btn-danger" title="Убрать все загруженные файлы из модели">🗑</button>
+      <button id="btnClearAll" class="icon-btn icon-btn-danger" title="Убрать все загруженные файлы из модели"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg></button>
     </div>
     <div id="progressWrap"><div id="progressBar"></div></div>
     <div id="tabs">
@@ -1029,7 +1029,7 @@
               <button id="btnCancelPatch">Отмена</button>
             </div>
           </div>
-          <button class="uo-add-btn" id="btnAddLink">🔗 Соединить два среза трубой</button>
+          <button class="uo-add-btn" id="btnAddLink"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6 -6" /><path d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464" /><path d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463" /></svg> Соединить два среза трубой</button>
           <div class="uo-hint" id="linkHint" style="display:none;">
             Кликните по первому срезу (грани) тоннеля, затем по второму — между ними автоматически построится труба. Можно соединять срезы из разных выработок.
             <div class="hint-actions"><button id="btnCancelLink">Отмена</button></div>
@@ -1050,7 +1050,7 @@
           <div class="node-list" id="patchNodeList"></div>
           <div style="display:flex; gap:6px;">
             <button id="patchDFocus" style="width:auto; flex:1;">Перейти</button>
-            <button id="patchDHighlight" style="width:auto; flex:1;">✨ Подсветить</button>
+            <button id="patchDHighlight" style="width:auto; flex:1;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6" /></svg> Подсветить</button>
           </div>
           <button id="patchDDelete" class="danger-btn">Удалить заплатку</button>
         </div>
@@ -1070,8 +1070,8 @@
           <span style="font-size:12.5px; color:var(--text-dim);">🟢 <span id="monitorCountUp">0</span></span>
           <span style="font-size:12.5px; color:var(--text-dim);">🔴 <span id="monitorCountDown">0</span></span>
           <span style="font-size:12.5px; color:var(--text-faint);">⚪ <span id="monitorCountUnknown">0</span></span>
-          <span id="monitorPeopleTotalWrap" style="font-size:12.5px; color:var(--text-dim); display:none;">👤 <span id="monitorPeopleTotal">0</span></span>
-          <span id="monitorVehiclesTotalWrap" style="font-size:12.5px; color:var(--text-dim); display:none;">🚚 <span id="monitorVehiclesTotal">0</span></span>
+          <span id="monitorPeopleTotalWrap" style="font-size:12.5px; color:var(--text-dim); display:none;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg> <span id="monitorPeopleTotal">0</span></span>
+          <span id="monitorVehiclesTotalWrap" style="font-size:12.5px; color:var(--text-dim); display:none;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M5 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M15 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5" /></svg> <span id="monitorVehiclesTotal">0</span></span>
         </div>
         <div class="panel-row" id="monitorSystems"></div>
 
@@ -1105,6 +1105,28 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+
+// Строгие line-иконки (Tabler Icons, MIT) вместо эмодзи — переиспользуются
+// в нескольких местах (карточки кабеля/оборудования/метки и т.п.), поэтому
+// собраны в константы один раз, а не продублированы по месту использования.
+const ICON_FOCUS = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 12a.5 .5 0 1 0 1 0a.5 .5 0 1 0 -1 0" fill="currentColor" /><path d="M5 12a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /><path d="M12 3l0 2" /><path d="M3 12l2 0" /><path d="M12 19l0 2" /><path d="M19 12l2 0" /></svg>';
+const ICON_GLOW = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6" /></svg>';
+const ICON_EDIT = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" /><path d="M13.5 6.5l4 4" /></svg>';
+const ICON_X = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg>';
+const ICON_EYE = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /></svg>';
+const ICON_TAG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M3 6v5.172a2 2 0 0 0 .586 1.414l7.71 7.71a2.41 2.41 0 0 0 3.408 0l5.592 -5.592a2.41 2.41 0 0 0 0 -3.408l-7.71 -7.71a2 2 0 0 0 -1.414 -.586h-5.172a3 3 0 0 0 -3 3" /></svg>';
+const ICON_USER = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg>';
+const ICON_TRUCK = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M5 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M15 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5" /></svg>';
+const ICON_LINK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6 -6" /><path d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464" /><path d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463" /></svg>';
+const ICON_CLOUD_UPLOAD = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1" /><path d="M9 15l3 -3l3 3" /><path d="M12 12l0 9" /></svg>';
+const ICON_FOLDER = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2" /></svg>';
+const ICON_DEVICE_FLOPPY = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2" /><path d="M10 14a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M14 4l0 4l-6 0l0 -4" /></svg>';
+const ICON_TABLE = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14" /><path d="M3 10h18" /><path d="M10 3v18" /></svg>';
+const ICON_FILE_EXPORT = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M11.5 21h-4.5a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v5m-5 6h7m-3 -3l3 3l-3 3" /></svg>';
+const ICON_DOWNLOAD = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg>';
+const ICON_UPLOAD = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 9l5 -5l5 5" /><path d="M12 4l0 12" /></svg>';
+const ICON_TRASH = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>';
+const ICON_ANTENNA = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 4v8" /><path d="M16 4.5v7" /><path d="M12 5v16" /><path d="M8 5.5v5" /><path d="M4 6v4" /><path d="M20 8h-16" /></svg>';
 /* ============================================================
    STR PARSER
    Формат Datamine string file:
@@ -2600,7 +2622,7 @@ function buildTree() {
     const lremove = document.createElement("button");
     lremove.className = "layer-remove";
     lremove.title = "Убрать этот файл из модели";
-    lremove.textContent = "✕";
+    lremove.innerHTML = ICON_X;
     // Удаление слоёв модели — только для admin (см. applyRoleToUI); остальным ролям крестик не нужен и не должен быть виден.
     if (!window.__auth || window.__auth.role !== "admin") lremove.style.display = "none";
     lhead.appendChild(lcaret); lhead.appendChild(lcheck); lhead.appendChild(lname);
@@ -3579,7 +3601,7 @@ function appendGroupLabelControls(header, groupState, onChange) {
   const toggleBtn = document.createElement("button");
   toggleBtn.type = "button";
   toggleBtn.className = "lbl-toggle" + (groupState.on ? " on" : "");
-  toggleBtn.textContent = "🏷";
+  toggleBtn.innerHTML = ICON_TAG;
   toggleBtn.title = groupState.on ? "Подписи этой группы включены" : "Подписи этой группы выключены";
   toggleBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -3707,17 +3729,17 @@ function buildCableList() {
       llen.className = "llen"; llen.textContent = Math.round(c.length) + " м";
       const btnFocus = document.createElement("button");
       btnFocus.className = "uo-edit-btn";
-      btnFocus.textContent = "🎯";
+      btnFocus.innerHTML = ICON_FOCUS;
       btnFocus.title = "Перейти к объекту";
       btnFocus.addEventListener("click", (e) => { e.stopPropagation(); focusCable(c); });
       const btnGlow = document.createElement("button");
       btnGlow.className = "uo-edit-btn";
-      btnGlow.textContent = "✨";
+      btnGlow.innerHTML = ICON_GLOW;
       btnGlow.title = "Подсветить";
       btnGlow.addEventListener("click", (e) => { e.stopPropagation(); highlightCable(c); });
       const btnEdit = document.createElement("button");
       btnEdit.className = "uo-edit-btn";
-      btnEdit.textContent = "✏️";
+      btnEdit.innerHTML = ICON_EDIT;
       btnEdit.title = "Редактировать";
       btnEdit.addEventListener("click", (e) => { e.stopPropagation(); selectCable(c); });
       row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname); row.appendChild(llen);
@@ -3734,7 +3756,7 @@ function renderCableNodeList(c) {
     const label = document.createElement("span");
     label.textContent = `Узел ${i + 1}`;
     const del = document.createElement("button");
-    del.textContent = "✕"; del.title = "Удалить узел";
+    del.innerHTML = ICON_X; del.title = "Удалить узел";
     del.addEventListener("click", () => deleteCableNode(c, i));
     row.appendChild(label); row.appendChild(del);
     dom.cableNodeList.appendChild(row);
@@ -4189,17 +4211,17 @@ function buildEquipList() {
       lname.className = "lname"; lname.textContent = eq.label;
       const btnFocus = document.createElement("button");
       btnFocus.className = "uo-edit-btn";
-      btnFocus.textContent = "🎯";
+      btnFocus.innerHTML = ICON_FOCUS;
       btnFocus.title = "Перейти к объекту";
       btnFocus.addEventListener("click", (e) => { e.stopPropagation(); focusEquip(eq); });
       const btnGlow = document.createElement("button");
       btnGlow.className = "uo-edit-btn";
-      btnGlow.textContent = "✨";
+      btnGlow.innerHTML = ICON_GLOW;
       btnGlow.title = "Подсветить";
       btnGlow.addEventListener("click", (e) => { e.stopPropagation(); highlightEquip(eq); });
       const btnEdit = document.createElement("button");
       btnEdit.className = "uo-edit-btn";
-      btnEdit.textContent = "✏️";
+      btnEdit.innerHTML = ICON_EDIT;
       btnEdit.title = "Редактировать";
       btnEdit.addEventListener("click", (e) => { e.stopPropagation(); selectEquip(eq); });
       row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname);
@@ -4445,17 +4467,17 @@ function buildMarkList() {
     lname.className = "lname"; lname.textContent = m.label;
     const btnFocus = document.createElement("button");
     btnFocus.className = "uo-edit-btn";
-    btnFocus.textContent = "🎯";
+    btnFocus.innerHTML = ICON_FOCUS;
     btnFocus.title = "Перейти к объекту";
     btnFocus.addEventListener("click", (e) => { e.stopPropagation(); focusMark(m); });
     const btnGlow = document.createElement("button");
     btnGlow.className = "uo-edit-btn";
-    btnGlow.textContent = "✨";
+    btnGlow.innerHTML = ICON_GLOW;
     btnGlow.title = "Подсветить";
     btnGlow.addEventListener("click", (e) => { e.stopPropagation(); highlightMark(m); });
     const btnEdit = document.createElement("button");
     btnEdit.className = "uo-edit-btn";
-    btnEdit.textContent = "✏️";
+    btnEdit.innerHTML = ICON_EDIT;
     btnEdit.title = "Редактировать";
     btnEdit.addEventListener("click", (e) => { e.stopPropagation(); selectMark(m); });
     row.appendChild(swatch); row.appendChild(lname);
@@ -4662,7 +4684,7 @@ function renderPatchNodeList(p) {
     const label = document.createElement("span");
     label.textContent = `Узел ${i + 1}`;
     const del = document.createElement("button");
-    del.textContent = "✕"; del.title = "Удалить узел";
+    del.innerHTML = ICON_X; del.title = "Удалить узел";
     del.addEventListener("click", () => deletePatchNode(p, i));
     row.appendChild(label); row.appendChild(del);
     dom.patchNodeList.appendChild(row);
@@ -5650,9 +5672,9 @@ function monitorCountsBadgeEl(equipmentId) {
   const span = document.createElement("span");
   span.className = "mon-counts-badge";
   const parts = [];
-  if (hasPeople) parts.push(`👤${row.person_count}`);
-  if (hasVehicles) parts.push(`🚚${row.vehicle_count}`);
-  span.textContent = parts.join(" ");
+  if (hasPeople) parts.push(`${ICON_USER}${row.person_count}`);
+  if (hasVehicles) parts.push(`${ICON_TRUCK}${row.vehicle_count}`);
+  span.innerHTML = parts.join(" ");
   span.title = "Людей/техники на считывателе (SBeacon)";
   return span;
 }
@@ -5729,10 +5751,10 @@ function renderMonitorCables() {
       const lname = document.createElement("span");
       lname.className = "lname"; lname.textContent = c.label;
       const btnFocus = document.createElement("button");
-      btnFocus.className = "uo-edit-btn"; btnFocus.textContent = "🎯"; btnFocus.title = "Перейти к объекту";
+      btnFocus.className = "uo-edit-btn"; btnFocus.innerHTML = ICON_FOCUS; btnFocus.title = "Перейти к объекту";
       btnFocus.addEventListener("click", (e) => { e.stopPropagation(); focusCable(c); });
       const btnGlow = document.createElement("button");
-      btnGlow.className = "uo-edit-btn"; btnGlow.textContent = "✨"; btnGlow.title = "Подсветить";
+      btnGlow.className = "uo-edit-btn"; btnGlow.innerHTML = ICON_GLOW; btnGlow.title = "Подсветить";
       btnGlow.addEventListener("click", (e) => { e.stopPropagation(); highlightCable(c); });
       row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname);
       row.appendChild(btnFocus); row.appendChild(btnGlow);
@@ -5816,10 +5838,10 @@ function renderMonitorEquip() {
       lname.className = "lname"; lname.textContent = eq.label;
       const countsBadge = monitorCountsBadgeEl(eq.id);
       const btnFocus = document.createElement("button");
-      btnFocus.className = "uo-edit-btn"; btnFocus.textContent = "🎯"; btnFocus.title = "Перейти к объекту";
+      btnFocus.className = "uo-edit-btn"; btnFocus.innerHTML = ICON_FOCUS; btnFocus.title = "Перейти к объекту";
       btnFocus.addEventListener("click", (e) => { e.stopPropagation(); focusEquip(eq); });
       const btnGlow = document.createElement("button");
-      btnGlow.className = "uo-edit-btn"; btnGlow.textContent = "✨"; btnGlow.title = "Подсветить";
+      btnGlow.className = "uo-edit-btn"; btnGlow.innerHTML = ICON_GLOW; btnGlow.title = "Подсветить";
       btnGlow.addEventListener("click", (e) => { e.stopPropagation(); highlightEquip(eq); });
       row.appendChild(lname);
       if (countsBadge) row.appendChild(countsBadge);
@@ -5854,10 +5876,10 @@ function renderMonitorMarks() {
     const lname = document.createElement("span");
     lname.className = "lname"; lname.textContent = m.label;
     const btnFocus = document.createElement("button");
-    btnFocus.className = "uo-edit-btn"; btnFocus.textContent = "🎯"; btnFocus.title = "Перейти к объекту";
+    btnFocus.className = "uo-edit-btn"; btnFocus.innerHTML = ICON_FOCUS; btnFocus.title = "Перейти к объекту";
     btnFocus.addEventListener("click", (e) => { e.stopPropagation(); focusMark(m); });
     const btnGlow = document.createElement("button");
-    btnGlow.className = "uo-edit-btn"; btnGlow.textContent = "✨"; btnGlow.title = "Подсветить";
+    btnGlow.className = "uo-edit-btn"; btnGlow.innerHTML = ICON_GLOW; btnGlow.title = "Подсветить";
     btnGlow.addEventListener("click", (e) => { e.stopPropagation(); highlightMark(m); });
     row.appendChild(rowChk); row.appendChild(swatch); row.appendChild(lname);
     row.appendChild(btnFocus); row.appendChild(btnGlow);
@@ -6214,11 +6236,11 @@ function renderUserAdminList(users) {
     dots.className = "ua-dots";
     dots.textContent = "••••••••";
     const btnReveal = document.createElement("button");
-    btnReveal.textContent = "👁";
+    btnReveal.innerHTML = ICON_EYE;
     btnReveal.title = "Пароль хранится в зашифрованном виде и его нельзя посмотреть — нажмите, чтобы задать новый";
     const btnDelete = document.createElement("button");
     btnDelete.className = "ua-delete";
-    btnDelete.textContent = "✕";
+    btnDelete.innerHTML = ICON_X;
     btnDelete.title = "Удалить пользователя";
     if (u.username === myUsername) btnDelete.disabled = true;
     row.appendChild(name); row.appendChild(roleSelect); row.appendChild(dots);
