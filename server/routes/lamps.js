@@ -190,4 +190,13 @@ router.get("/:id/lamps/reports/:reportId", (req, res) => {
   });
 });
 
+router.delete("/:id/lamps/reports/:reportId", requireRole("admin"), (req, res) => {
+  if (!requireProject(req, res)) return;
+  const result = db
+    .prepare("DELETE FROM lamp_reports WHERE project_id = ? AND id = ?")
+    .run(req.params.id, req.params.reportId);
+  if (!result.changes) return res.status(404).json({ error: "report_not_found" });
+  res.status(204).end();
+});
+
 module.exports = router;
