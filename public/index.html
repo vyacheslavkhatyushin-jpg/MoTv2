@@ -50,7 +50,7 @@
   /* Кнопки-ссылки в топбаре не должны переноситься на две строки (иконка
      отдельно от подписи) и не должны сжиматься меньше своей ширины — их
      сжимает/переносит только текст внутри, если в строке не хватает места. */
-  #topBar #sessionInfo a{ white-space:nowrap; flex-shrink:0; }
+  #topBar #sessionInfo a, #topBar #sessionInfo span{ white-space:nowrap; flex-shrink:0; }
   #topBar .nav-ic{ width:14px; height:14px; flex-shrink:0; }
   #topBar #projectSelect{
     background:var(--panel-alt); border:1px solid var(--border); color:var(--text); border-radius:8px;
@@ -398,9 +398,9 @@
     border-bottom:1px solid var(--border); user-select:none;
   }
   #topBar .brand-mark{ width:26px; height:auto; flex-shrink:0; }
-  #topBar .brand-titles{ display:flex; flex-direction:column; line-height:1.25; }
-  #topBar .brand-titles .t1{ font-size:15px; font-weight:700; color:var(--text); letter-spacing:.2px; }
-  #topBar .brand-titles .t2{ font-size:11px; color:var(--text-dim); }
+  #topBar .brand-titles{ display:flex; flex-direction:column; line-height:1.25; flex-shrink:0; }
+  #topBar .brand-titles .t1{ font-size:15px; font-weight:700; color:var(--text); letter-spacing:.2px; white-space:nowrap; }
+  #topBar .brand-titles .t2{ font-size:11px; color:var(--text-dim); white-space:nowrap; }
   #topBar .brand-spacer{ flex:1 1 auto; }
   #topBar .brand-copyright{ font-size:10.5px; color:var(--text-faint); text-align:right; line-height:1.4; }
   #app{ flex:1 1 auto; min-height:0; height:auto; }
@@ -647,7 +647,7 @@
 <svg class="brand-mark" viewBox="0 0 100 88" aria-hidden="true"><path d="M10,76 L10,14 L50,54" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><path d="M50,54 L90,14 L90,76" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/></svg>
     <div class="brand-titles">
       <span class="t1">MoT</span>
-      <span class="t2">Модель шахты, Отдел связи</span>
+      <span class="t2" id="brandSubtitle">Модель шахты</span>
     </div>
     <div class="brand-spacer"></div>
     <div id="sessionInfo" style="display:flex; align-items:center; gap:12px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
@@ -5431,6 +5431,8 @@ function applyMonitoringPageUI() {
   if (navToLamps) navToLamps.href = `/${CURRENT_PROJECT_ID}/lamps`;
   const current = IS_MONITORING_PAGE ? navToMonitoring : navToEditor;
   if (current) current.classList.add("nav-current");
+  const brandSubtitleEl = document.getElementById("brandSubtitle");
+  if (brandSubtitleEl) brandSubtitleEl.textContent = IS_MONITORING_PAGE ? "Мониторинг" : "Модель шахты";
   if (!IS_MONITORING_PAGE) return;
   document.body.classList.add("monitoring-mode");
   document.querySelectorAll(".tabpanel").forEach((p) => p.classList.remove("active"));
