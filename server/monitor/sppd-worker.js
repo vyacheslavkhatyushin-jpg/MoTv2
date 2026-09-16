@@ -254,22 +254,34 @@ function markStaleAsDown(target) {
   });
 }
 
+// Порог молчания — per-project (см. project_monitor_thresholds в db.js,
+// настраивается админом через "⚙ Пороги" в UI). Отсутствие строки для
+// проекта = STALE_AFTER_MS из env, как раньше.
+const stmtGetStaleThreshold = db.prepare(
+  "SELECT sppd_stale_after_sec FROM project_monitor_thresholds WHERE project_id = ?"
+);
+function getStaleAfterMs(projectId) {
+  const row = stmtGetStaleThreshold.get(projectId);
+  return row ? row.sppd_stale_after_sec * 1000 : STALE_AFTER_MS;
+}
+
 // Раз в STALE_CHECK_MS проверяет все настроенные на этом сайте цели: если
-// от Addr не было ни одного сообщения дольше STALE_AFTER_MS — считаем это
+// от Addr не было ни одного сообщения дольше порога — считаем это
 // "Нет связи". siteStartedAtMs — точка отсчёта для оборудования, по
 // которому вообще ещё не было ни одной записи в monitor_status (даёт
 // новому/только настроенному считывателю запас времени с момента старта
 // воркера, а не мгновенную красную вспышку до первого ответа).
 function checkStaleness(projectId, targetsByAddr, siteStartedAtMs) {
   const nowMs = Date.now();
+  const staleAfterMs = getStaleAfterMs(projectId);
   for (const targets of targetsByAddr.values()) {
     for (const target of targets) {
       const row = stmtGetLastChecked.get(target.projectId, target.equipmentId);
       const lastSeenMs = row && row.last_checked_at ? Date.parse(row.last_checked_at) : siteStartedAtMs;
-      if (nowMs - lastSeenMs > STALE_AFTER_MS) {
+      if (nowMs - lastSeenMs > staleAfterMs) {
         markStaleAsDown(target);
         if (DEBUG) {
-          console.log(`[sppd-worker] [${projectId}] ${target.equipmentId} (${target.label}) — нет данных дольше ${STALE_AFTER_MS}мс, помечено как "Нет связи"`);
+          console.log(`[sppd-worker] [${projectId}] ${target.equipmentId} (${target.label}) — нет данных дольше ${staleAfterMs}мс, помечено как "Нет связи"`);
         }
       }
     }
