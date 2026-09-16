@@ -948,11 +948,13 @@
               <option value="ping">Ping</option>
               <option value="snmp">SNMP</option>
               <option value="sppd" id="equipDMonitorSppdOption">SPPD (позиционирование)</option>
+              <option value="fs" id="equipDMonitorFsOption">FieldSense (обрыв кабеля)</option>
             </select>
           </div>
           <div class="drow" id="equipDSnmpCommunityRow" style="display:none;"><span>SNMP community</span><input type="text" id="equipDSnmpCommunity" placeholder="public"></div>
           <div class="drow" id="equipDSnmpProfileRow" style="display:none;"><span>SNMP профиль</span><input type="text" id="equipDSnmpProfile" placeholder="по умолчанию"></div>
           <div class="drow" id="equipDSppdAddressRow" style="display:none;"><span>Адрес SPPD</span><input type="text" id="equipDSppdAddress" placeholder="напр. 3934"></div>
+          <div class="drow" id="equipDFsAddressRow" style="display:none;"><span>Номер датчика FS</span><input type="text" id="equipDFsAddress" placeholder="напр. 3 (колонка # на странице fieldsense)"></div>
           <button id="equipDDelete" class="danger-btn">Удалить объект</button>
         </div>
       </div>
@@ -1864,12 +1866,15 @@ const dom = {
   equipDIdNumber: document.getElementById("equipDIdNumber"),
   equipDMonitorMethod: document.getElementById("equipDMonitorMethod"),
   equipDMonitorSppdOption: document.getElementById("equipDMonitorSppdOption"),
+  equipDMonitorFsOption: document.getElementById("equipDMonitorFsOption"),
   equipDSnmpCommunityRow: document.getElementById("equipDSnmpCommunityRow"),
   equipDSnmpCommunity: document.getElementById("equipDSnmpCommunity"),
   equipDSnmpProfileRow: document.getElementById("equipDSnmpProfileRow"),
   equipDSnmpProfile: document.getElementById("equipDSnmpProfile"),
   equipDSppdAddressRow: document.getElementById("equipDSppdAddressRow"),
   equipDSppdAddress: document.getElementById("equipDSppdAddress"),
+  equipDFsAddressRow: document.getElementById("equipDFsAddressRow"),
+  equipDFsAddress: document.getElementById("equipDFsAddress"),
   equipDDelete: document.getElementById("equipDDelete"),
   btnEquipDClose: document.getElementById("btnEquipDClose"),
   equipLabelSize: document.getElementById("equipLabelSize"),
@@ -4054,6 +4059,7 @@ function placeEquipment(point, overrides, select = true) {
     snmpCommunity: overrides?.snmpCommunity ?? "",
     snmpProfile: overrides?.snmpProfile ?? "",
     sppdAddress: overrides?.sppdAddress ?? "",
+    fsAddress: overrides?.fsAddress ?? "",
     createdBy: overrides?.createdBy ?? currentUsername(),
     createdAt: overrides?.createdAt ?? new Date().toISOString(),
   };
@@ -4176,11 +4182,13 @@ function selectEquip(eq) {
   dom.equipDSnmpCommunity.value = eq.snmpCommunity || "";
   dom.equipDSnmpProfile.value = eq.snmpProfile || "";
   dom.equipDSppdAddress.value = eq.sppdAddress || "";
+  dom.equipDFsAddress.value = eq.fsAddress || "";
   updateEquipMonitorRows(eq);
 }
 // SPPD (система позиционирования HFT) имеет смысл только для считывателей
-// IILB/ISIB — для остальных типов оборудования этот вариант в выпадающем
-// списке скрывается, чтобы не вводить в заблуждение (см. docs/monitoring-plan.md).
+// IILB/ISIB, FieldSense (поиск обрыва кабеля) — только для датчиков FS —
+// для остальных типов оборудования эти варианты в выпадающем списке
+// скрываются, чтобы не вводить в заблуждение (см. docs/monitoring-plan.md).
 function updateEquipMonitorRows(eq) {
   const canSppd = eq.shape === "iilb" || eq.shape === "isib";
   dom.equipDMonitorSppdOption.disabled = !canSppd;
@@ -4189,10 +4197,18 @@ function updateEquipMonitorRows(eq) {
     dom.equipDMonitorMethod.value = "none";
     eq.monitorMethod = "none";
   }
+  const canFs = eq.shape === "fs";
+  dom.equipDMonitorFsOption.disabled = !canFs;
+  dom.equipDMonitorFsOption.hidden = !canFs;
+  if (!canFs && dom.equipDMonitorMethod.value === "fs") {
+    dom.equipDMonitorMethod.value = "none";
+    eq.monitorMethod = "none";
+  }
   const method = dom.equipDMonitorMethod.value;
   dom.equipDSnmpCommunityRow.style.display = method === "snmp" ? "" : "none";
   dom.equipDSnmpProfileRow.style.display = method === "snmp" ? "" : "none";
   dom.equipDSppdAddressRow.style.display = method === "sppd" ? "" : "none";
+  dom.equipDFsAddressRow.style.display = method === "fs" ? "" : "none";
 }
 document.getElementById("equipShapeSelect").addEventListener("change", (e) => {
   equipShape = e.target.value;
@@ -4262,6 +4278,10 @@ dom.equipDSnmpProfile.addEventListener("input", () => {
 dom.equipDSppdAddress.addEventListener("input", () => {
   if (!selectedEquip) return;
   selectedEquip.sppdAddress = dom.equipDSppdAddress.value;
+});
+dom.equipDFsAddress.addEventListener("input", () => {
+  if (!selectedEquip) return;
+  selectedEquip.fsAddress = dom.equipDFsAddress.value;
 });
 function focusEquip(eq) {
   if (!eq) return;
@@ -5177,6 +5197,7 @@ function serializeEquip(eq) {
     snmpCommunity: eq.snmpCommunity || "",
     snmpProfile: eq.snmpProfile || "",
     sppdAddress: eq.sppdAddress || "",
+    fsAddress: eq.fsAddress || "",
     createdBy: eq.createdBy, createdAt: eq.createdAt,
   };
 }
@@ -5909,7 +5930,7 @@ function applyRoleToUI() {
   // Настройка мониторинга (метод опроса, SNMP-community, адрес SPPD) —
   // тоже только admin: это инфраструктурная привязка устройства, а не
   // повседневное редактирование карточки оборудования.
-  const monitorFieldIds = ["equipDMonitorMethod", "equipDSnmpCommunity", "equipDSnmpProfile", "equipDSppdAddress"];
+  const monitorFieldIds = ["equipDMonitorMethod", "equipDSnmpCommunity", "equipDSnmpProfile", "equipDSppdAddress", "equipDFsAddress"];
   for (const id of monitorFieldIds) {
     const el = document.getElementById(id);
     if (el) el.disabled = !isAdmin;

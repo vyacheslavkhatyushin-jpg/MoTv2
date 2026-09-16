@@ -44,5 +44,20 @@ services:
     volumes:
       - mine-ops-data:/app/server/data
 
+  # FieldSense (FlexAlertTTE) — поиск обрыва кабеля, оборудование FS.
+  # Тот же физический сервер и тот же логин/пароль, что у SPPD
+  # (project_sppd_config переиспользуется, отдельной настройки нет), но
+  # это не WebSocket, а обычная HTML-страница — коллектор просто опрашивает
+  # её по таймеру, поэтому вынесен в отдельный процесс, а не довешен на
+  # sppd-worker.
+  fieldsense-worker:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["node", "monitor/fieldsense-worker.js"]
+    restart: unless-stopped
+    volumes:
+      - mine-ops-data:/app/server/data
+
 volumes:
   mine-ops-data:
