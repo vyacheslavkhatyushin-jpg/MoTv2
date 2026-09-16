@@ -3461,6 +3461,13 @@ function deleteCable(id) {
   if (selectedCable === c) { selectedCable = null; dom.cableDetails.classList.remove("open"); }
   buildCableList();
 }
+// Сортировка списков по подписи (кабели/оборудование/метки/заплатки, в
+// редакторе и на странице мониторинга) — natural order, чтобы "ВОЛС-2" шёл
+// раньше "ВОЛС-10", а не после (обычное строковое сравнение поставило бы
+// "10" перед "2").
+function byLabel(a, b) {
+  return (a.label || "").localeCompare(b.label || "", "ru", { numeric: true, sensitivity: "base" });
+}
 const collapsedCableGroups = new Set();
 function buildCableList() {
   dom.cableList.innerHTML = "";
@@ -3473,6 +3480,7 @@ function buildCableList() {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(c);
   }
+  for (const arr of groups.values()) arr.sort(byLabel);
   const orderedKeys = [...CABLE_TYPE_ORDER, "custom"].filter((k) => groups.has(k));
   for (const key of orderedKeys) {
     const groupItems = groups.get(key);
@@ -3889,6 +3897,7 @@ function buildEquipList() {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(eq);
   }
+  for (const arr of groups.values()) arr.sort(byLabel);
   const orderedKeys = [...EQUIP_SHAPE_ORDER, "custom"].filter((k) => groups.has(k));
   for (const key of orderedKeys) {
     const groupItems = groups.get(key);
@@ -4185,7 +4194,7 @@ function rebuildMarkTexture(m) {
 function buildMarkList() {
   dom.markList.innerHTML = "";
   dom.markPlaceholder.style.display = marks.size ? "none" : "block";
-  for (const m of marks.values()) {
+  for (const m of [...marks.values()].sort(byLabel)) {
     const row = document.createElement("div");
     row.className = "uo-row" + (selectedMark === m ? " selected" : "");
     const swatch = document.createElement("span");
@@ -4389,7 +4398,7 @@ function deletePatch(id) {
 function buildPatchList() {
   dom.patchList.innerHTML = "";
   dom.patchPlaceholder.style.display = patches.size ? "none" : "block";
-  for (const p of patches.values()) {
+  for (const p of [...patches.values()].sort(byLabel)) {
     const row = document.createElement("div");
     row.className = "uo-row" + (selectedPatch === p ? " selected" : "");
     const swatch = document.createElement("span");
@@ -5359,6 +5368,7 @@ function renderMonitorCables() {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(c);
   }
+  for (const arr of groups.values()) arr.sort(byLabel);
   const orderedKeys = [...CABLE_TYPE_ORDER, "custom"].filter((k) => groups.has(k));
   let total = 0;
   for (const key of orderedKeys) {
@@ -5434,6 +5444,7 @@ function renderMonitorEquip() {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(eq);
   }
+  for (const arr of groups.values()) arr.sort(byLabel);
   const orderedKeys = [...EQUIP_SHAPE_ORDER, "custom"].filter((k) => groups.has(k));
   let total = 0;
   for (const key of orderedKeys) {
@@ -5504,7 +5515,7 @@ function renderMonitorMarks() {
   if (!dom.monitorMarksList) return;
   dom.monitorMarksList.innerHTML = "";
   let total = 0;
-  for (const m of marks.values()) {
+  for (const m of [...marks.values()].sort(byLabel)) {
     total++;
     const row = document.createElement("div");
     row.className = "uo-row";
