@@ -913,6 +913,7 @@
               <option value="stativ_lfc">Статив LFC</option>
               <option value="stativ_ao">Статив АО</option>
               <option value="poe">PoE</option>
+              <option value="go">ГО</option>
             </select>
           </div>
           <button class="uo-add-btn" id="btnAddEquip">+ Добавить объект</button>
@@ -3968,6 +3969,15 @@ function buildEquipGeometry(shape, size) {
       port3.translate(s * 0.18, 0, s * 0.2);
       return BufferGeometryUtils.mergeGeometries([body, port1, port2, port3]);
     }
+    case "go": {
+      // ГО (оповещатель гражданской обороны) — рупор на кронштейне
+      const bracket = new THREE.CylinderGeometry(s * 0.04, s * 0.04, s * 0.5, 8);
+      bracket.translate(0, s * 0.1, 0);
+      const horn = new THREE.ConeGeometry(s * 0.35, s * 0.55, 16, 1, true);
+      horn.rotateX(-Math.PI / 2);
+      horn.translate(0, s * 0.35, s * 0.05);
+      return BufferGeometryUtils.mergeGeometries([bracket, horn]);
+    }
     default:
       return new THREE.SphereGeometry(s * 0.5, 16, 12);
   }
@@ -3975,12 +3985,12 @@ function buildEquipGeometry(shape, size) {
 const EQUIP_SHAPE_LABELS = {
   mla: "MLA", map: "MAP", odf: "Муфта ODF", iilb: "IILB", isib: "ISIB", cam: "CAM",
   mps: "MPS", mpc: "MPC", mtu: "MTU", mvsa: "MVSA", wifi: "WiFi", mbu: "MBU",
-  fs: "FS", tel: "TEL", stativ_lfc: "Статив LFC", stativ_ao: "Статив АО", poe: "PoE",
+  fs: "FS", tel: "TEL", stativ_lfc: "Статив LFC", stativ_ao: "Статив АО", poe: "PoE", go: "ГО",
   // "Статив" без уточнения — устаревшее значение, оставлено только чтобы
   // объекты, созданные до разделения на LFC/АО, не потерялись из списков.
   stativ: "Статив (устар.)",
 };
-const EQUIP_SHAPE_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "stativ"];
+const EQUIP_SHAPE_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "go", "stativ"];
 function equipGroupKey(eq) {
   return EQUIP_SHAPE_LABELS[eq.shape] ? eq.shape : "custom";
 }
@@ -5448,6 +5458,7 @@ const EQUIP_SHAPE_SYSTEMS = {
   stativ_ao: ["АО"],
   stativ: ["LFC", "АО"], // устаревшее значение, см. EQUIP_SHAPE_LABELS
   fs: ["АО"],
+  go: ["АО"],
   tel: ["Телефония"],
   cam: ["ВН"],
   poe: ["ВН"],

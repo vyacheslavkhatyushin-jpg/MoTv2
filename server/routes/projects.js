@@ -287,6 +287,7 @@ const MONITOR_EQUIP_SHAPE_SYSTEMS = {
   stativ_ao: ["АО"],
   stativ: ["LFC", "АО"], // устаревшее значение — объекты до разделения на LFC/АО
   fs: ["АО"],
+  go: ["АО"],
   tel: ["Телефония"],
   cam: ["ВН"],
   poe: ["ВН"],
