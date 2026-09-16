@@ -243,6 +243,28 @@ CREATE TABLE IF NOT EXISTS lamp_records (
   is_broken INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_lamp_records_report ON lamp_records(report_id);
+
+-- Единый журнал действий — вход в систему, правки/создание/удаление
+-- объектов модели, управление пользователями/проектами/ЗИП/фонарями/
+-- порогами/SPPD. project_id — ON DELETE SET NULL (не CASCADE): запись о
+-- том, что проект X удалён, должна сама выжить после удаления проекта, а
+-- не исчезнуть вместе с ним.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  actor TEXT NOT NULL,
+  project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  entity_type TEXT,
+  entity_id TEXT,
+  entity_label TEXT,
+  details TEXT,
+  ip TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_project ON audit_log(project_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action, created_at DESC);
 `);
 
 // Одноразовая миграция: ping_fail_threshold (счётчик подряд неудач) заменён

@@ -22,6 +22,7 @@ Example:
   node delete-project.js shaft-old --yes
 */
 const db = require("./db");
+const { logAudit } = require("./lib/audit");
 
 const [, , projectIdRaw, flag] = process.argv;
 if (!projectIdRaw) {
@@ -66,4 +67,11 @@ if (!confirmed) {
 }
 
 db.prepare("DELETE FROM projects WHERE id = ?").run(projectId);
+// project_id — null: строка проекта уже удалена, FK не даст сослаться на
+// несуществующий id (у остальных записей project_id обнулится сам через
+// ON DELETE SET NULL — сама история проекта не пропадает вместе с ним).
+logAudit({
+  actor: process.env.USER || "cli", action: "project.delete",
+  entityType: "project", entityId: projectId, entityLabel: project.name, details: { counts }, ip: null,
+});
 console.log(`\nПроект "${project.id}" и всё связанное с ним удалено безвозвратно.`);

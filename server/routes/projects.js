@@ -1,6 +1,7 @@
 const express = require("express");
 const db = require("../db");
 const { requireAuth, requireRole } = require("../auth");
+const { logAudit } = require("../lib/audit");
 
 const router = express.Router();
 const SLUG_RE = /^[a-z0-9][a-z0-9-_]{1,63}$/;
@@ -40,6 +41,7 @@ router.post("/", requireRole("admin"), (req, res) => {
     id,
     name.trim()
   );
+  logAudit({ actor: req.user.username, projectId: id, action: "project.create", entityType: "project", entityId: id, entityLabel: name.trim(), ip: req.ip });
   res.status(201).json({ id, name: name.trim() });
 });
 
@@ -82,9 +84,19 @@ router.get("/:id/state", (req, res) => {
 // Все остальные объекты в той же коллекции (не задетые конфликтом) сливаются
 // нормально — в отличие от прежней схемы, где конфликт по одному объекту
 // проваливал сохранение всего проекта целиком.
+// Сводка объекта для журнала действий — без геометрии (список узлов
+// кабеля/заплатки может быть большим и малополезен для "что изменилось").
+function summarizeObjectForAudit(obj) {
+  if (!obj) return null;
+  const { nodes, ...meta } = obj;
+  if (Array.isArray(nodes)) meta.nodeCount = nodes.length;
+  return meta;
+}
+
 function mergeCollection(baseArr, incoming, context) {
   const byId = new Map((baseArr || []).map((o) => [o.id, o]));
   const conflicts = [];
+  const applied = [];
   for (const entry of (incoming && incoming.upserts) || []) {
     const { id, data, base } = entry || {};
     if (!id || !data) {
@@ -104,6 +116,10 @@ function mergeCollection(baseArr, incoming, context) {
     const baseJson = base ? JSON.stringify(base) : null;
     if (currentJson === baseJson) {
       byId.set(id, Object.assign({}, data, { id }));
+      applied.push({
+        id, kind: currentObj ? "update" : "create", label: data.label || id,
+        before: summarizeObjectForAudit(currentObj), after: summarizeObjectForAudit(data),
+      });
     } else {
       conflicts.push({
         id,
@@ -128,7 +144,7 @@ function mergeCollection(baseArr, incoming, context) {
       conflicts.push({ id, label: currentObj.label || id, action: "delete" });
     }
   }
-  return { merged: [...byId.values()], conflicts };
+  return { merged: [...byId.values()], conflicts, applied };
 }
 
 const EMPTY_SNAPSHOT = {
@@ -195,6 +211,23 @@ router.put("/:id/state", requireRole("editor", "admin"), (req, res) => {
     by: req.user.username,
   });
 
+  const AUDIT_ENTITY_TYPES = { cables: "cable", equipment: "equipment", marks: "mark", patches: "patch" };
+  for (const [collectionName, result] of Object.entries({ cables: cablesResult, equipment: equipmentResult, marks: marksResult, patches: patchesResult })) {
+    const entityType = AUDIT_ENTITY_TYPES[collectionName];
+    for (const change of result.applied) {
+      logAudit({
+        actor: req.user.username,
+        projectId: req.params.id,
+        action: `${entityType}.${change.kind}`,
+        entityType,
+        entityId: change.id,
+        entityLabel: change.label,
+        details: { before: change.before, after: change.after },
+        ip: req.ip,
+      });
+    }
+  }
+
   res.json({
     version: nextVersion,
     updatedBy: req.user.username,
@@ -232,6 +265,10 @@ router.post("/:id/deletions", requireRole("editor", "admin"), (req, res) => {
     `INSERT INTO deletion_log (project_id, object_type, label, created_by, created_at, deleted_by)
      VALUES (?, ?, ?, ?, ?, ?)`
   ).run(req.params.id, objectType, label || "", createdBy || null, createdAt || null, req.user.username);
+  logAudit({
+    actor: req.user.username, projectId: req.params.id, action: `${objectType}.delete`,
+    entityType: objectType, entityLabel: label || null, details: { createdBy, createdAt }, ip: req.ip,
+  });
 
   res.status(201).json({ ok: true });
 });
@@ -537,6 +574,10 @@ router.put("/:id/monitor/sppd-config", requireRole("admin"), (req, res) => {
     password: nextPassword,
     by: req.user.username,
   });
+  logAudit({
+    actor: req.user.username, projectId: req.params.id, action: "sppd_config.update",
+    entityType: "sppd_config", details: { baseUrl: baseUrl.trim(), username: username.trim() }, ip: req.ip,
+  });
 
   res.json({ ok: true });
 });
@@ -546,6 +587,7 @@ router.delete("/:id/monitor/sppd-config", requireRole("admin"), (req, res) => {
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
   db.prepare("DELETE FROM project_sppd_config WHERE project_id = ?").run(req.params.id);
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "sppd_config.remove", entityType: "sppd_config", ip: req.ip });
   res.json({ ok: true });
 });
 
@@ -631,6 +673,10 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   });
 
   const row = db.prepare("SELECT * FROM project_monitor_thresholds WHERE project_id = ?").get(req.params.id);
+  logAudit({
+    actor: req.user.username, projectId: req.params.id, action: "thresholds.update",
+    entityType: "thresholds", details: serializeThresholds(row), ip: req.ip,
+  });
   res.json(serializeThresholds(row));
 });
 
@@ -639,6 +685,7 @@ router.delete("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
   db.prepare("DELETE FROM project_monitor_thresholds WHERE project_id = ?").run(req.params.id);
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "thresholds.reset", entityType: "thresholds", ip: req.ip });
   res.json(serializeThresholds(null));
 });
 

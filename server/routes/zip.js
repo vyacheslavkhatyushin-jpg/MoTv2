@@ -12,6 +12,7 @@ const crypto = require("crypto");
 const express = require("express");
 const db = require("../db");
 const { requireAuth, requireRole } = require("../auth");
+const { logAudit } = require("../lib/audit");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -64,6 +65,7 @@ router.post("/:id/zip/items", requireRole("admin"), (req, res) => {
     minQty: Number.isFinite(minQty) ? minQty : 0, createdBy: req.user.username,
   });
   const row = db.prepare("SELECT * FROM zip_items WHERE id = ?").get(id);
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "zip_item.create", entityType: "zip_item", entityId: id, entityLabel: row.name, ip: req.ip });
   res.status(201).json({ item: serializeItem(row) });
 });
 
@@ -90,14 +92,16 @@ router.put("/:id/zip/items/:itemId", requireRole("admin"), (req, res) => {
     minQty: Number.isFinite(minQty) ? minQty : row.min_qty,
   });
   const updated = db.prepare("SELECT * FROM zip_items WHERE id = ?").get(row.id);
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "zip_item.update", entityType: "zip_item", entityId: row.id, entityLabel: updated.name, ip: req.ip });
   res.json({ item: serializeItem(updated) });
 });
 
 router.delete("/:id/zip/items/:itemId", requireRole("admin"), (req, res) => {
   if (!requireProject(req, res)) return;
-  const row = db.prepare("SELECT id FROM zip_items WHERE id = ? AND project_id = ?").get(req.params.itemId, req.params.id);
+  const row = db.prepare("SELECT id, name FROM zip_items WHERE id = ? AND project_id = ?").get(req.params.itemId, req.params.id);
   if (!row) return res.status(404).json({ error: "item_not_found" });
   db.prepare("DELETE FROM zip_items WHERE id = ?").run(row.id);
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "zip_item.delete", entityType: "zip_item", entityId: row.id, entityLabel: row.name, ip: req.ip });
   res.json({ ok: true });
 });
 
@@ -120,6 +124,7 @@ router.post("/:id/zip/items/:itemId/receipt", requireRole("admin"), (req, res) =
     stmtBumpOnHand.run(qty, item.id);
     stmtInsertMovement.run({ projectId: req.params.id, itemId: item.id, delta: qty, reason: "receipt", requestId: null, note, createdBy: req.user.username });
   })();
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "zip_item.receipt", entityType: "zip_item", entityId: item.id, entityLabel: item.name, details: { qty, note }, ip: req.ip });
   res.json({ item: serializeItem(stmtGetItemForUpdate.get(item.id, req.params.id)) });
 });
 
@@ -135,6 +140,7 @@ router.post("/:id/zip/items/:itemId/adjust", requireRole("admin"), (req, res) =>
     stmtBumpOnHand.run(delta, item.id);
     stmtInsertMovement.run({ projectId: req.params.id, itemId: item.id, delta, reason: "adjustment", requestId: null, note, createdBy: req.user.username });
   })();
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "zip_item.adjust", entityType: "zip_item", entityId: item.id, entityLabel: item.name, details: { delta, note }, ip: req.ip });
   res.json({ item: serializeItem(stmtGetItemForUpdate.get(item.id, req.params.id)) });
 });
 
@@ -188,6 +194,7 @@ router.post("/:id/zip/requests", requireRole("editor", "admin"), (req, res) => {
      VALUES (?, ?, ?, ?, ?)`
   ).run(req.params.id, itemId, qty, reason || null, req.user.username);
   const row = db.prepare(REQUEST_SELECT + " AND zr.id = ?").get(req.params.id, info.lastInsertRowid);
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "zip_request.create", entityType: "zip_request", entityId: row.id, entityLabel: row.item_name, details: { qty, reason }, ip: req.ip });
   res.status(201).json({ request: serializeRequest(row) });
 });
 
@@ -219,6 +226,7 @@ router.post("/:id/zip/requests/:reqId/approve", requireRole("admin"), (req, res)
       "UPDATE zip_requests SET status = 'approved', decided_by = ?, decided_at = datetime('now'), decision_note = ? WHERE id = ?"
     ).run(req.user.username, (req.body || {}).note || null, request.id);
   })();
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "zip_request.approve", entityType: "zip_request", entityId: request.id, entityLabel: request.item_name, ip: req.ip });
   res.json({ request: serializeRequest(db.prepare(REQUEST_SELECT + " AND zr.id = ?").get(req.params.id, request.id)) });
 });
 
@@ -229,6 +237,7 @@ router.post("/:id/zip/requests/:reqId/reject", requireRole("admin"), (req, res) 
   db.prepare(
     "UPDATE zip_requests SET status = 'rejected', decided_by = ?, decided_at = datetime('now'), decision_note = ? WHERE id = ?"
   ).run(req.user.username, (req.body || {}).note || null, request.id);
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "zip_request.reject", entityType: "zip_request", entityId: request.id, entityLabel: request.item_name, ip: req.ip });
   res.json({ request: serializeRequest(db.prepare(REQUEST_SELECT + " AND zr.id = ?").get(req.params.id, request.id)) });
 });
 
@@ -247,6 +256,7 @@ router.post("/:id/zip/requests/:reqId/cancel", requireRole("editor", "admin"), (
     db.prepare("UPDATE zip_requests SET status = 'cancelled', decided_by = ?, decided_at = datetime('now') WHERE id = ?")
       .run(req.user.username, request.id);
   })();
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "zip_request.cancel", entityType: "zip_request", entityId: request.id, entityLabel: request.item_name, ip: req.ip });
   res.json({ request: serializeRequest(db.prepare(REQUEST_SELECT + " AND zr.id = ?").get(req.params.id, request.id)) });
 });
 
@@ -264,6 +274,7 @@ router.post("/:id/zip/requests/:reqId/issue", requireRole("admin"), (req, res) =
     db.prepare("UPDATE zip_requests SET status = 'issued', issued_by = ?, issued_at = datetime('now') WHERE id = ?")
       .run(req.user.username, request.id);
   })();
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "zip_request.issue", entityType: "zip_request", entityId: request.id, entityLabel: request.item_name, details: { qty: request.qty }, ip: req.ip });
   res.json({ request: serializeRequest(db.prepare(REQUEST_SELECT + " AND zr.id = ?").get(req.params.id, request.id)) });
 });
 
