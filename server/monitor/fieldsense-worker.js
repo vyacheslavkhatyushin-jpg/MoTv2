@@ -1,32 +1,45 @@
 /*
 FieldSense (FlexAlertTTE) — поиск обрыва кабеля, коллектор мониторинга для
-оборудования типа FS (см. docs/monitoring-plan.md). Тот же физический сервер
-и тот же логин/пароль, что у SPPD (project_sppd_config) — просто другой
-раздел того же Django-сайта, поэтому логин переиспользуется из
-sppd-worker.js, а не дублируется.
+оборудования типа FS (см. docs/monitoring-plan.md). Живёт на том же
+физическом сервере, что и SPPD, использует тот же логин/пароль
+(project_sppd_config переиспользуется, отдельной настройки нет) — но это
+отдельный бэкенд ("fatte"), не тот же Django-процесс, что SPPD:
 
-В отличие от sppd-worker (постоянный WebSocket, push), у FieldSense нет
-API — это обычная серверная HTML-страница /FlexAlertTTE/fieldsense/ с
-таблицей "Датчики". Поэтому здесь простой поллинг по таймеру: GET страницы
-по сессионной куке, разбор HTML-таблицы регуляркой (без cheerio — в проекте
-такой зависимости нет, а верстка простая и стабильная), сопоставление по
-номеру "#" (тот же принцип, что sppdAddress у SPPD — админ один раз
-прописывает номер датчика на объекте FS в редакторе).
+  - страница /FlexAlertTTE/fieldsense/ отдаёт ТОЛЬКО пустой каркас таблицы
+    "Датчики" (номер #, антенна, место установки — без статуса/времени/
+    заряда, они пустые в исходном HTML) — все живые данные подгружает
+    браузерный JS через WebSocket, поэтому обычный HTTP GET+regex-парсинг
+    HTML (первая версия этого воркера) не работал: статус всегда был пустой.
 
-Статус ("На связи"/иное) на этой странице уже вычислен сервером
-FlexAlertTTE — доверяем ему напрямую, как OnLine у SPPD: applyOnlineState
-(импортирован из sppd-worker.js) красит статус сразу и debounce'ит запись
-аварии по тому же per-project порогу (project_monitor_thresholds,
-sppd_fail_duration_sec — общий с SPPD, отдельного порога для FieldSense
-пока нет).
+  - реальный источник — ws://<host>/fatte/api/ws/fieldsense, сообщения в
+    том же конверте {WSM_TYPE, WSM_DATA}, что у SPPD/SBeacon (обнаружено
+    через вкладку Network в devtools на живой системе):
+      {"WSM_TYPE":"SENSOR","WSM_DATA":{"bs_id":1,"sensor_id":119,"status":0,"battery_lvl":0,...}}
+    sensor_id — тот же номер, что колонка "#" в таблице "Датчики".
+    status: 1 — "На связи", 0 — "Нет связи" (подтверждено на живой системе).
+
+  - авторизация этого WS — ОТДЕЛЬНАЯ кука PHPSESSID (PHP-сессия), а не
+    Django sessionid/csrftoken у SPPD. На практике она приходит тем же
+    логином (POST /login/ выдаёт её вместе с sessionid/csrftoken —
+    видно на живой системе), но login() в sppd-worker.js раньше явно
+    оставлял только csrftoken/sessionid и терял остальные куки — это
+    починено в sppd-worker.js (login() теперь возвращает все куки с
+    ответа). Если по какой-то причине PHPSESSID всё же не пришёл с тем
+    же логином, ensureSession() ниже дополнительно "прогревает" сессию
+    GET-запросом на /FlexAlertTTE/fieldsense/ и подхватывает PHPSESSID
+    из его Set-Cookie, если он появится там.
+
+connectStream()/login()/parseSetCookiePairs()/applyOnlineState() — общий
+код с sppd-worker.js, импортированы оттуда, а не продублированы.
 */
 const db = require("../db");
 const sppd = require("./sppd-worker");
 
-const POLL_INTERVAL_MS = parseInt(process.env.FIELDSENSE_POLL_INTERVAL_MS || "60000", 10);
 const SESSION_TTL_MS = parseInt(process.env.FIELDSENSE_SESSION_TTL_MS || String(6 * 3600 * 1000), 10);
 const CONFIG_REFRESH_MS = parseInt(process.env.FIELDSENSE_CONFIG_REFRESH_MS || "60000", 10);
-const FIELDSENSE_PATH = "/FlexAlertTTE/fieldsense/";
+const TARGET_REFRESH_MS = parseInt(process.env.FIELDSENSE_TARGET_REFRESH_MS || "30000", 10);
+const WS_PATH = "/fatte/api/ws/fieldsense";
+const FIELDSENSE_PAGE_PATH = "/FlexAlertTTE/fieldsense/";
 const DEBUG = process.env.FIELDSENSE_DEBUG === "1";
 
 /* ---------- цели: оборудование с monitorMethod:"fs" ---------- */
@@ -50,123 +63,90 @@ function collectFsTargets(projectId) {
   return byAddr;
 }
 
-/* ---------- разбор таблицы "Датчики" ----------
-   Строки: # | Антенна | Номер измерения | Время | Место установки |
-   Уровень заряда | Статус. Верстка сервера FlexAlertTTE — обычные <tr>/<td>,
-   без классов/data-атрибутов, поэтому парсим регуляркой по тегам, а не по
-   селекторам. Первая ячейка — число (#), последняя — статус текстом. */
-function parseFieldsenseHtml(html) {
-  const rows = [];
-  const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  let trMatch;
-  while ((trMatch = trRe.exec(html))) {
-    const cellRe = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-    const cells = [];
-    let cellMatch;
-    while ((cellMatch = cellRe.exec(trMatch[1]))) {
-      cells.push(
-        cellMatch[1]
-          .replace(/<[^>]+>/g, " ")
-          .replace(/&nbsp;/g, " ")
-          .replace(/\s+/g, " ")
-          .trim()
-      );
-    }
-    // Заголовок таблицы и строка "Базовая станция" не начинаются с числа в
-    // первой ячейке — этого достаточно, чтобы отсечь их без явного поиска
-    // заголовка по тексту (который может отличаться в разных версиях страницы).
-    if (cells.length < 2 || !/^\d+$/.test(cells[0])) continue;
-    // Колонки: # | Антенна | Номер измерения | Время | Место установки |
-    // Уровень заряда | Статус — "Место установки" пятая по счёту (индекс 4).
-    rows.push({ addr: cells[0], place: cells[4] || null, status: cells[cells.length - 1] });
+/* ---------- логин: Django-сессия SPPD + "прогрев" PHP-сессии fatte ---------- */
+async function establishSession(config) {
+  const djangoCookie = await sppd.login(config);
+  if (/(?:^|;\s*)PHPSESSID=/.test(djangoCookie)) {
+    return djangoCookie; // уже пришёл вместе с логином — прогревать не нужно
   }
-  return rows;
-}
-
-function isOnlineStatus(status) {
-  return /на связи/i.test(status || "");
-}
-
-async function fetchFieldsenseRows(baseUrl, sessionCookie) {
-  const resp = await fetch(`${baseUrl}${FIELDSENSE_PATH}`, {
-    headers: { Cookie: sessionCookie },
+  const resp = await fetch(`${config.baseUrl}${FIELDSENSE_PAGE_PATH}`, {
+    headers: { Cookie: djangoCookie },
     redirect: "manual",
   });
-  // Django обычно редиректит на /login/, когда сессия протухла, но на
-  // случай другого поведения (200 с формой логина вместо таблицы)
-  // дополнительно проверяем содержимое ниже.
-  if (resp.status >= 300 && resp.status < 400) {
-    throw new Error("session_expired");
-  }
-  if (!resp.ok) {
-    throw new Error(`HTTP ${resp.status}`);
-  }
-  const html = await resp.text();
-  if (!/Датчики/i.test(html) && /csrfmiddlewaretoken/i.test(html)) {
-    throw new Error("session_expired");
-  }
-  return parseFieldsenseHtml(html);
+  const extra = sppd.parseSetCookiePairs(resp.headers);
+  return extra.PHPSESSID ? `${djangoCookie}; PHPSESSID=${extra.PHPSESSID}` : djangoCookie;
 }
 
-/* ---------- один "сайт" — проект + опрос его FieldSense-страницы ---------- */
-function startSite(projectId, config) {
-  let closed = false;
-  let sessionCookie = null;
-  let targetsByAddr = collectFsTargets(projectId);
-
-  async function ensureSession() {
-    if (sessionCookie) return sessionCookie;
-    sessionCookie = await sppd.login(config);
-    console.log(`[fieldsense-worker] [${projectId}] logged in`);
-    return sessionCookie;
+function handleSensor(msg, targetsByAddr, siteLabel) {
+  const data = msg.WSM_DATA;
+  if (DEBUG) {
+    console.log(`[fieldsense-worker]${siteLabel ? " [" + siteLabel + "]" : ""} SENSOR WSM_DATA=${JSON.stringify(data)}`);
   }
+  if (!data || data.sensor_id === undefined || data.sensor_id === null) return;
+  const addr = String(data.sensor_id);
+  const targets = targetsByAddr.get(addr);
+  if (DEBUG) {
+    console.log(`[fieldsense-worker]${siteLabel ? " [" + siteLabel + "]" : ""} SENSOR sensor_id=${addr} status=${data.status} matched=${targets ? targets.length : 0}`);
+  }
+  if (!targets || !targets.length) return;
+  const online = Number(data.status) === 1;
+  const metrics = data.battery_lvl !== undefined ? { batteryLvl: data.battery_lvl } : null;
+  for (const target of targets) sppd.applyOnlineState(target, online, metrics);
+}
 
-  async function poll() {
-    if (closed || !targetsByAddr.size) return;
+function logTargets(projectId, targetsByAddr) {
+  const addrs = [...targetsByAddr.keys()];
+  console.log(`[fieldsense-worker] [${projectId}] ${addrs.length} fs-target sensor_id(s) configured: ${addrs.join(", ") || "(none)"}`);
+}
+
+/* ---------- один "сайт" — проект + свой FlexAlertTTE-сервер ---------- */
+function startSite(projectId, config) {
+  const wsBase = config.baseUrl.replace(/^http/, "ws");
+  let closed = false;
+  let targetsByAddr = collectFsTargets(projectId);
+  logTargets(projectId, targetsByAddr);
+  let conn = null;
+  let reloginTimer = null;
+  let targetTimer = null;
+
+  targetTimer = setInterval(() => {
+    if (closed) return;
+    targetsByAddr = collectFsTargets(projectId);
+    if (DEBUG) logTargets(projectId, targetsByAddr);
+  }, TARGET_REFRESH_MS);
+
+  async function connect() {
+    if (closed) return;
+    let sessionCookie;
     try {
-      await ensureSession();
-      const rows = await fetchFieldsenseRows(config.baseUrl, sessionCookie);
-      if (DEBUG) {
-        console.log(`[fieldsense-worker] [${projectId}] ${rows.length} row(s) parsed`);
-      }
-      for (const row of rows) {
-        const targets = targetsByAddr.get(row.addr);
-        if (DEBUG) {
-          console.log(`[fieldsense-worker] [${projectId}] # ${row.addr} status="${row.status}" matched=${targets ? targets.length : 0}`);
-        }
-        if (!targets || !targets.length) continue;
-        const online = isOnlineStatus(row.status);
-        const metrics = row.place ? { place: row.place } : null;
-        for (const target of targets) sppd.applyOnlineState(target, online, metrics);
-      }
+      sessionCookie = await establishSession(config);
+      console.log(`[fieldsense-worker] [${projectId}] session established`);
     } catch (err) {
-      if (err.message === "session_expired") {
-        sessionCookie = null;
-        console.log(`[fieldsense-worker] [${projectId}] session expired — will re-login on next poll`);
-      } else {
-        console.error(`[fieldsense-worker] [${projectId}] poll failed:`, err.message);
+      console.error(`[fieldsense-worker] [${projectId}] login failed:`, err.message);
+      if (!closed) setTimeout(connect, 3000);
+      return;
+    }
+    if (conn) conn.close();
+    function dispatch(msg) {
+      const type = typeof msg.WSM_TYPE === "string" ? msg.WSM_TYPE.trim() : msg.WSM_TYPE;
+      if (type === "SENSOR") handleSensor(msg, targetsByAddr, projectId);
+      else if (DEBUG) {
+        console.log(`[fieldsense-worker] [${projectId}] unhandled WSM_TYPE=${JSON.stringify(msg.WSM_TYPE)}`);
       }
     }
+    conn = sppd.connectStream(`${projectId}/fieldsense`, wsBase, WS_PATH, sessionCookie, dispatch, () => closed);
   }
 
-  const targetTimer = setInterval(() => {
-    if (!closed) targetsByAddr = collectFsTargets(projectId);
-  }, POLL_INTERVAL_MS);
-  const pollTimer = setInterval(poll, POLL_INTERVAL_MS);
-  // Session TTL — просто сбрасываем куку, ensureSession() перелогинится на
-  // следующем poll(), тем же способом, что и при "session_expired".
-  const reloginTimer = setInterval(() => {
-    sessionCookie = null;
-  }, SESSION_TTL_MS);
-  poll();
+  connect();
+  reloginTimer = setInterval(connect, SESSION_TTL_MS);
 
   return {
     config,
     stop() {
       closed = true;
       clearInterval(targetTimer);
-      clearInterval(pollTimer);
       clearInterval(reloginTimer);
+      if (conn) conn.close();
     },
   };
 }
@@ -200,4 +180,4 @@ if (require.main === module) {
   run();
 }
 
-module.exports = { collectFsTargets, parseFieldsenseHtml, isOnlineStatus, fetchFieldsenseRows };
+module.exports = { collectFsTargets, handleSensor, establishSession };
