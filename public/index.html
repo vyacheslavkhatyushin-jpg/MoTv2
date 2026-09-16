@@ -710,6 +710,10 @@
       <label for="thSppdFails">Простой до фиксации аварии, мин — SPPD (0 — сразу)</label>
       <input type="number" id="thSppdFails" min="0" max="60" step="0.5">
     </div>
+    <div class="sc-field">
+      <label for="thFsFails">Простой до фиксации аварии, мин — FieldSense/FS (0 — сразу)</label>
+      <input type="number" id="thFsFails" min="0" max="60" step="0.5">
+    </div>
     <div id="thresholdsError"></div>
     <div class="sc-actions">
       <button id="btnThresholdsRemove" class="sc-btn-secondary">Сбросить на умолчания</button>
@@ -6319,6 +6323,7 @@ async function loadThresholds() {
     document.getElementById("thPingFails").value = data.pingFailDurationSec / 60;
     document.getElementById("thSppdStale").value = data.sppdStaleAfterSec;
     document.getElementById("thSppdFails").value = data.sppdFailDurationSec / 60;
+    document.getElementById("thFsFails").value = data.fsFailDurationSec / 60;
     thStatus.textContent = data.configured
       ? `Настроено${data.updatedBy ? " — " + data.updatedBy : ""}${data.updatedAt ? ", " + parseServerDate(data.updatedAt).toLocaleString() : ""}`
       : "Используются значения по умолчанию (ничего явно не настроено).";
@@ -6347,10 +6352,15 @@ document.getElementById("btnThresholdsSave").addEventListener("click", async () 
     thError.textContent = "Простой до аварии (SPPD) — число от 0 до 60 мин."; return;
   }
   const sppdFailDurationSec = Math.round(sppdFailMinutes * 60);
+  const fsFailMinutes = parseFloat(document.getElementById("thFsFails").value);
+  if (!Number.isFinite(fsFailMinutes) || fsFailMinutes < 0 || fsFailMinutes > 60) {
+    thError.textContent = "Простой до аварии (FieldSense) — число от 0 до 60 мин."; return;
+  }
+  const fsFailDurationSec = Math.round(fsFailMinutes * 60);
   try {
     const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec }),
+      body: JSON.stringify({ pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec }),
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));

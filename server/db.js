@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS project_monitor_thresholds (
   ping_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
   sppd_stale_after_sec INTEGER NOT NULL DEFAULT 120,
   sppd_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
+  fs_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
   updated_by TEXT,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -223,15 +224,21 @@ if (monitorThresholdsCols.some((c) => c.name === "ping_fail_threshold")) {
       ping_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
       sppd_stale_after_sec INTEGER NOT NULL DEFAULT 120,
       sppd_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
+      fs_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
       updated_by TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
-} else if (!monitorThresholdsCols.some((c) => c.name === "sppd_fail_duration_sec")) {
-  // Чисто добавочная миграция (в отличие от переименования выше) — здесь
+} else {
+  // Чисто добавочные миграции (в отличие от переименования выше) — здесь
   // уже могли быть настоящие сохранённые пороги, поэтому ADD COLUMN с
   // дефолтом, а не пересоздание таблицы.
-  db.exec("ALTER TABLE project_monitor_thresholds ADD COLUMN sppd_fail_duration_sec INTEGER NOT NULL DEFAULT 300");
+  if (!monitorThresholdsCols.some((c) => c.name === "sppd_fail_duration_sec")) {
+    db.exec("ALTER TABLE project_monitor_thresholds ADD COLUMN sppd_fail_duration_sec INTEGER NOT NULL DEFAULT 300");
+  }
+  if (!monitorThresholdsCols.some((c) => c.name === "fs_fail_duration_sec")) {
+    db.exec("ALTER TABLE project_monitor_thresholds ADD COLUMN fs_fail_duration_sec INTEGER NOT NULL DEFAULT 300");
+  }
 }
 
 module.exports = db;

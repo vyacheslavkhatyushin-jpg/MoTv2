@@ -557,7 +557,13 @@ router.delete("/:id/monitor/sppd-config", requireRole("admin"), (req, res) => {
 // дефолты воркеров", поэтому GET всегда возвращает конкретные числа (дефолт,
 // если не настроено), а не null — ping-worker.js/sppd-worker.js читают эту
 // же таблицу напрямую и точно так же откатываются к дефолтам.
-const THRESHOLD_DEFAULTS = { pingTimeoutSec: 1, pingFailDurationSec: 300, sppdStaleAfterSec: 120, sppdFailDurationSec: 300 };
+const THRESHOLD_DEFAULTS = {
+  pingTimeoutSec: 1,
+  pingFailDurationSec: 300,
+  sppdStaleAfterSec: 120,
+  sppdFailDurationSec: 300,
+  fsFailDurationSec: 300,
+};
 
 function serializeThresholds(row) {
   if (!row) return Object.assign({ configured: false }, THRESHOLD_DEFAULTS);
@@ -567,6 +573,7 @@ function serializeThresholds(row) {
     pingFailDurationSec: row.ping_fail_duration_sec,
     sppdStaleAfterSec: row.sppd_stale_after_sec,
     sppdFailDurationSec: row.sppd_fail_duration_sec,
+    fsFailDurationSec: row.fs_fail_duration_sec,
     updatedBy: row.updated_by,
     updatedAt: row.updated_at,
   };
@@ -584,7 +591,7 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
-  const { pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec } = req.body || {};
+  const { pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec } = req.body || {};
   if (!Number.isInteger(pingTimeoutSec) || pingTimeoutSec < 1 || pingTimeoutSec > 10) {
     return res.status(400).json({ error: "invalid_ping_timeout_sec" });
   }
@@ -599,18 +606,22 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   if (!Number.isInteger(sppdFailDurationSec) || sppdFailDurationSec < 0 || sppdFailDurationSec > 3600) {
     return res.status(400).json({ error: "invalid_sppd_fail_duration_sec" });
   }
+  if (!Number.isInteger(fsFailDurationSec) || fsFailDurationSec < 0 || fsFailDurationSec > 3600) {
+    return res.status(400).json({ error: "invalid_fs_fail_duration_sec" });
+  }
 
   db.prepare(
     `INSERT INTO project_monitor_thresholds
-       (project_id, ping_timeout_sec, ping_fail_duration_sec, sppd_stale_after_sec, sppd_fail_duration_sec, updated_by, updated_at)
-     VALUES (@id, @pingTimeoutSec, @pingFailDurationSec, @sppdStaleAfterSec, @sppdFailDurationSec, @by, datetime('now'))
+       (project_id, ping_timeout_sec, ping_fail_duration_sec, sppd_stale_after_sec, sppd_fail_duration_sec, fs_fail_duration_sec, updated_by, updated_at)
+     VALUES (@id, @pingTimeoutSec, @pingFailDurationSec, @sppdStaleAfterSec, @sppdFailDurationSec, @fsFailDurationSec, @by, datetime('now'))
      ON CONFLICT(project_id) DO UPDATE SET
        ping_timeout_sec = @pingTimeoutSec, ping_fail_duration_sec = @pingFailDurationSec,
        sppd_stale_after_sec = @sppdStaleAfterSec, sppd_fail_duration_sec = @sppdFailDurationSec,
+       fs_fail_duration_sec = @fsFailDurationSec,
        updated_by = @by, updated_at = datetime('now')`
   ).run({
     id: req.params.id,
-    pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec,
+    pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec,
     by: req.user.username,
   });
 
