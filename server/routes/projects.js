@@ -283,10 +283,13 @@ const MONITOR_EQUIP_SHAPE_SYSTEMS = {
   wifi: ["ВОЛС"],
   mla: ["LFC"], iilb: ["LFC"], isib: ["LFC"], mps: ["LFC"], mpc: ["LFC"],
   mtu: ["LFC"], mvsa: ["LFC"], mbu: ["LFC"],
-  stativ: ["LFC", "АО"],
+  stativ_lfc: ["LFC"],
+  stativ_ao: ["АО"],
+  stativ: ["LFC", "АО"], // устаревшее значение — объекты до разделения на LFC/АО
   fs: ["АО"],
   tel: ["Телефония"],
   cam: ["ВН"],
+  poe: ["ВН"],
 };
 const MONITOR_STATS_RANGE_MS = { "24h": 24 * 3600 * 1000, "7d": 7 * 24 * 3600 * 1000, "30d": 30 * 24 * 3600 * 1000 };
 const MONITOR_STATS_SPARK_MS = 7 * 24 * 3600 * 1000;
