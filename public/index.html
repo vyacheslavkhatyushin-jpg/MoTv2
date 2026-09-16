@@ -3938,14 +3938,24 @@ function buildEquipGeometry(shape, size) {
     }
     case "stativ_lfc":
     case "stativ": {
-      // Статив LFC (и устаревший общий "Статив") — стойка-подставка: опорная
-      // плита, вертикальная стойка и полка сверху
-      const base = new THREE.BoxGeometry(s * 0.7, s * 0.08, s * 0.7);
-      base.translate(0, -s * 0.46, 0);
-      const pole = new THREE.CylinderGeometry(s * 0.05, s * 0.05, s * 0.9, 10);
-      const shelf = new THREE.BoxGeometry(s * 0.6, s * 0.06, s * 0.6);
-      shelf.translate(0, s * 0.42, 0);
-      return BufferGeometryUtils.mergeGeometries([base, pole, shelf]);
+      // Статив LFC (и устаревший общий "Статив") — закрытый корпус с тремя
+      // выступающими юнитами оборудования; у верхнего юнита — индикаторы
+      const body = new THREE.BoxGeometry(s * 0.6, s * 0.9, s * 0.5);
+      const unit1 = new THREE.BoxGeometry(s * 0.5, s * 0.16, s * 0.06);
+      unit1.translate(0, s * 0.28, s * 0.28);
+      const unit2 = new THREE.BoxGeometry(s * 0.5, s * 0.16, s * 0.06);
+      unit2.translate(0, s * 0.02, s * 0.28);
+      const unit3 = new THREE.BoxGeometry(s * 0.5, s * 0.16, s * 0.06);
+      unit3.translate(0, -s * 0.24, s * 0.28);
+      const led1 = new THREE.SphereGeometry(s * 0.025, 6, 6);
+      led1.translate(-s * 0.16, s * 0.28, s * 0.32);
+      const led2 = new THREE.SphereGeometry(s * 0.025, 6, 6);
+      led2.translate(-s * 0.05, s * 0.28, s * 0.32);
+      const led3 = new THREE.SphereGeometry(s * 0.025, 6, 6);
+      led3.translate(s * 0.05, s * 0.28, s * 0.32);
+      const led4 = new THREE.SphereGeometry(s * 0.025, 6, 6);
+      led4.translate(s * 0.16, s * 0.28, s * 0.32);
+      return BufferGeometryUtils.mergeGeometries([body, unit1, unit2, unit3, led1, led2, led3, led4]);
     }
     case "stativ_ao": {
       // Статив АО — контейнер с оборудованием: прямоугольный корпус,
@@ -3970,13 +3980,17 @@ function buildEquipGeometry(shape, size) {
       return BufferGeometryUtils.mergeGeometries([body, port1, port2, port3]);
     }
     case "go": {
-      // ГО (оповещатель гражданской обороны) — рупор на кронштейне
-      const bracket = new THREE.CylinderGeometry(s * 0.04, s * 0.04, s * 0.5, 8);
-      bracket.translate(0, s * 0.1, 0);
-      const horn = new THREE.ConeGeometry(s * 0.35, s * 0.55, 16, 1, true);
+      // ГО (оповещатель гражданской обороны) — крупный мегафон-рупор с
+      // корпусом мотора на настенном креплении
+      const mount = new THREE.BoxGeometry(s * 0.08, s * 0.4, s * 0.08);
+      mount.translate(0, s * 0.05, -s * 0.18);
+      const motor = new THREE.CylinderGeometry(s * 0.14, s * 0.14, s * 0.22, 12);
+      motor.rotateX(Math.PI / 2);
+      motor.translate(0, s * 0.28, s * 0.02);
+      const horn = new THREE.ConeGeometry(s * 0.42, s * 0.6, 18, 1, true);
       horn.rotateX(-Math.PI / 2);
-      horn.translate(0, s * 0.35, s * 0.05);
-      return BufferGeometryUtils.mergeGeometries([bracket, horn]);
+      horn.translate(0, s * 0.28, s * 0.34);
+      return BufferGeometryUtils.mergeGeometries([mount, motor, horn]);
     }
     default:
       return new THREE.SphereGeometry(s * 0.5, 16, 12);
