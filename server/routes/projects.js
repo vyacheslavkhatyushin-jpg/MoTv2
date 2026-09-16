@@ -563,6 +563,7 @@ const THRESHOLD_DEFAULTS = {
   sppdStaleAfterSec: 120,
   sppdFailDurationSec: 300,
   fsFailDurationSec: 300,
+  lampFailAfterHours: 24,
 };
 
 function serializeThresholds(row) {
@@ -574,6 +575,7 @@ function serializeThresholds(row) {
     sppdStaleAfterSec: row.sppd_stale_after_sec,
     sppdFailDurationSec: row.sppd_fail_duration_sec,
     fsFailDurationSec: row.fs_fail_duration_sec,
+    lampFailAfterHours: row.lamp_fail_after_hours,
     updatedBy: row.updated_by,
     updatedAt: row.updated_at,
   };
@@ -591,7 +593,7 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
-  const { pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec } = req.body || {};
+  const { pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec, lampFailAfterHours } = req.body || {};
   if (!Number.isInteger(pingTimeoutSec) || pingTimeoutSec < 1 || pingTimeoutSec > 10) {
     return res.status(400).json({ error: "invalid_ping_timeout_sec" });
   }
@@ -609,19 +611,22 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   if (!Number.isInteger(fsFailDurationSec) || fsFailDurationSec < 0 || fsFailDurationSec > 3600) {
     return res.status(400).json({ error: "invalid_fs_fail_duration_sec" });
   }
+  if (!Number.isInteger(lampFailAfterHours) || lampFailAfterHours < 1 || lampFailAfterHours > 336) {
+    return res.status(400).json({ error: "invalid_lamp_fail_after_hours" });
+  }
 
   db.prepare(
     `INSERT INTO project_monitor_thresholds
-       (project_id, ping_timeout_sec, ping_fail_duration_sec, sppd_stale_after_sec, sppd_fail_duration_sec, fs_fail_duration_sec, updated_by, updated_at)
-     VALUES (@id, @pingTimeoutSec, @pingFailDurationSec, @sppdStaleAfterSec, @sppdFailDurationSec, @fsFailDurationSec, @by, datetime('now'))
+       (project_id, ping_timeout_sec, ping_fail_duration_sec, sppd_stale_after_sec, sppd_fail_duration_sec, fs_fail_duration_sec, lamp_fail_after_hours, updated_by, updated_at)
+     VALUES (@id, @pingTimeoutSec, @pingFailDurationSec, @sppdStaleAfterSec, @sppdFailDurationSec, @fsFailDurationSec, @lampFailAfterHours, @by, datetime('now'))
      ON CONFLICT(project_id) DO UPDATE SET
        ping_timeout_sec = @pingTimeoutSec, ping_fail_duration_sec = @pingFailDurationSec,
        sppd_stale_after_sec = @sppdStaleAfterSec, sppd_fail_duration_sec = @sppdFailDurationSec,
-       fs_fail_duration_sec = @fsFailDurationSec,
+       fs_fail_duration_sec = @fsFailDurationSec, lamp_fail_after_hours = @lampFailAfterHours,
        updated_by = @by, updated_at = datetime('now')`
   ).run({
     id: req.params.id,
-    pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec,
+    pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec, lampFailAfterHours,
     by: req.user.username,
   });
 

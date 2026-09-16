@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Фонари — Mine Operations Tool</title>
+<style>
+  :root{
+    --bg:#14171a;
+    --panel:#1b1f23;
+    --panel-alt:#22272b;
+    --panel-alt2:#262c31;
+    --border:#31373d;
+    --border-soft:#282e33;
+    --text:#e4e8eb;
+    --text-dim:#8d979f;
+    --text-faint:#5f6a71;
+    --accent:#ff9f1c;
+    --accent-dim:#8a5713;
+    --accent-2:#39b8b0;
+    --danger:#e6553d;
+    --ok:#2ecc71;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size:13px;
+  }
+  .mono{ font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  ::selection{ background:var(--accent); color:#14171a; }
+
+  /* ---- shell / top bar (переиспользовано из index.html) ---- */
+  #shell{ display:flex; flex-direction:column; width:100vw; height:100vh; }
+  #topBar{
+    flex:0 0 auto; height:56px; display:flex; align-items:center; gap:14px;
+    padding:0 18px; background:linear-gradient(180deg,#1c2126,#14171a);
+    border-bottom:1px solid var(--border); user-select:none;
+  }
+  #topBar .brand-titles{ display:flex; flex-direction:column; line-height:1.25; }
+  #topBar .brand-titles .t1{ font-size:15px; font-weight:700; color:var(--text); letter-spacing:.2px; }
+  #topBar .brand-titles .t2{ font-size:11px; color:var(--text-dim); }
+  #topBar .brand-spacer{ flex:1 1 auto; }
+  #topBar .brand-copyright{ font-size:10.5px; color:var(--text-faint); text-align:right; line-height:1.4; }
+  #topBar a, #topBar button{
+    text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;
+  }
+  #topBar a:hover, #topBar button:hover{ border-color:var(--accent); color:var(--accent); }
+  #topBar a.nav-current{ border-color:var(--accent); color:var(--accent); background:rgba(255,159,28,.08); }
+  #app{ flex:1 1 auto; min-height:0; overflow-y:auto; }
+
+  /* ---- экран входа (переиспользовано из index.html) ---- */
+  #authGate{
+    position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(1200px 800px at 50% 20%, #1c2126 0%, #0d0f11 70%);
+  }
+  #authGate.hidden{ display:none; }
+  #authCard{
+    width:360px; max-width:90vw; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:28px 26px 22px; box-shadow:0 20px 60px rgba(0,0,0,.45); text-align:center;
+  }
+  #authCard h1{ margin:0 0 2px; font-size:16px; font-weight:700; color:var(--text); text-align:center; }
+  #authCard h2{ margin:0 0 18px; font-size:12px; font-weight:500; color:var(--text-dim); text-align:center; }
+  #authCard label{ display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:6px; text-align:left; }
+  #authCard input[type="password"], #authCard input[type="text"]{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:9px 10px; font-size:13px; font-family:inherit; letter-spacing:1px;
+  }
+  #authCard input[type="password"]:focus, #authCard input[type="text"]:focus{ outline:none; border-color:var(--accent); }
+  #authCard #authError{ min-height:16px; font-size:11.5px; color:var(--danger); margin-top:8px; text-align:left; }
+  #authCard #btnAuthSubmit{
+    width:100%; margin-top:10px; padding:9px; border-radius:5px; border:1px solid var(--accent);
+    background:var(--accent); color:#14171a; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;
+  }
+  #authCard #btnAuthSubmit:hover{ filter:brightness(1.08); }
+  #authCard .authHint{ margin-top:14px; font-size:10.5px; color:var(--text-faint); text-align:center; line-height:1.5; }
+
+  /* ---- страница ---- */
+  .wrap{ max-width:1180px; margin:0 auto; padding:20px 20px 40px; }
+  .pagehead{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:6px; }
+  .crumb{ font-size:11.5px; color:var(--text-faint); }
+  .crumb b{ color:var(--text-dim); font-weight:600; }
+  h1{ margin:2px 0 6px; font-size:19px; font-weight:700; letter-spacing:.1px; }
+  .sub{ margin:0 0 18px; max-width:70ch; color:var(--text-dim); font-size:12px; line-height:1.6; }
+  .sub b{ color:var(--text); }
+
+  .btn{
+    font-family:inherit; font-size:12px; font-weight:600; border-radius:6px; padding:8px 14px;
+    cursor:pointer; border:1px solid var(--border); background:var(--panel-alt); color:var(--text-dim);
+    display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+  }
+  .btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .btn.primary{ background:var(--accent); border-color:var(--accent); color:#14171a; }
+  .btn.primary:hover{ filter:brightness(1.06); color:#14171a; }
+  .btn:disabled{ opacity:.5; cursor:default; }
+  .btn:disabled:hover{ border-color:var(--border); color:var(--text-dim); }
+
+  .reportbar{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:11px 16px; margin-bottom:18px; font-size:12px; color:var(--text-dim);
+  }
+  .reportbar b{ color:var(--text); }
+  .reportbar .spacer{ flex:1 1 auto; }
+  .reportbar select{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text); border-radius:5px;
+    padding:5px 8px; font-family:inherit; font-size:11.5px;
+  }
+  .trend{ display:flex; align-items:flex-end; gap:2px; height:22px; }
+  .trend .bar{ width:5px; border-radius:1px 1px 0 0; background:var(--ok); min-height:2px; }
+  .trend .bar.warn{ background:var(--danger); }
+
+  .kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px; }
+  @media (max-width:820px){ .kpis{ grid-template-columns:repeat(2,1fr); } }
+  .kpi{ background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:15px 16px; }
+  .kpi .lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-faint); margin-bottom:8px; }
+  .kpi .val{ font-size:26px; font-weight:700; line-height:1; }
+  .kpi .val.ok{ color:var(--ok); }
+  .kpi .val.danger{ color:var(--danger); }
+  .kpi .cap{ margin-top:6px; font-size:11px; color:var(--text-faint); }
+
+  .grid2{ display:grid; grid-template-columns:1.6fr 1fr; gap:14px; margin-bottom:18px; align-items:start; }
+  @media (max-width:920px){ .grid2{ grid-template-columns:1fr; } }
+
+  .panel{ background:var(--panel); border:1px solid var(--border); border-radius:10px; }
+  .panel-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 16px; border-bottom:1px solid var(--border-soft); }
+  .panel-head h2{ margin:0; font-size:13.5px; font-weight:600; }
+  .panel-head .hint{ font-size:10.5px; color:var(--text-faint); }
+
+  .deptrow{ display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid var(--border-soft); font-size:12px; }
+  .deptrow:last-child{ border-bottom:none; }
+  .deptrow .name{ flex:0 0 210px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .deptrow .bar{ flex:1; height:7px; border-radius:4px; background:var(--panel-alt2); overflow:hidden; display:flex; }
+  .deptrow .bar .seg-ok{ background:var(--ok); }
+  .deptrow .bar .seg-bad{ background:var(--danger); }
+  .deptrow .nums{ flex:0 0 66px; text-align:right; color:var(--text-faint); font-size:11px; }
+  .deptrow .nums b{ color:var(--danger); font-weight:600; }
+  .dept-empty{ padding:16px; color:var(--text-faint); text-align:center; font-size:12px; }
+
+  .dropzone{
+    border:1.5px dashed var(--border); border-radius:8px; padding:22px 14px; text-align:center;
+    color:var(--text-faint); font-size:12px; line-height:1.6; cursor:pointer;
+  }
+  .dropzone.drag{ border-color:var(--accent); color:var(--accent); background:rgba(255,159,28,.06); }
+  .dropzone .pick{ color:var(--accent); font-weight:600; }
+  .upload-note{ font-size:11px; color:var(--text-faint); margin:12px 0 0; line-height:1.6; }
+  .upload-status{ margin-top:10px; font-size:11.5px; }
+  .upload-status.err{ color:var(--danger); }
+  .upload-status.ok{ color:var(--ok); }
+
+  .controlbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .controlbar input[type="search"]{
+    flex:1; min-width:180px; background:var(--panel); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:8px 11px; font-family:inherit; font-size:12.5px;
+  }
+  .controlbar select{
+    background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:6px;
+    padding:8px 10px; font-family:inherit; font-size:12px;
+  }
+
+  .table-wrap{ background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
+  table.lamps-table{ width:100%; border-collapse:collapse; min-width:820px; }
+  table.lamps-table th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:700;
+    color:var(--text-faint); padding:10px 14px; background:var(--panel-alt); border-bottom:1px solid var(--border);
+    white-space:nowrap; cursor:pointer; user-select:none; position:sticky; top:0;
+  }
+  table.lamps-table th:hover{ color:var(--text); }
+  table.lamps-table th.sorted{ color:var(--accent); }
+  table.lamps-table td{ padding:9px 14px; border-bottom:1px solid var(--border-soft); font-size:12px; color:var(--text-dim); vertical-align:middle; }
+  table.lamps-table tr:last-child td{ border-bottom:none; }
+  table.lamps-table tr:hover td{ background:rgba(255,255,255,.02); }
+  td.fio{ color:var(--text); font-weight:600; }
+  td.fio .pos{ display:block; font-weight:400; color:var(--text-faint); font-size:10.5px; margin-top:1px; }
+  .pill{ display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; padding:3px 9px; border-radius:99px; white-space:nowrap; }
+  .pill .dot{ width:6px; height:6px; border-radius:50%; }
+  .pill.ok{ background:rgba(46,204,113,.12); color:var(--ok); }
+  .pill.ok .dot{ background:var(--ok); }
+  .pill.bad{ background:rgba(230,85,61,.14); color:var(--danger); }
+  .pill.bad .dot{ background:var(--danger); }
+  td.silence.warn{ color:var(--danger); font-weight:600; }
+  .lamps-empty{ text-align:center; color:var(--text-faint); padding:40px 20px; }
+
+  #lampsError, #lampsEmpty{ text-align:center; color:var(--text-faint); padding:60px 20px; line-height:1.6; }
+  #lampsError{ color:var(--danger); }
+
+  footer.note{ margin-top:12px; font-size:11px; color:var(--text-faint); line-height:1.6; }
+  footer.note b{ color:var(--text-dim); }
+</style>
+</head>
+<body>
+
+<!-- ================= Экран входа по паролю (тот же кэш сессии, что в index.html) ================= -->
+<div id="authGate">
+  <div id="authCard">
+    <h1>Mine Operations Tool</h1>
+    <h2>KazMinerals LLP — Фонари</h2>
+    <label for="authUsername">Логин</label>
+    <input type="text" id="authUsername" autocomplete="username" placeholder="Логин" style="margin-bottom:10px;" />
+    <label for="authPassword">Пароль</label>
+    <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
+    <div id="authError"></div>
+    <button id="btnAuthSubmit">Войти</button>
+    <div class="authHint">Доступ только для авторизованных сотрудников KazMinerals LLP.<br>© 2026 KazMinerals LLP. Все права защищены.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var gate = document.getElementById("authGate");
+  var userInput = document.getElementById("authUsername");
+  var passInput = document.getElementById("authPassword");
+  var errorEl = document.getElementById("authError");
+  var btn = document.getElementById("btnAuthSubmit");
+
+  function unlock(session){
+    gate.classList.add("hidden");
+    window.__auth = session;
+    document.dispatchEvent(new CustomEvent("kzmAuthReady"));
+  }
+  function readStoredSession(){
+    try {
+      var raw = localStorage.getItem("kzmAuthSession");
+      if (!raw) return null;
+      var s = JSON.parse(raw);
+      if (s && s.token && s.username && s.role) return s;
+    } catch(e){}
+    return null;
+  }
+  async function tryLogin(){
+    var username = (userInput.value || "").trim();
+    var password = passInput.value || "";
+    if (!username || !password) {
+      errorEl.textContent = "Введите логин и пароль.";
+      return;
+    }
+    btn.disabled = true;
+    try {
+      var resp = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username, password: password }),
+      });
+      if (!resp.ok) {
+        errorEl.textContent = "Неверный логин или пароль.";
+        passInput.value = "";
+        passInput.focus();
+        return;
+      }
+      var data = await resp.json();
+      var session = { token: data.token, username: data.username, role: data.role };
+      try { localStorage.setItem("kzmAuthSession", JSON.stringify(session)); } catch(e){}
+      errorEl.textContent = "";
+      unlock(session);
+    } catch(e) {
+      errorEl.textContent = "Не удалось связаться с сервером.";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  var stored = readStoredSession();
+  if (stored) { unlock(stored); } else { userInput.focus(); }
+  btn.addEventListener("click", tryLogin);
+  passInput.addEventListener("keydown", function(e){ if (e.key === "Enter") tryLogin(); });
+  userInput.addEventListener("keydown", function(e){ if (e.key === "Enter") passInput.focus(); });
+  window.__kzmLogout = function(){
+    try { localStorage.removeItem("kzmAuthSession"); } catch(e){}
+    location.reload();
+  };
+})();
+</script>
+
+<div id="shell">
+  <header id="topBar">
+    <div class="brand-titles">
+      <span class="t1">Фонари</span>
+      <span class="t2">KazMinerals LLP — работоспособность</span>
+    </div>
+    <div class="brand-spacer"></div>
+    <div id="sessionInfo" style="display:flex; align-items:center; gap:10px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
+      <span id="sessionProject"></span>
+      <span id="sessionUser"></span>
+      <a id="navToEditor" title="Редактор модели">✏️ Редактор</a>
+      <a id="navToMonitoring" title="Мониторинг оборудования">📡 Мониторинг</a>
+      <a id="navToStats" title="История аварий">📊 Статистика</a>
+      <a id="navToRegistry" title="Реестр ЗИП">📦 ЗИП</a>
+      <a id="navToLamps" class="nav-current" title="Фонари">🔦 Фонари</a>
+      <button id="btnLogout" title="Выйти">Выйти</button>
+    </div>
+    <div class="brand-copyright">© 2026 KazMinerals LLP<br>Все права защищены</div>
+  </header>
+
+  <div id="app">
+    <div class="wrap">
+      <div class="pagehead">
+        <div>
+          <span class="crumb"><b>Фонари</b> <span id="crumbProject"></span></span>
+          <h1>Работоспособность фонарей</h1>
+          <p class="sub">Тег шахтёра = фонарь. <b>Исправен</b> — была регистрация на считывателе не позже <b id="thresholdLabel">24 ч</b> назад (от времени в самом отчёте); иначе — <b>неисправен</b>.</p>
+        </div>
+        <button id="btnUploadOpen" class="btn primary" style="display:none;">⤓ Загрузить отчёт</button>
+      </div>
+
+      <div class="reportbar">
+        <span id="reportbarSummary">Отчётов ещё нет</span>
+        <div class="spacer"></div>
+        <div class="trend" id="trendChart" title="Тренд % исправности по последним загрузкам"></div>
+        <span>История:</span>
+        <select id="reportSelect"></select>
+      </div>
+
+      <div id="uploadPanel" class="panel" style="display:none; margin-bottom:18px;">
+        <div class="panel-head"><h2>Загрузить новый отчёт</h2><button id="btnUploadClose" class="btn">✕</button></div>
+        <div style="padding:16px;">
+          <div class="dropzone" id="dropzone">
+            Перетащите .xls/.xlsx сюда<br>или<br>
+            <span class="pick">выберите файл</span>
+            <input type="file" id="fileInput" accept=".xls,.xlsx" style="display:none;">
+          </div>
+          <p class="upload-note">Формат — экспорт SPPD/SBeacon «Отчёт: Текущие местоположение» (apk/ipk/opk — разные форматы файла поддерживаются одним разбором). Дата отчёта берётся из шапки файла, порог неисправности — из «⚙ Пороги» в редакторе.</p>
+          <div class="upload-status" id="uploadStatus"></div>
+        </div>
+      </div>
+
+      <div id="lampsError" style="display:none;"></div>
+      <div id="lampsEmpty" style="display:none;"><b>Отчётов ещё нет.</b><br>Загрузите первый отчёт кнопкой выше.</div>
+
+      <div id="lampsContent" style="display:none;">
+        <div class="kpis">
+          <div class="kpi"><div class="lbl">Всего фонарей</div><div class="val" id="kpiTotal">—</div><div class="cap">по выбранному отчёту</div></div>
+          <div class="kpi"><div class="lbl">Исправно</div><div class="val ok" id="kpiOk">—</div><div class="cap">регистрация в пределах порога</div></div>
+          <div class="kpi"><div class="lbl">Неисправно</div><div class="val danger" id="kpiBroken">—</div><div class="cap">молчание дольше порога</div></div>
+          <div class="kpi"><div class="lbl">% исправности</div><div class="val" id="kpiUptime">—</div><div class="cap" id="kpiUptimeCap"></div></div>
+        </div>
+
+        <div class="grid2">
+          <div class="panel">
+            <div class="panel-head"><h2>По подразделениям</h2><span class="hint">хуже всего — сверху</span></div>
+            <div id="deptList"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Об отчёте</h2></div>
+            <div id="reportMeta" style="padding:14px 16px; font-size:12px; color:var(--text-dim); line-height:2;"></div>
+          </div>
+        </div>
+
+        <div class="controlbar">
+          <input type="search" id="lampSearch" placeholder="Поиск по ФИО, таб.№, тегу…">
+          <select id="deptFilter"><option value="">Все подразделения</option></select>
+          <select id="statusFilter">
+            <option value="">Все статусы</option>
+            <option value="broken">Только неисправные</option>
+            <option value="ok">Только исправные</option>
+          </select>
+          <button id="btnExportLamps" class="btn">⤓ Экспорт CSV</button>
+        </div>
+
+        <div class="table-wrap"><div id="lampsTableWrap"></div></div>
+        <footer class="note">Сортировка по умолчанию — <b>неисправные сверху</b>, дальше по давности молчания. Заголовки столбцов кликабельны.</footer>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+const CURRENT_PROJECT_ID = (location.pathname.split("/").filter(Boolean)[0] || "default").toLowerCase();
+
+function apiHeaders(extra) {
+  const auth = window.__auth;
+  const headers = Object.assign({}, extra || {});
+  if (auth && auth.token) headers["Authorization"] = "Bearer " + auth.token;
+  return headers;
+}
+async function apiFetch(url, options) {
+  const resp = await fetch(url, Object.assign({}, options, { headers: apiHeaders((options && options.headers) || {}) }));
+  if (resp.status === 401) {
+    if (window.__kzmLogout) window.__kzmLogout();
+    throw new Error("Сессия истекла, требуется повторный вход.");
+  }
+  return resp;
+}
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function parseServerDate(s) {
+  if (!s) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)/.exec(s);
+  return m ? new Date(s.includes("T") ? s : s.replace(" ", "T") + "Z") : new Date(s);
+}
+function fmtWhen(iso) {
+  const d = parseServerDate(iso);
+  if (!d || isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function fmtSilence(hours) {
+  if (hours < 24) return Math.round(hours) + " ч";
+  const days = Math.floor(hours / 24);
+  return days + " дн";
+}
+
+let currentReportId = null;
+let currentDetail = null; // { report, departments, records, lampFailAfterHours }
+let sortState = { key: "default", dir: "desc" };
+let searchTerm = "";
+let deptFilterVal = "";
+let statusFilterVal = "";
+
+function hoursSince(lastSeenIso, generatedAtIso) {
+  const last = parseServerDate(lastSeenIso).getTime();
+  const gen = parseServerDate(generatedAtIso).getTime();
+  return (gen - last) / 3600000;
+}
+
+const LAMP_COLUMNS = [
+  { key: "status", label: "Статус" },
+  { key: "tabNumber", label: "Таб.№" },
+  { key: "fullName", label: "ФИО" },
+  { key: "department", label: "Подразделение" },
+  { key: "lampId", label: "Тег/фонарь" },
+  { key: "reader", label: "Считыватель" },
+  { key: "lastSeenAt", label: "Посл. регистрация" },
+  { key: "silence", label: "Без связи" },
+];
+
+function compareLamps(a, b, key, dir, generatedAt) {
+  if (key === "default") {
+    if (a.isBroken !== b.isBroken) return a.isBroken ? -1 : 1;
+    return hoursSince(b.lastSeenAt, generatedAt) - hoursSince(a.lastSeenAt, generatedAt);
+  }
+  let cmp = 0;
+  switch (key) {
+    case "status": cmp = a.isBroken === b.isBroken ? 0 : a.isBroken ? -1 : 1; break;
+    case "tabNumber": cmp = a.tabNumber.localeCompare(b.tabNumber, "ru", { numeric: true }); break;
+    case "fullName": cmp = a.fullName.localeCompare(b.fullName, "ru"); break;
+    case "department": cmp = (a.department || "").localeCompare(b.department || "", "ru"); break;
+    case "lampId": cmp = (a.lampId || "").localeCompare(b.lampId || "", "ru", { numeric: true }); break;
+    case "reader": cmp = (a.reader || "").localeCompare(b.reader || "", "ru"); break;
+    case "lastSeenAt": cmp = parseServerDate(a.lastSeenAt) - parseServerDate(b.lastSeenAt); break;
+    case "silence": cmp = hoursSince(a.lastSeenAt, generatedAt) - hoursSince(b.lastSeenAt, generatedAt); break;
+  }
+  return dir === "asc" ? cmp : -cmp;
+}
+
+function sortHeaderCell(col) {
+  const isSorted = sortState.key === col.key;
+  const arrow = isSorted ? (sortState.dir === "asc" ? " ▲" : " ▼") : "";
+  return `<th class="sortable${isSorted ? " sorted" : ""}" data-sort-key="${col.key}">${esc(col.label)}${arrow}</th>`;
+}
+
+function filteredRecords() {
+  if (!currentDetail) return [];
+  const term = searchTerm.trim().toLowerCase();
+  return currentDetail.records.filter((r) => {
+    if (deptFilterVal && r.department !== deptFilterVal) return false;
+    if (statusFilterVal === "broken" && !r.isBroken) return false;
+    if (statusFilterVal === "ok" && r.isBroken) return false;
+    if (term) {
+      const hay = `${r.fullName} ${r.tabNumber} ${r.lampId}`.toLowerCase();
+      if (!hay.includes(term)) return false;
+    }
+    return true;
+  });
+}
+function getSortedRecords() {
+  const generatedAt = currentDetail.report.generatedAt;
+  return filteredRecords().sort((a, b) => compareLamps(a, b, sortState.key, sortState.dir, generatedAt));
+}
+
+function renderLampsTable() {
+  const wrap = document.getElementById("lampsTableWrap");
+  const records = getSortedRecords();
+  if (!records.length) {
+    wrap.innerHTML = `<div class="lamps-empty">Ничего не найдено по текущим фильтрам.</div>`;
+    return;
+  }
+  const generatedAt = currentDetail.report.generatedAt;
+  const rows = records.map((r) => {
+    const hrs = hoursSince(r.lastSeenAt, generatedAt);
+    return `<tr>
+      <td>${r.isBroken
+        ? `<span class="pill bad"><span class="dot"></span>Неисправен</span>`
+        : `<span class="pill ok"><span class="dot"></span>Исправен</span>`}</td>
+      <td class="mono">${esc(r.tabNumber)}</td>
+      <td class="fio">${esc(r.fullName)}${r.position ? `<span class="pos">${esc(r.position)}</span>` : ""}</td>
+      <td>${esc(r.department || "—")}</td>
+      <td class="mono">${esc(r.lampId || "—")}</td>
+      <td>${esc(r.reader || "—")}</td>
+      <td class="mono">${esc(fmtWhen(r.lastSeenAt))}</td>
+      <td class="mono silence${hrs > (currentDetail.lampFailAfterHours || 24) ? " warn" : ""}">${fmtSilence(hrs)}</td>
+    </tr>`;
+  }).join("");
+  wrap.innerHTML = `<table class="lamps-table"><thead><tr>${LAMP_COLUMNS.map(sortHeaderCell).join("")}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+document.getElementById("lampsContent").addEventListener("click", (e) => {
+  const th = e.target.closest("th.sortable");
+  if (!th) return;
+  const key = th.dataset.sortKey;
+  sortState = sortState.key === key ? { key, dir: sortState.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" };
+  renderLampsTable();
+});
+document.getElementById("lampSearch").addEventListener("input", (e) => { searchTerm = e.target.value; renderLampsTable(); });
+document.getElementById("deptFilter").addEventListener("change", (e) => { deptFilterVal = e.target.value; renderLampsTable(); });
+document.getElementById("statusFilter").addEventListener("change", (e) => { statusFilterVal = e.target.value; renderLampsTable(); });
+
+function csvCell(v) {
+  const s = String(v == null ? "" : v);
+  return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+document.getElementById("btnExportLamps").addEventListener("click", () => {
+  if (!currentDetail) return;
+  const header = ["Статус", "Таб.№", "ФИО", "Должность", "Подразделение", "Тег/фонарь", "Считыватель", "Посл. регистрация", "Без связи (ч)"];
+  const lines = [header.map(csvCell).join(";")];
+  const generatedAt = currentDetail.report.generatedAt;
+  for (const r of getSortedRecords()) {
+    lines.push([
+      r.isBroken ? "Неисправен" : "Исправен",
+      r.tabNumber, r.fullName, r.position || "", r.department || "", r.lampId || "", r.reader || "",
+      fmtWhen(r.lastSeenAt), Math.round(hoursSince(r.lastSeenAt, generatedAt) * 10) / 10,
+    ].map(csvCell).join(";"));
+  }
+  const csv = "﻿" + lines.join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `fonari_${CURRENT_PROJECT_ID}_${(currentReportId || "latest")}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+function renderDepartments(departments) {
+  const el = document.getElementById("deptList");
+  const deptFilter = document.getElementById("deptFilter");
+  const currentVal = deptFilter.value;
+  deptFilter.innerHTML = '<option value="">Все подразделения</option>' +
+    departments.map((d) => `<option value="${esc(d.department)}">${esc(d.department)}</option>`).join("");
+  deptFilter.value = currentVal;
+
+  if (!departments.length) {
+    el.innerHTML = `<div class="dept-empty">Нет данных</div>`;
+    return;
+  }
+  const maxTotal = Math.max(1, ...departments.map((d) => d.total));
+  el.innerHTML = departments.map((d) => {
+    const okN = d.total - d.broken;
+    const okPct = (okN / maxTotal) * 100;
+    const badPct = (d.broken / maxTotal) * 100;
+    return `<div class="deptrow">
+      <span class="name" title="${esc(d.department)}">${esc(d.department)}</span>
+      <div class="bar"><div class="seg-ok" style="flex:${okPct}"></div><div class="seg-bad" style="flex:${badPct}"></div></div>
+      <span class="nums">${d.broken > 0 ? `<b>${d.broken}</b>` : "0"} / ${d.total}</span>
+    </div>`;
+  }).join("");
+}
+
+function renderTrend(reports) {
+  const el = document.getElementById("trendChart");
+  const ordered = reports.slice().reverse(); // старые -> новые
+  el.innerHTML = ordered.map((r) => {
+    const pct = r.uptimePct == null ? 0 : r.uptimePct;
+    const warn = pct < 90;
+    return `<div class="bar${warn ? " warn" : ""}" style="height:${Math.max(8, pct / 100 * 22)}px" title="${esc(fmtWhen(r.generatedAt))} — ${pct}%"></div>`;
+  }).join("");
+}
+
+async function loadReportsList() {
+  const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/lamps/reports?limit=20`);
+  if (!resp.ok) throw new Error("HTTP " + resp.status);
+  const data = await resp.json();
+  const select = document.getElementById("reportSelect");
+  select.innerHTML = data.reports.map((r, i) =>
+    `<option value="${esc(r.id)}">${esc(fmtWhen(r.generatedAt))}${i === 0 ? " (текущий)" : ""}</option>`
+  ).join("");
+  renderTrend(data.reports);
+  const summary = document.getElementById("reportbarSummary");
+  if (data.reports.length) {
+    const latest = data.reports[0];
+    summary.innerHTML = `Текущий отчёт: <b>${esc(fmtWhen(latest.generatedAt))}</b> · загрузил <b>${esc(latest.uploadedBy)}</b>`;
+  } else {
+    summary.textContent = "Отчётов ещё нет";
+  }
+  return data.reports;
+}
+
+async function loadReportDetail(reportId) {
+  const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/lamps/reports/${encodeURIComponent(reportId)}`);
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error("HTTP " + resp.status);
+  return resp.json();
+}
+
+async function showReport(reportId) {
+  const errEl = document.getElementById("lampsError");
+  const emptyEl = document.getElementById("lampsEmpty");
+  const contentEl = document.getElementById("lampsContent");
+  errEl.style.display = "none";
+  try {
+    const detail = await loadReportDetail(reportId);
+    if (!detail) {
+      emptyEl.style.display = "block";
+      contentEl.style.display = "none";
+      return;
+    }
+    emptyEl.style.display = "none";
+    contentEl.style.display = "block";
+    currentDetail = detail;
+    currentReportId = detail.report.id;
+    sortState = { key: "default", dir: "desc" };
+    searchTerm = ""; deptFilterVal = ""; statusFilterVal = "";
+    document.getElementById("lampSearch").value = "";
+    document.getElementById("statusFilter").value = "";
+
+    document.getElementById("kpiTotal").textContent = detail.report.totalCount;
+    document.getElementById("kpiOk").textContent = detail.report.okCount;
+    document.getElementById("kpiBroken").textContent = detail.report.brokenCount;
+    document.getElementById("kpiUptime").textContent = detail.report.uptimePct == null ? "—" : detail.report.uptimePct + "%";
+    document.getElementById("kpiUptimeCap").textContent = "порог: " + detail.lampFailAfterHours + " ч";
+    document.getElementById("thresholdLabel").textContent = detail.lampFailAfterHours + " ч";
+
+    document.getElementById("reportMeta").innerHTML = `
+      <div>Дата отчёта: <b>${esc(fmtWhen(detail.report.generatedAt))}</b></div>
+      <div>Файл: <b>${esc(detail.report.sourceFilename || "—")}</b></div>
+      <div>Загрузил: <b>${esc(detail.report.uploadedBy)}</b>, ${esc(fmtWhen(detail.report.uploadedAt))}</div>
+    `;
+
+    renderDepartments(detail.departments);
+    renderLampsTable();
+  } catch (err) {
+    contentEl.style.display = "none";
+    emptyEl.style.display = "none";
+    errEl.textContent = "Не удалось загрузить отчёт: " + err.message;
+    errEl.style.display = "block";
+  }
+}
+
+document.getElementById("reportSelect").addEventListener("change", (e) => {
+  if (e.target.value) showReport(e.target.value);
+});
+
+async function refreshAll() {
+  try {
+    const reports = await loadReportsList();
+    if (reports.length) {
+      document.getElementById("reportSelect").value = reports[0].id;
+      await showReport(reports[0].id);
+    } else {
+      document.getElementById("lampsEmpty").style.display = "block";
+      document.getElementById("lampsContent").style.display = "none";
+    }
+  } catch (err) {
+    document.getElementById("lampsError").textContent = "Не удалось загрузить список отчётов: " + err.message;
+    document.getElementById("lampsError").style.display = "block";
+  }
+}
+
+/* ---------- загрузка отчёта ---------- */
+const uploadPanel = document.getElementById("uploadPanel");
+document.getElementById("btnUploadOpen").addEventListener("click", () => { uploadPanel.style.display = "block"; });
+document.getElementById("btnUploadClose").addEventListener("click", () => { uploadPanel.style.display = "none"; });
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag"));
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  if (e.dataTransfer.files && e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files && fileInput.files.length) uploadFile(fileInput.files[0]);
+  fileInput.value = "";
+});
+
+async function uploadFile(file) {
+  const statusEl = document.getElementById("uploadStatus");
+  statusEl.className = "upload-status";
+  statusEl.textContent = "Загрузка «" + file.name + "»…";
+  try {
+    const buf = await file.arrayBuffer();
+    const resp = await apiFetch(
+      `/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/lamps/reports?filename=${encodeURIComponent(file.name)}`,
+      { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: buf }
+    );
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.message || err.error || ("HTTP " + resp.status));
+    }
+    const summary = await resp.json();
+    statusEl.className = "upload-status ok";
+    statusEl.textContent = `Загружено: ${summary.totalCount} записей, ${summary.brokenCount} неисправно.`;
+    await refreshAll();
+  } catch (err) {
+    statusEl.className = "upload-status err";
+    statusEl.textContent = "Не удалось загрузить: " + err.message;
+  }
+}
+
+document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
+
+function applyRoleUI() {
+  const auth = window.__auth;
+  document.getElementById("sessionProject").textContent = "Проект: " + CURRENT_PROJECT_ID;
+  document.getElementById("crumbProject").textContent = "· " + CURRENT_PROJECT_ID;
+  document.getElementById("sessionUser").textContent = auth ? `${auth.username} (${auth.role})` : "";
+  document.getElementById("navToEditor").href = `/${CURRENT_PROJECT_ID}`;
+  document.getElementById("navToMonitoring").href = `/${CURRENT_PROJECT_ID}/monitoring`;
+  document.getElementById("navToStats").href = `/${CURRENT_PROJECT_ID}/monitoring/stats`;
+  document.getElementById("navToRegistry").href = `/${CURRENT_PROJECT_ID}/registry`;
+  document.getElementById("navToLamps").href = `/${CURRENT_PROJECT_ID}/lamps`;
+  const canUpload = auth && (auth.role === "editor" || auth.role === "admin");
+  document.getElementById("btnUploadOpen").style.display = canUpload ? "inline-flex" : "none";
+}
+
+function boot() {
+  applyRoleUI();
+  refreshAll();
+}
+if (window.__auth) boot();
+else document.addEventListener("kzmAuthReady", boot, { once: true });
+</script>
+</body>
+</html>

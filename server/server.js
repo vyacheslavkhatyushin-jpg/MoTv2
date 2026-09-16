@@ -8,6 +8,7 @@ const authRoutes = require("./routes/auth");
 const projectRoutes = require("./routes/projects");
 const usersRoutes = require("./routes/users");
 const zipRoutes = require("./routes/zip");
+const lampsRoutes = require("./routes/lamps");
 const { verifyToken } = require("./auth");
 const db = require("./db");
 
@@ -21,6 +22,7 @@ app.use(express.json({ limit: "300mb" }));
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/projects", zipRoutes);
+app.use("/api/projects", lampsRoutes);
 app.use("/api/users", usersRoutes);
 
 app.use(express.static(path.join(__dirname, "..", "public")));
@@ -35,6 +37,11 @@ app.get(/^\/[^/]+\/registry\/?$/, (req, res) => {
 // лёгкая страница без Three.js, поверх /api/projects/:id/monitor/stats.
 app.get(/^\/[^/]+\/monitoring\/stats\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "monitoring-stats.html"));
+});
+
+// Фонари — отдельная лёгкая страница, поверх /api/projects/:id/lamps/reports.
+app.get(/^\/[^/]+\/lamps\/?$/, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "lamps.html"));
 });
 
 // SPA: any other GET (e.g. /:projectId) serves the app; the frontend reads
