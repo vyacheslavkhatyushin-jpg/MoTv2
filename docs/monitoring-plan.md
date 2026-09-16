@@ -19,7 +19,8 @@
 | MAP, WiFi | Ping (+SNMP по мере подтверждения) | доступность; опционально аптайм/состояние портов | 30–60 сек |
 | CAM | Ping | доступность | 30–60 сек |
 | TEL | Ping шлюза (SPA/ATA) | доступность шлюза — сразу для обоих телефонов на нём | 30–60 сек |
-| MLA, MPS, MPC, MTU, MVSA, MBU, FS, Статив LFC, Статив АО, PoE, ГО, Муфта ODF | — | без сети, не мониторится на этом этапе | — |
+| FS | FieldSense/FlexAlertTTE (`/FlexAlertTTE/fieldsense/`), HTML-поллинг | online/offline (колонка "Статус" в таблице "Датчики") | 60 сек |
+| MLA, MPS, MPC, MTU, MVSA, MBU, Статив LFC, Статив АО, PoE, ГО, Муфта ODF | — | без сети, не мониторится на этом этапе | — |
 | Кабели | — (идея на будущее) | обрыв участка — косвенно, по потере связи с оборудованием на концах | — |
 
 ## Интеграция с SPPD (изначально называли «FlexCom»)
@@ -56,6 +57,12 @@ POST /login/   → username, password, csrfmiddlewaretoken, next="/", login=""
 
 **Справочник устройств** — `GET /sppd/v1/insiteexpert/device/get/all` → `{ devices: { "63": { address:"2341", name:"ВВ ворота3", TypeDevice:4099, ... } } }`. `address` — то же, что `Addr` в потоке.
 
+## Интеграция с FieldSense (FlexAlertTTE, поиск обрыва кабеля)
+
+Тот же физический сервер и тот же логин/пароль, что у SPPD (`project_sppd_config` переиспользуется, отдельной настройки нет) — просто другой раздел того же Django-сайта. В отличие от SPPD это не WebSocket, а обычная серверная HTML-страница `/FlexAlertTTE/fieldsense/` с таблицей "Датчики" (`#`, Антенна, Номер измерения, Время, Место установки, Уровень заряда, Статус) — `fieldsense-worker.js` просто опрашивает её по таймеру (по умолчанию раз в 60 сек) той же сессионной кукой, что и `login()` из `sppd-worker.js`, и разбирает HTML регуляркой по `<tr>`/`<td>` (без cheerio — верстка простая и стабильная, лишняя зависимость не нужна).
+
+Сопоставление с оборудованием — по номеру `#` (`fsAddress` на объекте, тот же принцип, что `sppdAddress` у SPPD). Колонка "Статус" ("На связи"/иначе) уже посчитана самим FlexAlertTTE — доверяем ей напрямую, как `OnLine` у SPPD: `applyOnlineState` (импортирован из `sppd-worker.js`, не дублируется) красит статус сразу и debounce'ит запись аварии по тому же per-project порогу (`sppd_fail_duration_sec` — общий с SPPD, отдельного порога для FieldSense пока нет).
+
 ## Ping/SNMP
 
 - **Ping** — обязательный базовый уровень для MAP/WiFi/CAM/TEL, при ~200 устройствах — пакетно (`fping`), а не последовательными процессами.
@@ -65,10 +72,11 @@ POST /login/   → username, password, csrfmiddlewaretoken, next="/", login=""
 
 Новые поля в объекте `equipment` (внутри JSON-снапшота проекта):
 ```
-monitorMethod   "none" | "ping" | "snmp" | "sppd"
+monitorMethod   "none" | "ping" | "snmp" | "sppd" | "fs"
 snmpCommunity   string | null
 snmpProfile     string | null
 sppdAddress     string | null   — только для IILB/ISIB
+fsAddress       string | null   — только для FS, номер "#" из таблицы "Датчики" на /FlexAlertTTE/fieldsense/
 ```
 
 Новые таблицы SQLite:
