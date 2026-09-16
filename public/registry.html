@@ -298,6 +298,7 @@
           <div class="reg-title">Каталог ЗИП</div>
           <input type="text" id="catalogSearch" class="reg-search" placeholder="Поиск по названию, категории, партномеру…">
           <button class="btn" id="btnRefreshCatalog">↻ Обновить</button>
+          <button class="btn" id="btnExportCatalog">⬇ Экспорт CSV</button>
           <button class="btn btn-primary" id="btnAddItem" style="display:none;">+ Добавить позицию</button>
         </div>
         <div id="catalogTableWrap"></div>
@@ -308,6 +309,7 @@
         <div class="reg-toolbar">
           <div class="reg-title">Мои заявки</div>
           <button class="btn" id="btnRefreshMyRequests">↻ Обновить</button>
+          <button class="btn" id="btnExportMyRequests">⬇ Экспорт CSV</button>
         </div>
         <div id="myRequestsTableWrap"></div>
       </div>
@@ -317,6 +319,7 @@
         <div class="reg-toolbar">
           <div class="reg-title">Заявки на рассмотрении и выдачу</div>
           <button class="btn" id="btnRefreshPending">↻ Обновить</button>
+          <button class="btn" id="btnExportPending">⬇ Экспорт CSV</button>
         </div>
         <div id="pendingTableWrap"></div>
       </div>
@@ -329,6 +332,7 @@
             <option value="">Все позиции</option>
           </select>
           <button class="btn" id="btnRefreshMovements">↻ Обновить</button>
+          <button class="btn" id="btnExportMovements">⬇ Экспорт CSV</button>
         </div>
         <div id="movementsTableWrap"></div>
       </div>
@@ -492,6 +496,50 @@ const STATUS_LABELS = { pending: "Ожидает", approved: "Одобрена",
 let itemsCache = [];
 let myRequestsCache = [];
 let pendingRequestsCache = [];
+let movementsCache = [];
+
+/* ---------------- Экспорт в CSV ---------------- */
+function csvCell(v) {
+  const s = v == null ? "" : String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function downloadCsv(filename, header, rows) {
+  const lines = [header, ...rows].map((row) => row.map(csvCell).join(","));
+  // BOM, чтобы Excel сразу распознал UTF-8 и не ломал кириллицу.
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+function exportCatalogCsv() {
+  const q = (document.getElementById("catalogSearch").value || "").trim().toLowerCase();
+  const rows = itemsCache.filter((it) => !q || [it.name, it.category, it.manufacturer, it.partNumber, it.location].some((f) => (f || "").toLowerCase().includes(q)));
+  downloadCsv(
+    `zip-catalog-${CURRENT_PROJECT_ID}.csv`,
+    ["Название", "Категория", "Производитель", "Партномер", "Место хранения", "Ед. изм.", "На складе", "Резерв", "Доступно", "Мин. остаток", "Низкий запас"],
+    rows.map((it) => [it.name, it.category, it.manufacturer, it.partNumber, it.location, it.unit, it.qtyOnHand, it.qtyReserved, it.qtyAvailable, it.minQty, it.lowStock ? "да" : "нет"])
+  );
+}
+function exportRequestsCsv(rows, filename) {
+  downloadCsv(
+    filename,
+    ["Позиция", "Количество", "Причина", "Статус", "Инженер", "Подана", "Решил", "Когда решено", "Комментарий", "Выдал", "Когда выдано"],
+    rows.map((r) => [r.itemName, r.qty, r.reason, STATUS_LABELS[r.status] || r.status, r.requestedBy, fmtDate(r.requestedAt), r.decidedBy, fmtDate(r.decidedAt), r.decisionNote, r.issuedBy, fmtDate(r.issuedAt)])
+  );
+}
+function exportMovementsCsv() {
+  const itemName = (id) => { const it = itemsCache.find((x) => x.id === id); return it ? it.name : id; };
+  downloadCsv(
+    `zip-movements-${CURRENT_PROJECT_ID}.csv`,
+    ["Дата", "Позиция", "Тип", "Изменение", "Автор", "Примечание"],
+    movementsCache.map((m) => [fmtDate(m.createdAt), itemName(m.itemId), MOVEMENT_LABELS[m.reason] || m.reason, m.delta, m.createdBy, m.note])
+  );
+}
 
 /* ---------------- Каталог ---------------- */
 function renderCatalog() {
@@ -623,6 +671,7 @@ async function loadMovements() {
   const itemId = document.getElementById("movementsItemFilter").value;
   const url = itemId ? `${API}/movements?itemId=${encodeURIComponent(itemId)}` : `${API}/movements`;
   const data = await apiJson(url);
+  movementsCache = data.movements;
   const wrap = document.getElementById("movementsTableWrap");
   if (!data.movements.length) {
     wrap.innerHTML = `<div class="empty-hint"><b>Движений пока нет.</b></div>`;
@@ -859,6 +908,23 @@ document.getElementById("btnRefreshCatalog").addEventListener("click", () => loa
 document.getElementById("btnRefreshMyRequests").addEventListener("click", () => loadMyRequests().catch((e) => toast(errLabel(e), true)));
 document.getElementById("btnRefreshPending").addEventListener("click", () => loadPending().catch((e) => toast(errLabel(e), true)));
 document.getElementById("btnRefreshMovements").addEventListener("click", () => loadMovements().catch((e) => toast(errLabel(e), true)));
+document.getElementById("btnExportCatalog").addEventListener("click", () => {
+  if (!itemsCache.length) { toast("Каталог пуст — нечего экспортировать.", true); return; }
+  exportCatalogCsv();
+});
+document.getElementById("btnExportMyRequests").addEventListener("click", () => {
+  if (!myRequestsCache.length) { toast("Заявок пока нет — нечего экспортировать.", true); return; }
+  exportRequestsCsv(myRequestsCache, `zip-my-requests-${CURRENT_PROJECT_ID}.csv`);
+});
+document.getElementById("btnExportPending").addEventListener("click", () => {
+  const rows = pendingRequestsCache.filter((r) => r.status === "pending" || r.status === "approved");
+  if (!rows.length) { toast("Нет заявок для экспорта.", true); return; }
+  exportRequestsCsv(rows, `zip-pending-requests-${CURRENT_PROJECT_ID}.csv`);
+});
+document.getElementById("btnExportMovements").addEventListener("click", () => {
+  if (!movementsCache.length) { toast("Движений пока нет — нечего экспортировать.", true); return; }
+  exportMovementsCsv();
+});
 document.getElementById("movementsItemFilter").addEventListener("change", () => loadMovements().catch((e) => toast(errLabel(e), true)));
 document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
 
