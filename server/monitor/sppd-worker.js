@@ -115,11 +115,18 @@ async function login(config) {
     body: body.toString(),
   });
   const cookies2 = parseSetCookiePairs(postResp.headers);
-  const sessionid = cookies2.sessionid;
-  if (!sessionid) {
+  // Сохраняем ВСЕ куки с обоих ответов (не только csrftoken/sessionid) —
+  // на живой системе этот же логин попутно выдаёт PHPSESSID для отдельного
+  // PHP-бэкенда FieldSense/FlexAlertTTE ("fatte"), сидящего на том же хосте;
+  // раньше эта кука тут терялась, и WebSocket FieldSense не мог
+  // авторизоваться, даже с валидной Django-сессией.
+  const merged = { ...cookies1, ...cookies2 };
+  if (!merged.sessionid) {
     throw new Error(`Логин SPPD не удался (HTTP ${postResp.status}, sessionid отсутствует)`);
   }
-  return `csrftoken=${cookies2.csrftoken || csrftoken}; sessionid=${sessionid}`;
+  return Object.entries(merged)
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
 }
 
 /* ---------- сбор целей одного проекта: оборудование с monitorMethod:"sppd" ----------
@@ -580,4 +587,5 @@ module.exports = {
   login,
   parseSetCookiePairs,
   sameConfig,
+  connectStream,
 };
