@@ -98,7 +98,7 @@
   .save-btn-big:hover{ filter:brightness(1.08); }
   .save-btn-big:active{ filter:brightness(0.95); }
   .save-btn-big:disabled{ opacity:.5; cursor:default; filter:none; }
-  #fileMeta{ margin:0 12px 8px; font-size:11.5px; color:var(--text-dim); min-height:14px; }
+  #fileMeta{ margin:0 12px 10px; font-size:11.5px; line-height:1.5; color:var(--text-dim); min-height:14px; }
   #fileMeta.ok{ color:var(--accent-2); }
   #fileMeta.err{ color:var(--danger); }
   #actionButtonsRow{ display:flex; flex-wrap:wrap; gap:5px; margin:0 12px 6px; }
@@ -113,7 +113,7 @@
   .icon-btn-primary{ border-color:var(--accent-2); color:var(--accent-2); }
   .icon-btn-primary:hover{ filter:brightness(1.15); }
   .icon-btn-danger:hover{ border-color:var(--danger); color:var(--danger); }
-  #saveStatus{ margin:0 12px 6px; font-size:11px; color:var(--text-dim); min-height:14px; }
+  #saveStatus{ margin:0 12px 8px; font-size:11px; line-height:1.5; color:var(--text-dim); min-height:14px; }
   #saveStatus.err{ color:var(--danger); }
   #progressWrap{ margin:0 12px 10px; height:3px; background:var(--border-soft); border-radius:2px; overflow:hidden; display:none; }
   #progressBar{ height:100%; width:0%; background:var(--accent); transition:width .1s linear; }
@@ -3392,7 +3392,7 @@ function cableMidpoint(nodes) {
 function currentUsername() {
   return (window.__auth && window.__auth.username) || "неизвестно";
 }
-function createCable(nodes, overrides) {
+function createCable(nodes, overrides, select = true) {
   const id = overrides?.id ?? makeObjectId("cable");
   objSeq++;
   // overrides присутствует только при восстановлении из снапшота — тогда
@@ -3429,7 +3429,7 @@ function createCable(nodes, overrides) {
   };
   cables.set(id, cableData);
   buildCableList();
-  selectCable(cableData);
+  if (select) selectCable(cableData);
   return cableData;
 }
 function rebuildCableMesh(c) {
@@ -3852,7 +3852,7 @@ function setEquipVisible(eq, visible) {
 function equipLabelOffset(eq) {
   return new THREE.Vector3(eq.mesh.position.x, eq.mesh.position.y + eq.size * 0.6 + 2, eq.mesh.position.z);
 }
-function placeEquipment(point, overrides) {
+function placeEquipment(point, overrides, select = true) {
   const id = overrides?.id ?? makeObjectId("equip");
   objSeq++;
   const shape = overrides?.shape ?? equipShape;
@@ -3887,7 +3887,7 @@ function placeEquipment(point, overrides) {
   labelObj.position.copy(equipLabelOffset(equipData));
   equipment.set(id, equipData);
   buildEquipList();
-  selectEquip(equipData);
+  if (select) selectEquip(equipData);
   return equipData;
 }
 const collapsedEquipGroups = new Set();
@@ -4161,7 +4161,7 @@ function makeMarkTexture(type, color) {
   return tex;
 }
 const MARK_TYPE_LABELS = { star: "Звезда", dot: "Точка", check: "Галочка" };
-function placeMark(point, overrides) {
+function placeMark(point, overrides, select = true) {
   const id = overrides?.id ?? makeObjectId("mark");
   objSeq++;
   const type = overrides?.markType ?? markType;
@@ -4187,7 +4187,7 @@ function placeMark(point, overrides) {
   };
   marks.set(id, markData);
   buildMarkList();
-  selectMark(markData);
+  if (select) selectMark(markData);
   return markData;
 }
 function rebuildMarkTexture(m) {
@@ -4353,7 +4353,7 @@ function addPatchNode(point) {
     scene.add(patchInProgress.previewObj);
   }
 }
-function createPatch(nodes, overrides) {
+function createPatch(nodes, overrides, select = true) {
   const id = overrides?.id ?? makeObjectId("patch");
   objSeq++;
   const color = overrides?.color ?? 0x9aa4ad;
@@ -4375,7 +4375,7 @@ function createPatch(nodes, overrides) {
   };
   patches.set(id, patchData);
   buildPatchList();
-  selectPatch(patchData);
+  if (select) selectPatch(patchData);
   return patchData;
 }
 function rebuildPatchMesh(p) {
@@ -4537,7 +4537,7 @@ function clearLinkPick() {
   linkFirstPick = null;
   dom.linkHint.firstChild.textContent = "Кликните по первому срезу (грани) тоннеля, затем по второму — между ними автоматически построится труба. Можно соединять срезы из разных выработок.";
 }
-function createLinkPatch(ringA, ringB, overrides) {
+function createLinkPatch(ringA, ringB, overrides, select = true) {
   const N = Math.max(3, Math.min(MAX_RING_N, Math.max(ringA.length, ringB.length)));
   const rA = resampleRing(ringA, N);
   const rB = alignRing(rA, resampleRing(ringB, N));
@@ -4569,7 +4569,7 @@ function createLinkPatch(ringA, ringB, overrides) {
   };
   patches.set(id, patchData);
   buildPatchList();
-  selectPatch(patchData);
+  if (select) selectPatch(patchData);
   return patchData;
 }
 function handleLinkPick(point, leaf) {
@@ -4916,7 +4916,7 @@ function importObjectsFromParsed(parsed) {
         label, cableType: a[3] === "-" ? null : a[3], thickness: numOrUndefined(parseFloat(a[4])),
         color: parseColorAttr(a[5], 0xffcc00), lineType: a[6] === "-" ? undefined : a[6],
         createdBy: unsanitizeAttr(a[7]) || undefined, createdAt: unsanitizeAttr(a[8]) || undefined,
-      });
+      }, false);
       counts.cable++;
     } else if (kind === "equipment") {
       const pos = realToScene(pl.points[0]);
@@ -4924,14 +4924,14 @@ function importObjectsFromParsed(parsed) {
         label, shape: a[3], size: numOrUndefined(parseFloat(a[4])), color: parseColorAttr(a[5], 0x4fd6e0),
         location: unsanitizeAttr(a[6]), ip: unsanitizeAttr(a[7]), idNumber: unsanitizeAttr(a[8]),
         createdBy: unsanitizeAttr(a[9]) || undefined, createdAt: unsanitizeAttr(a[10]) || undefined,
-      });
+      }, false);
       counts.equipment++;
     } else if (kind === "mark") {
       const pos = realToScene(pl.points[0]);
       placeMark(pos, {
         label, markType: a[3], color: parseColorAttr(a[4], 0xff5b7a),
         createdBy: unsanitizeAttr(a[5]) || undefined, createdAt: unsanitizeAttr(a[6]) || undefined,
-      });
+      }, false);
       counts.mark++;
     } else if (kind === "patch") {
       if (role !== "admin") { skippedPatchesNoRights++; continue; }
@@ -4940,7 +4940,7 @@ function importObjectsFromParsed(parsed) {
       createPatch(nodes, {
         label, color: parseColorAttr(a[3], 0x9aa4ad), opacity: numOrUndefined(parseFloat(a[4])),
         createdBy: unsanitizeAttr(a[5]) || undefined, createdAt: unsanitizeAttr(a[6]) || undefined,
-      });
+      }, false);
       counts.patch++;
     }
   }
@@ -6174,20 +6174,20 @@ async function restoreFromSnapshot(state) {
     }
     for (const c of state.cables || []) {
       const nodes = c.nodes.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
-      if (nodes.length >= 2) createCable(nodes, c);
+      if (nodes.length >= 2) createCable(nodes, c, false);
     }
     for (const eq of state.equipment || []) {
-      placeEquipment(new THREE.Vector3(eq.position[0], eq.position[1], eq.position[2]), eq);
+      placeEquipment(new THREE.Vector3(eq.position[0], eq.position[1], eq.position[2]), eq, false);
     }
     for (const m of state.marks || []) {
-      placeMark(new THREE.Vector3(m.position[0], m.position[1], m.position[2]), m);
+      placeMark(new THREE.Vector3(m.position[0], m.position[1], m.position[2]), m, false);
     }
     for (const p of state.patches || []) {
       if (p.method === "link" && p.ringA && p.ringB) {
-        createLinkPatch(p.ringA, p.ringB, p);
+        createLinkPatch(p.ringA, p.ringB, p, false);
       } else {
         const nodes = p.nodes.map((n) => new THREE.Vector3(n[0], n[1], n[2]));
-        if (nodes.length >= 3) createPatch(nodes, p);
+        if (nodes.length >= 3) createPatch(nodes, p, false);
       }
     }
     if (state.settings) {
