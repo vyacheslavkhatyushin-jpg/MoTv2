@@ -3588,7 +3588,19 @@ function loadLabelGroups(map, cfg, groupKeys, defaultColorFor) {
     }
   }
 }
+// Группы в списках Кабели/Оборуд./Мониторинг по умолчанию свёрнуты — при
+// большом числе объектов (десятки ВОЛС, MAP и т.п.) развёрнутый список сразу
+// после входа/переключения фильтра занимает весь экран. seenGroupKeys не
+// даёт повторно схлопнуть группу, которую пользователь сам развернул —
+// "по умолчанию свёрнуто" применяется только один раз, при первом появлении
+// конкретного ключа группы, а не при каждой перерисовке.
+function collapseGroupByDefault(collapsedSet, seenKeys, key) {
+  if (seenKeys.has(key)) return;
+  seenKeys.add(key);
+  collapsedSet.add(key);
+}
 const collapsedCableGroups = new Set();
+const seenCableGroupKeys = new Set();
 function buildCableList() {
   dom.cableList.innerHTML = "";
   dom.cablePlaceholder.style.display = cables.size ? "none" : "block";
@@ -3605,6 +3617,7 @@ function buildCableList() {
   for (const key of orderedKeys) {
     const groupItems = groups.get(key);
     const groupLabel = CABLE_TYPES[key] ? CABLE_TYPES[key].label : "Другое";
+    collapseGroupByDefault(collapsedCableGroups, seenCableGroupKeys, key);
     const collapsed = collapsedCableGroups.has(key);
     const header = document.createElement("div");
     header.className = "uo-group-header" + (collapsed ? "" : " uo-group-open");
@@ -4074,6 +4087,7 @@ function placeEquipment(point, overrides, select = true) {
   return equipData;
 }
 const collapsedEquipGroups = new Set();
+const seenEquipGroupKeys = new Set();
 function buildEquipList() {
   dom.equipList.innerHTML = "";
   dom.equipPlaceholder.style.display = equipment.size ? "none" : "block";
@@ -4090,6 +4104,7 @@ function buildEquipList() {
   for (const key of orderedKeys) {
     const groupItems = groups.get(key);
     const groupLabel = EQUIP_SHAPE_LABELS[key] || "Другое";
+    collapseGroupByDefault(collapsedEquipGroups, seenEquipGroupKeys, key);
     const collapsed = collapsedEquipGroups.has(key);
     const header = document.createElement("div");
     header.className = "uo-group-header" + (collapsed ? "" : " uo-group-open");
@@ -5504,6 +5519,7 @@ const EQUIP_SHAPE_SYSTEMS = {
 };
 let monitorActiveSystem = "all"; // "all" | одно из MONITOR_SYSTEMS
 const monitorCollapsedGroups = new Set(); // "c:<cableType>" | "e:<shape>"
+const seenMonitorGroupKeys = new Set();
 const monitorStatusById = new Map(); // equipment_id -> последняя строка monitor_status
 
 // Кнопки систем не просто фильтруют списки в панели — сами включают/
@@ -5587,6 +5603,7 @@ function renderMonitorCables() {
     total += groupItems.length;
     const groupLabel = CABLE_TYPES[key] ? CABLE_TYPES[key].label : "Другое";
     const gk = "c:" + key;
+    collapseGroupByDefault(monitorCollapsedGroups, seenMonitorGroupKeys, gk);
     const collapsed = monitorCollapsedGroups.has(gk);
     const header = document.createElement("div");
     header.className = "uo-group-header" + (collapsed ? "" : " uo-group-open");
@@ -5673,6 +5690,7 @@ function renderMonitorEquip() {
     total += groupItems.length;
     const groupLabel = EQUIP_SHAPE_LABELS[key] || "Другое";
     const gk = "e:" + key;
+    collapseGroupByDefault(monitorCollapsedGroups, seenMonitorGroupKeys, gk);
     const collapsed = monitorCollapsedGroups.has(gk);
     const header = document.createElement("div");
     header.className = "uo-group-header" + (collapsed ? "" : " uo-group-open");
