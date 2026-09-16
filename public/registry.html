@@ -278,8 +278,12 @@
       <span id="sessionUser"></span>
       <a id="navToEditor" title="Редактор модели">✏️ Редактор</a>
       <a id="navToMonitoring" title="Мониторинг оборудования">📡 Мониторинг</a>
+      <a id="navToStats" title="История аварий">📊 Статистика</a>
       <a id="navToRegistry" class="nav-current" title="Реестр ЗИП">📦 ЗИП</a>
       <a id="navToLamps" title="Фонари">🔦 Фонари</a>
+      <a id="navToUsers" title="Управление пользователями" style="display:none;">👥 Пользователи</a>
+      <a id="navToSppd" title="Подключение к SPPD для этого проекта" style="display:none;">⚙ SPPD</a>
+      <a id="navToThresholds" title="Пороги фиксации аварии для этого проекта" style="display:none;">⚙ Пороги</a>
       <button id="btnLogout" title="Выйти">Выйти</button>
     </div>
     <div class="brand-copyright">© 2026 KazMinerals LLP<br>Все права защищены</div>
@@ -938,11 +942,21 @@ function applyRoleUI() {
   document.getElementById("sessionUser").textContent = auth ? `${auth.username} (${role})` : "";
   document.getElementById("navToEditor").href = `/${CURRENT_PROJECT_ID}`;
   document.getElementById("navToMonitoring").href = `/${CURRENT_PROJECT_ID}/monitoring`;
+  document.getElementById("navToStats").href = `/${CURRENT_PROJECT_ID}/monitoring/stats`;
   document.getElementById("navToRegistry").href = `/${CURRENT_PROJECT_ID}/registry`;
   document.getElementById("navToLamps").href = `/${CURRENT_PROJECT_ID}/lamps`;
   document.getElementById("btnAddItem").style.display = role === "admin" ? "" : "none";
   document.querySelector('.reg-tab-btn[data-tab="pending"]').style.display = role === "admin" ? "" : "none";
   document.querySelector('.reg-tab-btn[data-tab="movements"]').style.display = role === "admin" ? "" : "none";
+  // "Пользователи"/"SPPD"/"Пороги" — модалки живут только в редакторе, эти
+  // кнопки ведут туда и просят открыть нужную сразу после входа.
+  const isAdmin = role === "admin";
+  document.getElementById("navToUsers").href = `/${CURRENT_PROJECT_ID}?panel=users`;
+  document.getElementById("navToUsers").style.display = isAdmin ? "inline-flex" : "none";
+  document.getElementById("navToSppd").href = `/${CURRENT_PROJECT_ID}?panel=sppd`;
+  document.getElementById("navToSppd").style.display = isAdmin ? "inline-flex" : "none";
+  document.getElementById("navToThresholds").href = `/${CURRENT_PROJECT_ID}?panel=thresholds`;
+  document.getElementById("navToThresholds").style.display = isAdmin ? "inline-flex" : "none";
 }
 function boot() {
   applyRoleUI();
