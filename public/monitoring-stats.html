@@ -111,8 +111,13 @@
 
   .grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px; }
 
-  .card{ background:var(--panel); border:1px solid var(--border); border-radius:10px; display:flex; flex-direction:column; overflow:hidden; }
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:10px; display:flex; flex-direction:column;
+    overflow:hidden; cursor:pointer; transition:border-color .12s ease, transform .12s ease;
+  }
+  .card:hover{ border-color:var(--accent); transform:translateY(-1px); }
   .card.has-alarm{ border-color:rgba(230,85,61,.5); }
+  .card.has-alarm:hover{ border-color:var(--danger); }
 
   .card-head{ display:flex; align-items:center; gap:10px; padding:13px 15px 11px; border-bottom:1px solid var(--border-soft); }
   .card-head .sysname{ font-size:14px; font-weight:700; color:var(--text); flex:1; min-width:0; }
@@ -153,6 +158,34 @@
   .alarm-row .adur.live{ color:var(--danger); font-weight:600; }
   .alarm-empty{ padding:16px 15px; text-align:center; color:var(--text-faint); font-size:11.5px; }
   .card-foot{ padding:9px 15px; font-size:11px; color:var(--text-faint); }
+
+  /* ---- таблица событий одной системы ---- */
+  .table-head{ display:flex; align-items:center; gap:14px; margin:4px 0 14px; }
+  .back-btn{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text-dim);
+    border-radius:6px; padding:6px 12px; font-size:11.5px; font-family:inherit; cursor:pointer;
+  }
+  .back-btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .table-head h2{ margin:0; font-size:15.5px; font-weight:700; color:var(--text); }
+  .events-table-wrap{ background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
+  table.events-table{ width:100%; border-collapse:collapse; min-width:640px; }
+  table.events-table th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:700;
+    color:var(--text-faint); padding:10px 14px; background:var(--panel-alt); border-bottom:1px solid var(--border);
+    position:sticky; top:0;
+  }
+  table.events-table td{ padding:9px 14px; border-bottom:1px solid var(--border-soft); color:var(--text-dim); font-size:12.5px; vertical-align:middle; }
+  table.events-table tr:last-child td{ border-bottom:none; }
+  table.events-table tr:hover td{ background:rgba(255,255,255,.02); }
+  table.events-table td.eq{ color:var(--text); font-weight:600; }
+  table.events-table td.dur{ font-variant-numeric:tabular-nums; }
+  .ev-status{ display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; }
+  .ev-status .dot{ width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .ev-status.live{ color:var(--danger); }
+  .ev-status.live .dot{ background:var(--danger); animation:pulse 1.4s ease-in-out infinite; }
+  .ev-status.resolved{ color:var(--text-faint); }
+  .ev-status.resolved .dot{ background:var(--text-faint); }
+  .events-empty{ text-align:center; color:var(--text-faint); padding:40px 20px; }
 
   #statsEmpty, #statsError{ text-align:center; color:var(--text-faint); padding:60px 20px; line-height:1.6; }
   #statsEmpty b, #statsError b{ color:var(--text-dim); }
@@ -287,6 +320,14 @@
       <div id="statsError" style="display:none;"></div>
       <div id="statsEmpty" style="display:none;"><b>Проект не найден.</b></div>
       <div class="grid" id="statsGrid"></div>
+
+      <div id="tableView" style="display:none;">
+        <div class="table-head">
+          <button id="btnTableBack" class="back-btn">← Все системы</button>
+          <h2 id="tableTitle">Все события</h2>
+        </div>
+        <div id="tableWrap"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -370,7 +411,7 @@ function renderCard(sys, data) {
   }
   const alarmListHtml = rows.length ? rows.slice(0, 6).join("") : `<div class="alarm-empty">Аварий за период не было</div>`;
 
-  return `<div class="card${activeCount ? " has-alarm" : ""}">
+  return `<div class="card${activeCount ? " has-alarm" : ""}" data-system="${esc(sys)}">
     <div class="card-head">
       <div class="sysname">${esc(sys)}<span class="sub">${esc(SYSTEM_SUBLABELS[sys] || "")}</span></div>
       <div class="status-pill ${pillClass}"><span class="dot"></span>${pillText}</div>
@@ -389,8 +430,75 @@ function renderCard(sys, data) {
   </div>`;
 }
 
+function renderEventsTable(events) {
+  if (!events.length) {
+    return `<div class="events-table-wrap"><div class="events-empty">Событий за выбранный период не найдено.</div></div>`;
+  }
+  const rows = events.map((e) => `
+    <tr>
+      <td class="eq">${esc(e.equipmentLabel || e.equipmentId)}</td>
+      <td>${e.active
+        ? `<span class="ev-status live"><span class="dot"></span>Авария</span>`
+        : `<span class="ev-status resolved"><span class="dot"></span>Устранено</span>`}</td>
+      <td>${esc(fmtWhen(e.startedAt))}</td>
+      <td>${e.endedAt ? esc(fmtWhen(e.endedAt)) : "—"}</td>
+      <td class="dur">${esc(fmtDurationSec(e.durationSec))}</td>
+    </tr>`).join("");
+  return `<div class="events-table-wrap"><table class="events-table"><thead><tr>
+    <th>Оборудование</th><th>Статус</th><th>Начало</th><th>Устранено</th><th>Длительность</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
 let currentRange = "7d";
+let currentSystem = null; // null = сетка карточек, иначе имя системы
 let loadSeq = 0;
+
+async function loadEventsTable(sys) {
+  const mySeq = ++loadSeq;
+  const wrap = document.getElementById("tableWrap");
+  document.getElementById("tableTitle").textContent = sys === "all" ? "Все события" : `${sys} — все события`;
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/events?system=${encodeURIComponent(sys)}&range=${encodeURIComponent(currentRange)}`);
+    if (mySeq !== loadSeq) return;
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    if (mySeq !== loadSeq) return;
+    wrap.innerHTML = renderEventsTable(data.events);
+  } catch (err) {
+    if (mySeq !== loadSeq) return;
+    wrap.innerHTML = `<div class="events-table-wrap"><div class="events-empty">Не удалось загрузить события: ${esc(err.message)}</div></div>`;
+  }
+}
+
+function showTableView(sys) {
+  currentSystem = sys;
+  document.getElementById("statsGrid").style.display = "none";
+  document.getElementById("tableView").style.display = "block";
+  loadEventsTable(sys);
+}
+function showGridView() {
+  currentSystem = null;
+  document.getElementById("tableView").style.display = "none";
+  document.getElementById("statsGrid").style.display = "";
+  loadStats();
+}
+function openTableView(sys) {
+  const url = new URL(location.href);
+  url.searchParams.set("system", sys);
+  history.pushState({}, "", url);
+  showTableView(sys);
+}
+function closeTableView() {
+  const url = new URL(location.href);
+  url.searchParams.delete("system");
+  history.pushState({}, "", url);
+  showGridView();
+}
+document.getElementById("statsGrid").addEventListener("click", (e) => {
+  const card = e.target.closest(".card");
+  if (card) openTableView(card.dataset.system);
+});
+document.getElementById("btnTableBack").addEventListener("click", closeTableView);
 
 async function loadStats() {
   const mySeq = ++loadSeq;
@@ -431,10 +539,14 @@ document.querySelectorAll(".range-toggle button").forEach((btn) => {
     document.querySelectorAll(".range-toggle button").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
     currentRange = btn.dataset.range;
-    loadStats();
+    if (currentSystem) loadEventsTable(currentSystem);
+    else loadStats();
   });
 });
-document.getElementById("btnRefreshStats").addEventListener("click", loadStats);
+document.getElementById("btnRefreshStats").addEventListener("click", () => {
+  if (currentSystem) loadEventsTable(currentSystem);
+  else loadStats();
+});
 document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
 
 function applyRoleUI() {
@@ -447,11 +559,22 @@ function applyRoleUI() {
   document.getElementById("navToStats").href = `/${CURRENT_PROJECT_ID}/monitoring/stats`;
   document.getElementById("navToRegistry").href = `/${CURRENT_PROJECT_ID}/registry`;
 }
+const MONITOR_SYSTEMS_LIST = ["ВОЛС", "LFC", "АО", "Телефония", "ВН"];
 function boot() {
   applyRoleUI();
-  loadStats();
-  setInterval(loadStats, 30000);
+  const urlSystem = new URL(location.href).searchParams.get("system");
+  if (urlSystem && (urlSystem === "all" || MONITOR_SYSTEMS_LIST.includes(urlSystem))) {
+    showTableView(urlSystem);
+  } else {
+    loadStats();
+  }
+  setInterval(() => { if (currentSystem) loadEventsTable(currentSystem); else loadStats(); }, 30000);
 }
+window.addEventListener("popstate", () => {
+  const urlSystem = new URL(location.href).searchParams.get("system");
+  if (urlSystem) showTableView(urlSystem);
+  else showGridView();
+});
 if (window.__auth) boot();
 else document.addEventListener("kzmAuthReady", boot, { once: true });
 </script>
