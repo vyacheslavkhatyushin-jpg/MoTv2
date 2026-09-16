@@ -235,7 +235,11 @@ function clearDownAndMaybeCloseEvent(target, wasDown) {
   }
 }
 
-function applyOnlineState(target, online, metrics) {
+// failDurationMsOverride — для источников, у которых свой отдельный порог
+// вместо sppd_fail_duration_sec (например, fieldsense-worker.js читает
+// fs_fail_duration_sec и передаёт готовые мс сюда, а не полагается на
+// getFailDurationMs ниже, которая жёстко привязана к колонке SPPD).
+function applyOnlineState(target, online, metrics, failDurationMsOverride) {
   const nowIso = new Date().toISOString();
   const nextState = online ? "up" : "down";
   const current = stmtGetStatus.get(target.projectId, target.equipmentId);
@@ -253,7 +257,8 @@ function applyOnlineState(target, online, metrics) {
   if (online) {
     clearDownAndMaybeCloseEvent(target, current && current.state === "down");
   } else {
-    trackDownAndMaybeOpenEvent(target, getFailDurationMs(target.projectId));
+    const failDurationMs = failDurationMsOverride != null ? failDurationMsOverride : getFailDurationMs(target.projectId);
+    trackDownAndMaybeOpenEvent(target, failDurationMs);
   }
 }
 

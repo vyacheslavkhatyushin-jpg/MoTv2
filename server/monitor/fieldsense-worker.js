@@ -41,6 +41,16 @@ const TARGET_REFRESH_MS = parseInt(process.env.FIELDSENSE_TARGET_REFRESH_MS || "
 const WS_PATH = "/fatte/api/ws/fieldsense";
 const FIELDSENSE_PAGE_PATH = "/FlexAlertTTE/fieldsense/";
 const DEBUG = process.env.FIELDSENSE_DEBUG === "1";
+// Статус — всегда сырой (см. handleSensor). "Авария" как событие в
+// monitor_events фиксируется только после FS_FAIL_DURATION_MS непрерывного
+// "down" — свой порог, отдельный от sppd_fail_duration_sec, настраивается
+// per-project через ⚙ Пороги (см. getFsFailDurationMs).
+const FS_FAIL_DURATION_MS = parseInt(process.env.FS_FAIL_DURATION_SEC || "300", 10) * 1000;
+const stmtGetFsThreshold = db.prepare("SELECT fs_fail_duration_sec FROM project_monitor_thresholds WHERE project_id = ?");
+function getFsFailDurationMs(projectId) {
+  const row = stmtGetFsThreshold.get(projectId);
+  return row ? row.fs_fail_duration_sec * 1000 : FS_FAIL_DURATION_MS;
+}
 
 /* ---------- цели: оборудование с monitorMethod:"fs" ---------- */
 function collectFsTargets(projectId) {
@@ -91,7 +101,9 @@ function handleSensor(msg, targetsByAddr, siteLabel) {
   if (!targets || !targets.length) return;
   const online = Number(data.status) === 1;
   const metrics = data.battery_lvl !== undefined ? { batteryLvl: data.battery_lvl } : null;
-  for (const target of targets) sppd.applyOnlineState(target, online, metrics);
+  for (const target of targets) {
+    sppd.applyOnlineState(target, online, metrics, getFsFailDurationMs(target.projectId));
+  }
 }
 
 function logTargets(projectId, targetsByAddr) {
