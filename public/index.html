@@ -621,6 +621,7 @@
       <span id="sessionUser"></span>
       <a id="navToMonitoring" title="Мониторинг оборудования" style="text-decoration:none; display:inline-flex; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📡 Мониторинг</a>
       <a id="navToEditor" title="Вернуться в редактор" style="text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">✏️ Редактор</a>
+      <a id="navToRegistry" title="Реестр ЗИП" style="text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📦 ЗИП</a>
       <button id="btnUserAdmin" title="Управление пользователями" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">👥 Пользователи</button>
       <button id="btnSppdConfig" title="Подключение к SPPD для этого проекта" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">⚙ SPPD</button>
       <button id="btnLogout" title="Выйти" style="background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">Выйти</button>
@@ -5137,8 +5138,10 @@ const IS_MONITORING_PAGE = /\/monitoring\/?$/i.test(location.pathname);
 function applyMonitoringPageUI() {
   const navToMonitoring = document.getElementById("navToMonitoring");
   const navToEditor = document.getElementById("navToEditor");
+  const navToRegistry = document.getElementById("navToRegistry");
   if (navToMonitoring) navToMonitoring.href = `/${CURRENT_PROJECT_ID}/monitoring`;
   if (navToEditor) navToEditor.href = `/${CURRENT_PROJECT_ID}`;
+  if (navToRegistry) navToRegistry.href = `/${CURRENT_PROJECT_ID}/registry`;
   if (!IS_MONITORING_PAGE) return;
   document.body.classList.add("monitoring-mode");
   document.querySelectorAll(".tabpanel").forEach((p) => p.classList.remove("active"));

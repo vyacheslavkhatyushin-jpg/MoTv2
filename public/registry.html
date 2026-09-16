@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Реестр ЗИП — Mine Operations Tool</title>
+<style>
+  :root{
+    --bg:#14171a;
+    --panel:#1b1f23;
+    --panel-alt:#22272b;
+    --border:#31373d;
+    --border-soft:#282e33;
+    --text:#e4e8eb;
+    --text-dim:#8d979f;
+    --text-faint:#5f6a71;
+    --accent:#ff9f1c;
+    --accent-dim:#8a5713;
+    --accent-2:#39b8b0;
+    --danger:#e6553d;
+    --ok:#2ecc71;
+    --sidebar-w:375px;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size:13px;
+  }
+  .mono{ font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
+  ::selection{ background:var(--accent); color:#14171a; }
+
+  /* ---- shell / top bar (переиспользовано из index.html) ---- */
+  #shell{ display:flex; flex-direction:column; width:100vw; height:100vh; }
+  #topBar{
+    flex:0 0 auto; height:56px; display:flex; align-items:center; gap:14px;
+    padding:0 18px; background:linear-gradient(180deg,#1c2126,#14171a);
+    border-bottom:1px solid var(--border); user-select:none;
+  }
+  #topBar .brand-logo-img{ height:30px; width:auto; display:block; flex-shrink:0; }
+  #topBar .brand-titles{ display:flex; flex-direction:column; line-height:1.25; }
+  #topBar .brand-titles .t1{ font-size:15px; font-weight:700; color:var(--text); letter-spacing:.2px; }
+  #topBar .brand-titles .t2{ font-size:11px; color:var(--text-dim); }
+  #topBar .brand-spacer{ flex:1 1 auto; }
+  #topBar .brand-copyright{ font-size:10.5px; color:var(--text-faint); text-align:right; line-height:1.4; }
+  #topBar a, #topBar button{
+    text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;
+  }
+  #topBar a:hover, #topBar button:hover{ border-color:var(--accent); color:var(--accent); }
+  #topBar a.nav-current{ border-color:var(--accent); color:var(--accent); background:rgba(255,159,28,.08); }
+  #app{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+
+  /* ---- экран входа (переиспользовано из index.html) ---- */
+  #authGate{
+    position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(1200px 800px at 50% 20%, #1c2126 0%, #0d0f11 70%);
+  }
+  #authGate.hidden{ display:none; }
+  #authCard{
+    width:360px; max-width:90vw; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:28px 26px 22px; box-shadow:0 20px 60px rgba(0,0,0,.45); text-align:center;
+  }
+  #authCard .brand-logo-img{ height:46px; width:auto; margin:0 auto 16px; display:block; }
+  #authCard h1{ margin:0 0 2px; font-size:16px; font-weight:700; color:var(--text); text-align:center; }
+  #authCard h2{ margin:0 0 18px; font-size:12px; font-weight:500; color:var(--text-dim); text-align:center; }
+  #authCard label{ display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:6px; text-align:left; }
+  #authCard input[type="password"], #authCard input[type="text"]{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:9px 10px; font-size:13px; font-family:inherit; letter-spacing:1px;
+  }
+  #authCard input[type="password"]:focus, #authCard input[type="text"]:focus{ outline:none; border-color:var(--accent); }
+  #authCard #authError{ min-height:16px; font-size:11.5px; color:var(--danger); margin-top:8px; text-align:left; }
+  #authCard #btnAuthSubmit{
+    width:100%; margin-top:10px; padding:9px; border-radius:5px; border:1px solid var(--accent);
+    background:var(--accent); color:#14171a; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;
+  }
+  #authCard #btnAuthSubmit:hover{ filter:brightness(1.08); }
+  #authCard .authHint{ margin-top:14px; font-size:10.5px; color:var(--text-faint); text-align:center; line-height:1.5; }
+
+  /* ---- реестр ЗИП: собственные стили страницы ---- */
+  #regTabs{ flex:0 0 auto; display:flex; border-bottom:1px solid var(--border); padding:0 18px; gap:2px; }
+  .reg-tab-btn{
+    background:none; border:none; color:var(--text-dim); font-size:12.5px;
+    padding:11px 14px 10px; cursor:pointer; border-bottom:2px solid transparent;
+    font-family:inherit; white-space:nowrap;
+  }
+  .reg-tab-btn:hover{ color:var(--text); }
+  .reg-tab-btn.active{ color:var(--text); border-bottom-color:var(--accent); font-weight:600; }
+  .reg-tab-btn .badge-count{
+    display:inline-block; margin-left:6px; background:var(--accent); color:#14171a; border-radius:99px;
+    padding:1px 6px; font-size:10px; font-weight:700;
+  }
+  #regPanels{ flex:1 1 auto; min-height:0; overflow-y:auto; padding:16px 22px 40px; }
+  .reg-panel{ display:none; max-width:1180px; margin:0 auto; }
+  .reg-panel.active{ display:block; }
+  .reg-toolbar{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .reg-toolbar .reg-title{ font-size:15px; font-weight:700; color:var(--text); flex:1; }
+  .reg-search{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:7px 10px; font-size:12px; font-family:inherit; width:220px;
+  }
+  .reg-search::placeholder{ color:var(--text-faint); }
+  .btn{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:7px 13px; font-size:12px; cursor:pointer; font-family:inherit;
+    white-space:nowrap; transition:border-color .12s ease, color .12s ease;
+  }
+  .btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .btn:disabled{ opacity:.4; cursor:default; border-color:var(--border); color:var(--text-dim); }
+  .btn-primary{ background:var(--accent); border-color:var(--accent); color:#14171a; font-weight:600; }
+  .btn-primary:hover{ filter:brightness(1.08); color:#14171a; }
+  .btn-danger:hover{ border-color:var(--danger); color:var(--danger); }
+  .btn-ok:hover{ border-color:var(--ok); color:var(--ok); }
+  .btn-sm{ padding:4px 9px; font-size:11px; }
+
+  table.reg-table{ width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  table.reg-table th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:700;
+    color:var(--text-faint); padding:10px 12px; background:var(--panel-alt); border-bottom:1px solid var(--border);
+  }
+  table.reg-table td{ padding:9px 12px; border-bottom:1px solid var(--border-soft); color:var(--text-dim); font-size:12.5px; vertical-align:middle; }
+  table.reg-table tr:last-child td{ border-bottom:none; }
+  table.reg-table tr:hover td{ background:rgba(255,255,255,.02); }
+  table.reg-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  table.reg-table td.actions{ text-align:right; white-space:nowrap; }
+  table.reg-table td.actions .btn{ margin-left:5px; }
+  .item-name{ color:var(--text); font-weight:600; }
+  .item-sub{ color:var(--text-faint); font-size:11px; margin-top:1px; }
+  .low-stock{ color:var(--danger) !important; font-weight:700; }
+  .row-low td{ background:rgba(230,85,61,.05); }
+  .chip{
+    display:inline-block; padding:2px 9px; border-radius:99px; font-size:10.5px; font-weight:600;
+    border:1px solid var(--border); color:var(--text-dim);
+  }
+  .chip-pending{ border-color:var(--accent); color:var(--accent); }
+  .chip-approved{ border-color:var(--accent-2); color:var(--accent-2); }
+  .chip-issued{ border-color:var(--ok); color:var(--ok); }
+  .chip-rejected, .chip-cancelled{ border-color:var(--text-faint); color:var(--text-faint); }
+  .empty-hint{ text-align:center; color:var(--text-faint); padding:40px 20px; line-height:1.6; }
+  .empty-hint b{ color:var(--text-dim); }
+
+  /* ---- модалки (по аналогии с userAdminOverlay в index.html) ---- */
+  .overlay{
+    position:fixed; inset:0; z-index:900; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.55);
+  }
+  .overlay.hidden{ display:none; }
+  .modal-card{
+    width:420px; max-width:92vw; max-height:86vh; overflow-y:auto; background:var(--panel);
+    border:1px solid var(--border); border-radius:10px; padding:18px 20px; box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  .modal-card h3{ margin:0 0 14px; font-size:14px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between; }
+  .modal-card h3 button{ background:none; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; line-height:1; padding:2px 6px; }
+  .modal-card h3 button:hover{ color:var(--text); }
+  .field{ margin-bottom:11px; }
+  .field label{ display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:5px; }
+  .field input[type="text"], .field input[type="number"], .field textarea, .field select{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:7px 9px; font-size:12.5px; font-family:inherit;
+  }
+  .field textarea{ resize:vertical; min-height:52px; }
+  .field-row{ display:flex; gap:10px; }
+  .field-row .field{ flex:1; }
+  .modal-error{ min-height:16px; font-size:11.5px; color:var(--danger); margin:2px 0 8px; }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
+  .stock-line{ font-size:11.5px; color:var(--text-dim); background:var(--panel-alt); border:1px solid var(--border-soft); border-radius:5px; padding:8px 10px; margin-bottom:12px; }
+  #toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:1100;
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:9px 16px; font-size:12px; box-shadow:0 10px 30px rgba(0,0,0,.4);
+    opacity:0; pointer-events:none; transition:opacity .2s ease;
+  }
+  #toast.show{ opacity:1; }
+  #toast.err{ border-color:var(--danger); color:var(--danger); }
+</style>
+</head>
+<body>
+
+<!-- ================= Экран входа по паролю (тот же кэш сессии, что в index.html) ================= -->
+<div id="authGate">
+  <div id="authCard">
+    <h1>Mine Operations Tool</h1>
+    <h2>KazMinerals LLP — Реестр ЗИП</h2>
+    <label for="authUsername">Логин</label>
+    <input type="text" id="authUsername" autocomplete="username" placeholder="Логин" style="margin-bottom:10px;" />
+    <label for="authPassword">Пароль</label>
+    <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
+    <div id="authError"></div>
+    <button id="btnAuthSubmit">Войти</button>
+    <div class="authHint">Доступ только для авторизованных сотрудников KazMinerals LLP.<br>© 2026 KazMinerals LLP. Все права защищены.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var gate = document.getElementById("authGate");
+  var userInput = document.getElementById("authUsername");
+  var passInput = document.getElementById("authPassword");
+  var errorEl = document.getElementById("authError");
+  var btn = document.getElementById("btnAuthSubmit");
+
+  function unlock(session){
+    gate.classList.add("hidden");
+    window.__auth = session;
+    document.dispatchEvent(new CustomEvent("kzmAuthReady"));
+  }
+
+  function readStoredSession(){
+    try {
+      var raw = localStorage.getItem("kzmAuthSession");
+      if (!raw) return null;
+      var s = JSON.parse(raw);
+      if (s && s.token && s.username && s.role) return s;
+    } catch(e){}
+    return null;
+  }
+
+  async function tryLogin(){
+    var username = (userInput.value || "").trim();
+    var password = passInput.value || "";
+    if (!username || !password) {
+      errorEl.textContent = "Введите логин и пароль.";
+      return;
+    }
+    btn.disabled = true;
+    try {
+      var resp = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username, password: password }),
+      });
+      if (!resp.ok) {
+        errorEl.textContent = "Неверный логин или пароль.";
+        passInput.value = "";
+        passInput.focus();
+        return;
+      }
+      var data = await resp.json();
+      var session = { token: data.token, username: data.username, role: data.role };
+      try { localStorage.setItem("kzmAuthSession", JSON.stringify(session)); } catch(e){}
+      errorEl.textContent = "";
+      unlock(session);
+    } catch(e) {
+      errorEl.textContent = "Не удалось связаться с сервером.";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  var stored = readStoredSession();
+  if (stored) {
+    unlock(stored);
+  } else {
+    userInput.focus();
+  }
+  btn.addEventListener("click", tryLogin);
+  passInput.addEventListener("keydown", function(e){ if (e.key === "Enter") tryLogin(); });
+  userInput.addEventListener("keydown", function(e){ if (e.key === "Enter") passInput.focus(); });
+
+  window.__kzmLogout = function(){
+    try { localStorage.removeItem("kzmAuthSession"); } catch(e){}
+    location.reload();
+  };
+})();
+</script>
+
+<div id="shell">
+  <header id="topBar">
+    <div class="brand-titles">
+      <span class="t1">Реестр ЗИП</span>
+      <span class="t2">KazMinerals LLP — склад запчастей</span>
+    </div>
+    <div class="brand-spacer"></div>
+    <div id="sessionInfo" style="display:flex; align-items:center; gap:10px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
+      <span id="sessionProject"></span>
+      <span id="sessionUser"></span>
+      <a id="navToEditor" title="Редактор модели">✏️ Редактор</a>
+      <a id="navToMonitoring" title="Мониторинг оборудования">📡 Мониторинг</a>
+      <a id="navToRegistry" class="nav-current" title="Реестр ЗИП">📦 ЗИП</a>
+      <button id="btnLogout" title="Выйти">Выйти</button>
+    </div>
+    <div class="brand-copyright">© 2026 KazMinerals LLP<br>Все права защищены</div>
+  </header>
+
+  <div id="app">
+    <nav id="regTabs">
+      <button class="reg-tab-btn active" data-tab="catalog">Каталог</button>
+      <button class="reg-tab-btn" data-tab="myrequests">Мои заявки</button>
+      <button class="reg-tab-btn" data-tab="pending" style="display:none;">На рассмотрении<span id="pendingBadge" class="badge-count" style="display:none;">0</span></button>
+      <button class="reg-tab-btn" data-tab="movements" style="display:none;">Журнал движений</button>
+    </nav>
+
+    <div id="regPanels">
+      <!-- ---------------- Каталог ---------------- -->
+      <div class="reg-panel active" id="panel-catalog">
+        <div class="reg-toolbar">
+          <div class="reg-title">Каталог ЗИП</div>
+          <input type="text" id="catalogSearch" class="reg-search" placeholder="Поиск по названию, категории, партномеру…">
+          <button class="btn" id="btnRefreshCatalog">↻ Обновить</button>
+          <button class="btn btn-primary" id="btnAddItem" style="display:none;">+ Добавить позицию</button>
+        </div>
+        <div id="catalogTableWrap"></div>
+      </div>
+
+      <!-- ---------------- Мои заявки ---------------- -->
+      <div class="reg-panel" id="panel-myrequests">
+        <div class="reg-toolbar">
+          <div class="reg-title">Мои заявки</div>
+          <button class="btn" id="btnRefreshMyRequests">↻ Обновить</button>
+        </div>
+        <div id="myRequestsTableWrap"></div>
+      </div>
+
+      <!-- ---------------- На рассмотрении (admin) ---------------- -->
+      <div class="reg-panel" id="panel-pending">
+        <div class="reg-toolbar">
+          <div class="reg-title">Заявки на рассмотрении и выдачу</div>
+          <button class="btn" id="btnRefreshPending">↻ Обновить</button>
+        </div>
+        <div id="pendingTableWrap"></div>
+      </div>
+
+      <!-- ---------------- Журнал движений (admin) ---------------- -->
+      <div class="reg-panel" id="panel-movements">
+        <div class="reg-toolbar">
+          <div class="reg-title">Журнал движений склада</div>
+          <select id="movementsItemFilter" class="reg-search" style="width:260px;">
+            <option value="">Все позиции</option>
+          </select>
+          <button class="btn" id="btnRefreshMovements">↻ Обновить</button>
+        </div>
+        <div id="movementsTableWrap"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= Модалка: добавить/редактировать позицию ================= -->
+<div id="itemModal" class="overlay hidden">
+  <div class="modal-card">
+    <h3><span id="itemModalTitle">Новая позиция</span><button id="btnItemModalClose">✕</button></h3>
+    <div class="field"><label for="fName">Название *</label><input type="text" id="fName"></div>
+    <div class="field-row">
+      <div class="field"><label for="fCategory">Категория</label><input type="text" id="fCategory" placeholder="напр. ВОЛС, СКС, питание"></div>
+      <div class="field"><label for="fUnit">Ед. изм.</label><input type="text" id="fUnit" placeholder="шт"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="fManufacturer">Производитель</label><input type="text" id="fManufacturer"></div>
+      <div class="field"><label for="fPartNumber">Партномер</label><input type="text" id="fPartNumber"></div>
+    </div>
+    <div class="field"><label for="fLocation">Место хранения</label><input type="text" id="fLocation" placeholder="напр. Склад №2, стеллаж 4"></div>
+    <div class="field"><label for="fDescription">Описание</label><textarea id="fDescription"></textarea></div>
+    <div class="field"><label for="fMinQty">Мин. остаток (порог низкого запаса)</label><input type="number" id="fMinQty" min="0" step="1" value="0"></div>
+    <div class="modal-error" id="itemModalError"></div>
+    <div class="modal-actions">
+      <button class="btn" id="btnItemModalCancel">Отмена</button>
+      <button class="btn btn-primary" id="btnItemModalSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= Модалка: приход на склад ================= -->
+<div id="receiptModal" class="overlay hidden">
+  <div class="modal-card">
+    <h3><span>Приход на склад</span><button id="btnReceiptModalClose">✕</button></h3>
+    <div class="stock-line" id="receiptStockLine"></div>
+    <div class="field"><label for="fReceiptQty">Количество</label><input type="number" id="fReceiptQty" min="1" step="1" value="1"></div>
+    <div class="field"><label for="fReceiptNote">Примечание</label><textarea id="fReceiptNote" placeholder="напр. накладная № …"></textarea></div>
+    <div class="modal-error" id="receiptModalError"></div>
+    <div class="modal-actions">
+      <button class="btn" id="btnReceiptModalCancel">Отмена</button>
+      <button class="btn btn-primary" id="btnReceiptModalSave">Оприходовать</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= Модалка: корректировка остатка ================= -->
+<div id="adjustModal" class="overlay hidden">
+  <div class="modal-card">
+    <h3><span>Корректировка остатка</span><button id="btnAdjustModalClose">✕</button></h3>
+    <div class="stock-line" id="adjustStockLine"></div>
+    <div class="field"><label for="fAdjustDelta">Изменение (можно отрицательное, напр. -2 при списании порчи)</label><input type="number" id="fAdjustDelta" step="1" value="0"></div>
+    <div class="field"><label for="fAdjustNote">Причина *</label><textarea id="fAdjustNote" placeholder="напр. инвентаризация, порча, пересчёт"></textarea></div>
+    <div class="modal-error" id="adjustModalError"></div>
+    <div class="modal-actions">
+      <button class="btn" id="btnAdjustModalCancel">Отмена</button>
+      <button class="btn btn-primary" id="btnAdjustModalSave">Применить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= Модалка: подать заявку ================= -->
+<div id="requestModal" class="overlay hidden">
+  <div class="modal-card">
+    <h3><span>Заявка на выдачу</span><button id="btnRequestModalClose">✕</button></h3>
+    <div class="stock-line" id="requestStockLine"></div>
+    <div class="field"><label for="fRequestQty">Количество</label><input type="number" id="fRequestQty" min="1" step="1" value="1"></div>
+    <div class="field"><label for="fRequestReason">Назначение / причина</label><textarea id="fRequestReason" placeholder="напр. замена неисправного ODF на ВОЛС-14"></textarea></div>
+    <div class="modal-error" id="requestModalError"></div>
+    <div class="modal-actions">
+      <button class="btn" id="btnRequestModalCancel">Отмена</button>
+      <button class="btn btn-primary" id="btnRequestModalSave">Подать заявку</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= Модалка: решение по заявке (одобрить/отклонить) ================= -->
+<div id="decisionModal" class="overlay hidden">
+  <div class="modal-card">
+    <h3><span id="decisionModalTitle">Решение по заявке</span><button id="btnDecisionModalClose">✕</button></h3>
+    <div class="stock-line" id="decisionStockLine"></div>
+    <div class="field"><label for="fDecisionNote">Комментарий (необязательно)</label><textarea id="fDecisionNote"></textarea></div>
+    <div class="modal-error" id="decisionModalError"></div>
+    <div class="modal-actions">
+      <button class="btn" id="btnDecisionModalCancel">Отмена</button>
+      <button class="btn btn-primary" id="btnDecisionModalConfirm">Подтвердить</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+const CURRENT_PROJECT_ID = (location.pathname.split("/").filter(Boolean)[0] || "default").toLowerCase();
+const API = `/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/zip`;
+
+function apiHeaders(extra) {
+  const auth = window.__auth;
+  const headers = Object.assign({ "Content-Type": "application/json" }, extra || {});
+  if (auth && auth.token) headers["Authorization"] = "Bearer " + auth.token;
+  return headers;
+}
+async function apiFetch(url, options) {
+  const resp = await fetch(url, Object.assign({}, options, { headers: apiHeaders((options && options.headers) || {}) }));
+  if (resp.status === 401) {
+    if (window.__kzmLogout) window.__kzmLogout();
+    throw new Error("Сессия истекла, требуется повторный вход.");
+  }
+  return resp;
+}
+async function apiJson(url, options) {
+  const resp = await apiFetch(url, options);
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const err = new Error(data.error || ("http_" + resp.status));
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+const ERROR_LABELS = {
+  missing_name: "Укажите название.",
+  invalid_qty: "Укажите корректное количество (> 0).",
+  invalid_delta: "Укажите ненулевое изменение количества.",
+  would_go_negative: "Такая корректировка увела бы остаток в минус.",
+  invalid_item: "Позиция не найдена.",
+  insufficient_stock: "Недостаточно свободного остатка для одобрения.",
+  item_not_found: "Позиция не найдена.",
+  request_not_found: "Заявка не найдена.",
+  invalid_status: "Заявка уже не в том статусе — обновите список.",
+  forbidden: "Недостаточно прав для этого действия.",
+  project_not_found: "Проект не найден.",
+};
+function errLabel(e) {
+  return ERROR_LABELS[e && e.data && e.data.error] || ERROR_LABELS[e && e.message] || (e && e.message) || "Ошибка. Попробуйте ещё раз.";
+}
+
+let toastTimer = null;
+function toast(msg, isErr) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = isErr ? "show err" : "show";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove("show"); }, 3200);
+}
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function fmtDate(s) {
+  if (!s) return "—";
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/.exec(s);
+  const d = m ? new Date(m[1] + "T" + m[2] + "Z") : new Date(s);
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+const STATUS_LABELS = { pending: "Ожидает", approved: "Одобрена", rejected: "Отклонена", issued: "Выдана", cancelled: "Отменена" };
+
+let itemsCache = [];
+let myRequestsCache = [];
+let pendingRequestsCache = [];
+
+/* ---------------- Каталог ---------------- */
+function renderCatalog() {
+  const role = (window.__auth && window.__auth.role) || "viewer";
+  const isAdmin = role === "admin";
+  const canRequest = role === "editor" || role === "admin";
+  const q = (document.getElementById("catalogSearch").value || "").trim().toLowerCase();
+  const wrap = document.getElementById("catalogTableWrap");
+  const rows = itemsCache.filter((it) => {
+    if (!q) return true;
+    return [it.name, it.category, it.manufacturer, it.partNumber, it.location].some((f) => (f || "").toLowerCase().includes(q));
+  });
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="empty-hint">${itemsCache.length ? "Ничего не найдено по запросу." : "<b>Каталог пуст.</b><br>" + (isAdmin ? "Добавьте первую позицию кнопкой выше." : "Позиции ещё не добавлены администратором.")}</div>`;
+    return;
+  }
+  wrap.innerHTML = `<table class="reg-table"><thead><tr>
+    <th>Название</th><th>Категория</th><th>Место хранения</th>
+    <th style="text-align:right;">На складе</th><th style="text-align:right;">Резерв</th><th style="text-align:right;">Доступно</th>
+    <th style="text-align:right;">Мин.</th><th></th>
+  </tr></thead><tbody>
+  ${rows.map((it) => `
+    <tr class="${it.lowStock ? "row-low" : ""}" data-id="${esc(it.id)}">
+      <td><div class="item-name">${esc(it.name)}</div>${it.manufacturer || it.partNumber ? `<div class="item-sub">${esc([it.manufacturer, it.partNumber].filter(Boolean).join(" · "))}</div>` : ""}</td>
+      <td>${esc(it.category || "—")}</td>
+      <td>${esc(it.location || "—")}</td>
+      <td class="num">${it.qtyOnHand} ${esc(it.unit)}</td>
+      <td class="num">${it.qtyReserved} ${esc(it.unit)}</td>
+      <td class="num ${it.lowStock ? "low-stock" : ""}">${it.qtyAvailable} ${esc(it.unit)}</td>
+      <td class="num">${it.minQty}</td>
+      <td class="actions">
+        ${canRequest ? `<button class="btn btn-sm btn-primary act-request" data-id="${esc(it.id)}">Заявка</button>` : ""}
+        ${isAdmin ? `
+          <button class="btn btn-sm act-receipt" data-id="${esc(it.id)}">Приход</button>
+          <button class="btn btn-sm act-adjust" data-id="${esc(it.id)}">Коррект.</button>
+          <button class="btn btn-sm act-edit" data-id="${esc(it.id)}">Изм.</button>
+          <button class="btn btn-sm btn-danger act-delete" data-id="${esc(it.id)}">Удал.</button>
+        ` : ""}
+      </td>
+    </tr>`).join("")}
+  </tbody></table>`;
+}
+
+async function loadCatalog() {
+  const data = await apiJson(`${API}/items`);
+  itemsCache = data.items;
+  renderCatalog();
+  populateMovementsFilter();
+}
+
+/* ---------------- Мои заявки ---------------- */
+function renderMyRequests() {
+  const role = (window.__auth && window.__auth.role) || "viewer";
+  const canCancel = role === "editor" || role === "admin";
+  const wrap = document.getElementById("myRequestsTableWrap");
+  if (!myRequestsCache.length) {
+    wrap.innerHTML = `<div class="empty-hint"><b>Заявок пока нет.</b><br>Подайте заявку на позицию из вкладки «Каталог».</div>`;
+    return;
+  }
+  wrap.innerHTML = `<table class="reg-table"><thead><tr>
+    <th>Позиция</th><th style="text-align:right;">Кол-во</th><th>Причина</th><th>Статус</th><th>Подана</th><th>Решение</th><th></th>
+  </tr></thead><tbody>
+  ${myRequestsCache.map((r) => `
+    <tr>
+      <td class="item-name">${esc(r.itemName)}</td>
+      <td class="num">${r.qty}</td>
+      <td>${esc(r.reason || "—")}</td>
+      <td><span class="chip chip-${r.status}">${STATUS_LABELS[r.status] || r.status}</span></td>
+      <td>${fmtDate(r.requestedAt)}</td>
+      <td>${r.decidedBy ? `${esc(r.decidedBy)}, ${fmtDate(r.decidedAt)}${r.decisionNote ? " — " + esc(r.decisionNote) : ""}` : "—"}</td>
+      <td class="actions">${canCancel && (r.status === "pending" || r.status === "approved") ? `<button class="btn btn-sm btn-danger act-cancel" data-id="${r.id}">Отменить</button>` : ""}</td>
+    </tr>`).join("")}
+  </tbody></table>`;
+}
+async function loadMyRequests() {
+  const data = await apiJson(`${API}/requests`);
+  const isAdmin = (window.__auth && window.__auth.role) === "admin";
+  myRequestsCache = isAdmin ? data.requests.filter((r) => r.requestedBy === window.__auth.username) : data.requests;
+  renderMyRequests();
+}
+
+/* ---------------- На рассмотрении (admin) ---------------- */
+function renderPending() {
+  const wrap = document.getElementById("pendingTableWrap");
+  const rows = pendingRequestsCache.filter((r) => r.status === "pending" || r.status === "approved");
+  const badge = document.getElementById("pendingBadge");
+  const pendingCount = pendingRequestsCache.filter((r) => r.status === "pending").length;
+  badge.textContent = pendingCount;
+  badge.style.display = pendingCount ? "inline-block" : "none";
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="empty-hint"><b>Нет заявок, требующих внимания.</b></div>`;
+    return;
+  }
+  wrap.innerHTML = `<table class="reg-table"><thead><tr>
+    <th>Позиция</th><th style="text-align:right;">Кол-во</th><th>Причина</th><th>Инженер</th><th>Статус</th><th>Подана</th><th></th>
+  </tr></thead><tbody>
+  ${rows.map((r) => `
+    <tr>
+      <td class="item-name">${esc(r.itemName)}</td>
+      <td class="num">${r.qty}</td>
+      <td>${esc(r.reason || "—")}</td>
+      <td>${esc(r.requestedBy)}</td>
+      <td><span class="chip chip-${r.status}">${STATUS_LABELS[r.status] || r.status}</span></td>
+      <td>${fmtDate(r.requestedAt)}</td>
+      <td class="actions">
+        ${r.status === "pending" ? `
+          <button class="btn btn-sm btn-ok act-approve" data-id="${r.id}">Одобрить</button>
+          <button class="btn btn-sm btn-danger act-reject" data-id="${r.id}">Отклонить</button>
+        ` : `<button class="btn btn-sm btn-primary act-issue" data-id="${r.id}">Выдать</button>`}
+      </td>
+    </tr>`).join("")}
+  </tbody></table>`;
+}
+async function loadPending() {
+  const data = await apiJson(`${API}/requests`);
+  pendingRequestsCache = data.requests;
+  renderPending();
+}
+
+/* ---------------- Журнал движений (admin) ---------------- */
+const MOVEMENT_LABELS = { receipt: "Приход", issue: "Выдача", adjustment: "Корректировка" };
+function populateMovementsFilter() {
+  const sel = document.getElementById("movementsItemFilter");
+  const current = sel.value;
+  sel.innerHTML = `<option value="">Все позиции</option>` + itemsCache.map((it) => `<option value="${esc(it.id)}">${esc(it.name)}</option>`).join("");
+  sel.value = current;
+}
+async function loadMovements() {
+  const itemId = document.getElementById("movementsItemFilter").value;
+  const url = itemId ? `${API}/movements?itemId=${encodeURIComponent(itemId)}` : `${API}/movements`;
+  const data = await apiJson(url);
+  const wrap = document.getElementById("movementsTableWrap");
+  if (!data.movements.length) {
+    wrap.innerHTML = `<div class="empty-hint"><b>Движений пока нет.</b></div>`;
+    return;
+  }
+  const itemName = (id) => { const it = itemsCache.find((x) => x.id === id); return it ? it.name : id; };
+  wrap.innerHTML = `<table class="reg-table"><thead><tr>
+    <th>Дата</th><th>Позиция</th><th>Тип</th><th style="text-align:right;">Изменение</th><th>Автор</th><th>Примечание</th>
+  </tr></thead><tbody>
+  ${data.movements.map((m) => `
+    <tr>
+      <td>${fmtDate(m.createdAt)}</td>
+      <td>${esc(itemName(m.itemId))}</td>
+      <td>${MOVEMENT_LABELS[m.reason] || m.reason}</td>
+      <td class="num" style="color:${m.delta < 0 ? "var(--danger)" : "var(--ok)"};">${m.delta > 0 ? "+" : ""}${m.delta}</td>
+      <td>${esc(m.createdBy || "—")}</td>
+      <td>${esc(m.note || "—")}</td>
+    </tr>`).join("")}
+  </tbody></table>`;
+}
+
+/* ---------------- Табы ---------------- */
+function switchTab(tab) {
+  document.querySelectorAll(".reg-tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll(".reg-panel").forEach((p) => p.classList.toggle("active", p.id === "panel-" + tab));
+  if (tab === "catalog") loadCatalog().catch((e) => toast(errLabel(e), true));
+  if (tab === "myrequests") loadMyRequests().catch((e) => toast(errLabel(e), true));
+  if (tab === "pending") loadPending().catch((e) => toast(errLabel(e), true));
+  if (tab === "movements") loadMovements().catch((e) => toast(errLabel(e), true));
+}
+document.querySelectorAll(".reg-tab-btn").forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+
+/* ---------------- Модалка: позиция (добавить/изменить) ---------------- */
+const itemModal = document.getElementById("itemModal");
+let editingItemId = null;
+function openItemModal(item) {
+  editingItemId = item ? item.id : null;
+  document.getElementById("itemModalTitle").textContent = item ? "Изменить позицию" : "Новая позиция";
+  document.getElementById("fName").value = item ? item.name : "";
+  document.getElementById("fCategory").value = item ? (item.category || "") : "";
+  document.getElementById("fUnit").value = item ? item.unit : "шт";
+  document.getElementById("fManufacturer").value = item ? (item.manufacturer || "") : "";
+  document.getElementById("fPartNumber").value = item ? (item.partNumber || "") : "";
+  document.getElementById("fLocation").value = item ? (item.location || "") : "";
+  document.getElementById("fDescription").value = item ? (item.description || "") : "";
+  document.getElementById("fMinQty").value = item ? item.minQty : 0;
+  document.getElementById("itemModalError").textContent = "";
+  itemModal.classList.remove("hidden");
+}
+function closeItemModal() { itemModal.classList.add("hidden"); }
+document.getElementById("btnAddItem").addEventListener("click", () => openItemModal(null));
+document.getElementById("btnItemModalClose").addEventListener("click", closeItemModal);
+document.getElementById("btnItemModalCancel").addEventListener("click", closeItemModal);
+document.getElementById("btnItemModalSave").addEventListener("click", async () => {
+  const body = {
+    name: document.getElementById("fName").value.trim(),
+    category: document.getElementById("fCategory").value.trim() || null,
+    unit: document.getElementById("fUnit").value.trim() || "шт",
+    manufacturer: document.getElementById("fManufacturer").value.trim() || null,
+    partNumber: document.getElementById("fPartNumber").value.trim() || null,
+    location: document.getElementById("fLocation").value.trim() || null,
+    description: document.getElementById("fDescription").value.trim() || null,
+    minQty: parseInt(document.getElementById("fMinQty").value, 10) || 0,
+  };
+  if (!body.name) { document.getElementById("itemModalError").textContent = ERROR_LABELS.missing_name; return; }
+  try {
+    if (editingItemId) {
+      await apiJson(`${API}/items/${encodeURIComponent(editingItemId)}`, { method: "PUT", body: JSON.stringify(body) });
+      toast("Позиция обновлена.");
+    } else {
+      await apiJson(`${API}/items`, { method: "POST", body: JSON.stringify(body) });
+      toast("Позиция добавлена.");
+    }
+    closeItemModal();
+    await loadCatalog();
+  } catch (e) {
+    document.getElementById("itemModalError").textContent = errLabel(e);
+  }
+});
+
+/* ---------------- Модалка: приход ---------------- */
+const receiptModal = document.getElementById("receiptModal");
+let receiptItemId = null;
+function openReceiptModal(item) {
+  receiptItemId = item.id;
+  document.getElementById("receiptStockLine").textContent = `${item.name}: на складе ${item.qtyOnHand} ${item.unit}, резерв ${item.qtyReserved} ${item.unit}.`;
+  document.getElementById("fReceiptQty").value = 1;
+  document.getElementById("fReceiptNote").value = "";
+  document.getElementById("receiptModalError").textContent = "";
+  receiptModal.classList.remove("hidden");
+}
+function closeReceiptModal() { receiptModal.classList.add("hidden"); }
+document.getElementById("btnReceiptModalClose").addEventListener("click", closeReceiptModal);
+document.getElementById("btnReceiptModalCancel").addEventListener("click", closeReceiptModal);
+document.getElementById("btnReceiptModalSave").addEventListener("click", async () => {
+  const qty = parseInt(document.getElementById("fReceiptQty").value, 10);
+  const note = document.getElementById("fReceiptNote").value.trim() || null;
+  try {
+    await apiJson(`${API}/items/${encodeURIComponent(receiptItemId)}/receipt`, { method: "POST", body: JSON.stringify({ qty, note }) });
+    toast("Приход оформлен.");
+    closeReceiptModal();
+    await loadCatalog();
+  } catch (e) {
+    document.getElementById("receiptModalError").textContent = errLabel(e);
+  }
+});
+
+/* ---------------- Модалка: корректировка ---------------- */
+const adjustModal = document.getElementById("adjustModal");
+let adjustItemId = null;
+function openAdjustModal(item) {
+  adjustItemId = item.id;
+  document.getElementById("adjustStockLine").textContent = `${item.name}: на складе ${item.qtyOnHand} ${item.unit}, резерв ${item.qtyReserved} ${item.unit}.`;
+  document.getElementById("fAdjustDelta").value = 0;
+  document.getElementById("fAdjustNote").value = "";
+  document.getElementById("adjustModalError").textContent = "";
+  adjustModal.classList.remove("hidden");
+}
+function closeAdjustModal() { adjustModal.classList.add("hidden"); }
+document.getElementById("btnAdjustModalClose").addEventListener("click", closeAdjustModal);
+document.getElementById("btnAdjustModalCancel").addEventListener("click", closeAdjustModal);
+document.getElementById("btnAdjustModalSave").addEventListener("click", async () => {
+  const delta = parseInt(document.getElementById("fAdjustDelta").value, 10);
+  const note = document.getElementById("fAdjustNote").value.trim();
+  if (!note) { document.getElementById("adjustModalError").textContent = "Укажите причину корректировки."; return; }
+  try {
+    await apiJson(`${API}/items/${encodeURIComponent(adjustItemId)}/adjust`, { method: "POST", body: JSON.stringify({ delta, note }) });
+    toast("Корректировка применена.");
+    closeAdjustModal();
+    await loadCatalog();
+  } catch (e) {
+    document.getElementById("adjustModalError").textContent = errLabel(e);
+  }
+});
+
+/* ---------------- Модалка: заявка на выдачу ---------------- */
+const requestModal = document.getElementById("requestModal");
+let requestItemId = null;
+function openRequestModal(item) {
+  requestItemId = item.id;
+  document.getElementById("requestStockLine").textContent = `${item.name}: доступно ${item.qtyAvailable} ${item.unit} (резерв учитывается при одобрении).`;
+  document.getElementById("fRequestQty").value = 1;
+  document.getElementById("fRequestReason").value = "";
+  document.getElementById("requestModalError").textContent = "";
+  requestModal.classList.remove("hidden");
+}
+function closeRequestModal() { requestModal.classList.add("hidden"); }
+document.getElementById("btnRequestModalClose").addEventListener("click", closeRequestModal);
+document.getElementById("btnRequestModalCancel").addEventListener("click", closeRequestModal);
+document.getElementById("btnRequestModalSave").addEventListener("click", async () => {
+  const qty = parseInt(document.getElementById("fRequestQty").value, 10);
+  const reason = document.getElementById("fRequestReason").value.trim() || null;
+  try {
+    await apiJson(`${API}/requests`, { method: "POST", body: JSON.stringify({ itemId: requestItemId, qty, reason }) });
+    toast("Заявка подана.");
+    closeRequestModal();
+    await loadMyRequests();
+  } catch (e) {
+    document.getElementById("requestModalError").textContent = errLabel(e);
+  }
+});
+
+/* ---------------- Модалка: решение по заявке ---------------- */
+const decisionModal = document.getElementById("decisionModal");
+let decisionCtx = null; // { reqId, action }
+function openDecisionModal(request, action) {
+  decisionCtx = { reqId: request.id, action };
+  const titles = { approve: "Одобрить заявку", reject: "Отклонить заявку" };
+  document.getElementById("decisionModalTitle").textContent = titles[action];
+  document.getElementById("decisionStockLine").textContent = `${request.itemName} × ${request.qty}, инженер: ${request.requestedBy}.`;
+  document.getElementById("fDecisionNote").value = "";
+  document.getElementById("decisionModalError").textContent = "";
+  document.getElementById("btnDecisionModalConfirm").className = action === "reject" ? "btn btn-danger" : "btn btn-primary";
+  decisionModal.classList.remove("hidden");
+}
+function closeDecisionModal() { decisionModal.classList.add("hidden"); }
+document.getElementById("btnDecisionModalClose").addEventListener("click", closeDecisionModal);
+document.getElementById("btnDecisionModalCancel").addEventListener("click", closeDecisionModal);
+document.getElementById("btnDecisionModalConfirm").addEventListener("click", async () => {
+  const note = document.getElementById("fDecisionNote").value.trim() || null;
+  try {
+    await apiJson(`${API}/requests/${decisionCtx.reqId}/${decisionCtx.action}`, { method: "POST", body: JSON.stringify({ note }) });
+    toast(decisionCtx.action === "approve" ? "Заявка одобрена." : "Заявка отклонена.");
+    closeDecisionModal();
+    await loadPending();
+  } catch (e) {
+    document.getElementById("decisionModalError").textContent = errLabel(e);
+  }
+});
+
+/* ---------------- Делегирование кликов по таблицам ---------------- */
+document.getElementById("catalogTableWrap").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const item = itemsCache.find((it) => it.id === btn.dataset.id);
+  if (!item) return;
+  if (btn.classList.contains("act-request")) openRequestModal(item);
+  else if (btn.classList.contains("act-receipt")) openReceiptModal(item);
+  else if (btn.classList.contains("act-adjust")) openAdjustModal(item);
+  else if (btn.classList.contains("act-edit")) openItemModal(item);
+  else if (btn.classList.contains("act-delete")) {
+    if (confirm(`Удалить позицию «${item.name}» из каталога?`)) {
+      apiJson(`${API}/items/${encodeURIComponent(item.id)}`, { method: "DELETE" })
+        .then(() => { toast("Позиция удалена."); loadCatalog(); })
+        .catch((err) => toast(errLabel(err), true));
+    }
+  }
+});
+document.getElementById("myRequestsTableWrap").addEventListener("click", (e) => {
+  const btn = e.target.closest("button.act-cancel");
+  if (!btn) return;
+  if (!confirm("Отменить заявку?")) return;
+  apiJson(`${API}/requests/${btn.dataset.id}/cancel`, { method: "POST", body: JSON.stringify({}) })
+    .then(() => { toast("Заявка отменена."); loadMyRequests(); })
+    .catch((err) => toast(errLabel(err), true));
+});
+document.getElementById("pendingTableWrap").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const request = pendingRequestsCache.find((r) => String(r.id) === btn.dataset.id);
+  if (!request) return;
+  if (btn.classList.contains("act-approve")) openDecisionModal(request, "approve");
+  else if (btn.classList.contains("act-reject")) openDecisionModal(request, "reject");
+  else if (btn.classList.contains("act-issue")) {
+    if (!confirm(`Выдать ${request.itemName} × ${request.qty} инженеру ${request.requestedBy}?`)) return;
+    apiJson(`${API}/requests/${request.id}/issue`, { method: "POST", body: JSON.stringify({}) })
+      .then(() => { toast("Заявка выдана."); loadPending(); loadCatalog(); })
+      .catch((err) => toast(errLabel(err), true));
+  }
+});
+
+document.getElementById("catalogSearch").addEventListener("input", renderCatalog);
+document.getElementById("btnRefreshCatalog").addEventListener("click", () => loadCatalog().catch((e) => toast(errLabel(e), true)));
+document.getElementById("btnRefreshMyRequests").addEventListener("click", () => loadMyRequests().catch((e) => toast(errLabel(e), true)));
+document.getElementById("btnRefreshPending").addEventListener("click", () => loadPending().catch((e) => toast(errLabel(e), true)));
+document.getElementById("btnRefreshMovements").addEventListener("click", () => loadMovements().catch((e) => toast(errLabel(e), true)));
+document.getElementById("movementsItemFilter").addEventListener("change", () => loadMovements().catch((e) => toast(errLabel(e), true)));
+document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
+
+/* ---------------- Bootstrap: роли, навигация, первый рендер ---------------- */
+function applyRoleUI() {
+  const auth = window.__auth;
+  const role = (auth && auth.role) || "viewer";
+  document.getElementById("sessionProject").textContent = "Проект: " + CURRENT_PROJECT_ID;
+  document.getElementById("sessionUser").textContent = auth ? `${auth.username} (${role})` : "";
+  document.getElementById("navToEditor").href = `/${CURRENT_PROJECT_ID}`;
+  document.getElementById("navToMonitoring").href = `/${CURRENT_PROJECT_ID}/monitoring`;
+  document.getElementById("navToRegistry").href = `/${CURRENT_PROJECT_ID}/registry`;
+  document.getElementById("btnAddItem").style.display = role === "admin" ? "" : "none";
+  document.querySelector('.reg-tab-btn[data-tab="pending"]').style.display = role === "admin" ? "" : "none";
+  document.querySelector('.reg-tab-btn[data-tab="movements"]').style.display = role === "admin" ? "" : "none";
+}
+function boot() {
+  applyRoleUI();
+  switchTab("catalog");
+}
+if (window.__auth) boot();
+else document.addEventListener("kzmAuthReady", boot, { once: true });
+</script>
+</body>
+</html>

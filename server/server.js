@@ -25,6 +25,12 @@ app.use("/api/users", usersRoutes);
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
+// Реестр ЗИП — отдельная лёгкая страница (без Three.js), не часть index.html
+// SPA-роутинга ниже. Должно идти раньше общего catch-all.
+app.get(/^\/[^/]+\/registry\/?$/, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "registry.html"));
+});
+
 // SPA: any other GET (e.g. /:projectId) serves the app; the frontend reads
 // the project id from the URL path itself.
 app.get(/^\/(?!api\/).*/, (req, res) => {
