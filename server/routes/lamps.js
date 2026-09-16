@@ -30,6 +30,13 @@ function requireProject(req, res) {
   return project;
 }
 
+// Плейсхолдер для пустого подразделения — используется и в самих записях, и
+// в агрегации по подразделениям, чтобы значение из выпадающего фильтра на
+// клиенте совпадало с department на записи (раньше клиент фильтровал по
+// сырому "", а в выпадающем списке была видна только подпись-плейсхолдер —
+// фильтр по "(без подразделения)" не находил ничего).
+const NO_DEPARTMENT = "(без подразделения)";
+
 const stmtGetLampThreshold = db.prepare("SELECT lamp_fail_after_hours FROM project_monitor_thresholds WHERE project_id = ?");
 function getLampFailAfterHours(projectId) {
   const row = stmtGetLampThreshold.get(projectId);
@@ -159,7 +166,7 @@ router.get("/:id/lamps/reports/:reportId", (req, res) => {
       tabNumber: r.tab_number,
       fullName: r.full_name,
       position: r.position,
-      department: r.department,
+      department: r.department || NO_DEPARTMENT,
       organization: r.organization,
       lampId: r.lamp_id,
       reader: r.reader,
@@ -173,7 +180,7 @@ router.get("/:id/lamps/reports/:reportId", (req, res) => {
        FROM lamp_records WHERE report_id = ? GROUP BY department ORDER BY broken DESC, total DESC`
     )
     .all(reportRow.id)
-    .map((r) => ({ department: r.department || "(без подразделения)", total: r.total, broken: r.broken }));
+    .map((r) => ({ department: r.department || NO_DEPARTMENT, total: r.total, broken: r.broken }));
 
   res.json({
     report: serializeReportSummary(reportRow),
