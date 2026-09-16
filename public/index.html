@@ -640,6 +640,7 @@
       <a id="navToMonitoring" title="Мониторинг оборудования" style="text-decoration:none; display:inline-flex; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📡 Мониторинг</a>
       <a id="navToMonitorStats" title="История аварий по системам" style="text-decoration:none; display:inline-flex; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📊 Статистика</a>
       <a id="navToRegistry" title="Реестр ЗИП" style="text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📦 ЗИП</a>
+      <a id="navToLamps" title="Фонари" style="text-decoration:none; display:inline-flex; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">🔦 Фонари</a>
       <button id="btnUserAdmin" title="Управление пользователями" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">👥 Пользователи</button>
       <button id="btnSppdConfig" title="Подключение к SPPD для этого проекта" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">⚙ SPPD</button>
       <button id="btnThresholds" title="Пороги фиксации аварии для этого проекта" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">⚙ Пороги</button>
@@ -713,6 +714,10 @@
     <div class="sc-field">
       <label for="thFsFails">Простой до фиксации аварии, мин — FieldSense/FS (0 — сразу)</label>
       <input type="number" id="thFsFails" min="0" max="60" step="0.5">
+    </div>
+    <div class="sc-field">
+      <label for="thLampFails">Фонарь неисправен после молчания, ч</label>
+      <input type="number" id="thLampFails" min="1" max="336" step="1">
     </div>
     <div id="thresholdsError"></div>
     <div class="sc-actions">
@@ -5369,10 +5374,12 @@ function applyMonitoringPageUI() {
   const navToEditor = document.getElementById("navToEditor");
   const navToRegistry = document.getElementById("navToRegistry");
   const navToMonitorStats = document.getElementById("navToMonitorStats");
+  const navToLamps = document.getElementById("navToLamps");
   if (navToMonitoring) navToMonitoring.href = `/${CURRENT_PROJECT_ID}/monitoring`;
   if (navToEditor) navToEditor.href = `/${CURRENT_PROJECT_ID}`;
   if (navToRegistry) navToRegistry.href = `/${CURRENT_PROJECT_ID}/registry`;
   if (navToMonitorStats) navToMonitorStats.href = `/${CURRENT_PROJECT_ID}/monitoring/stats`;
+  if (navToLamps) navToLamps.href = `/${CURRENT_PROJECT_ID}/lamps`;
   if (!IS_MONITORING_PAGE) return;
   document.body.classList.add("monitoring-mode");
   document.querySelectorAll(".tabpanel").forEach((p) => p.classList.remove("active"));
@@ -6342,6 +6349,7 @@ async function loadThresholds() {
     document.getElementById("thSppdStale").value = data.sppdStaleAfterSec;
     document.getElementById("thSppdFails").value = data.sppdFailDurationSec / 60;
     document.getElementById("thFsFails").value = data.fsFailDurationSec / 60;
+    document.getElementById("thLampFails").value = data.lampFailAfterHours;
     thStatus.textContent = data.configured
       ? `Настроено${data.updatedBy ? " — " + data.updatedBy : ""}${data.updatedAt ? ", " + parseServerDate(data.updatedAt).toLocaleString() : ""}`
       : "Используются значения по умолчанию (ничего явно не настроено).";
@@ -6375,10 +6383,14 @@ document.getElementById("btnThresholdsSave").addEventListener("click", async () 
     thError.textContent = "Простой до аварии (FieldSense) — число от 0 до 60 мин."; return;
   }
   const fsFailDurationSec = Math.round(fsFailMinutes * 60);
+  const lampFailAfterHours = parseInt(document.getElementById("thLampFails").value, 10);
+  if (!Number.isInteger(lampFailAfterHours) || lampFailAfterHours < 1 || lampFailAfterHours > 336) {
+    thError.textContent = "Молчание фонаря до «неисправен» — целое число от 1 до 336 ч."; return;
+  }
   try {
     const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec }),
+      body: JSON.stringify({ pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec, lampFailAfterHours }),
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));

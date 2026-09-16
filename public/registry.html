@@ -278,6 +278,7 @@
       <a id="navToEditor" title="Редактор модели">✏️ Редактор</a>
       <a id="navToMonitoring" title="Мониторинг оборудования">📡 Мониторинг</a>
       <a id="navToRegistry" class="nav-current" title="Реестр ЗИП">📦 ЗИП</a>
+      <a id="navToLamps" title="Фонари">🔦 Фонари</a>
       <button id="btnLogout" title="Выйти">Выйти</button>
     </div>
     <div class="brand-copyright">© 2026 KazMinerals LLP<br>Все права защищены</div>
@@ -937,6 +938,7 @@ function applyRoleUI() {
   document.getElementById("navToEditor").href = `/${CURRENT_PROJECT_ID}`;
   document.getElementById("navToMonitoring").href = `/${CURRENT_PROJECT_ID}/monitoring`;
   document.getElementById("navToRegistry").href = `/${CURRENT_PROJECT_ID}/registry`;
+  document.getElementById("navToLamps").href = `/${CURRENT_PROJECT_ID}/lamps`;
   document.getElementById("btnAddItem").style.display = role === "admin" ? "" : "none";
   document.querySelector('.reg-tab-btn[data-tab="pending"]').style.display = role === "admin" ? "" : "none";
   document.querySelector('.reg-tab-btn[data-tab="movements"]').style.display = role === "admin" ? "" : "none";

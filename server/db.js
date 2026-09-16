@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS project_monitor_thresholds (
   sppd_stale_after_sec INTEGER NOT NULL DEFAULT 120,
   sppd_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
   fs_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
+  lamp_fail_after_hours INTEGER NOT NULL DEFAULT 24,
   updated_by TEXT,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -207,6 +208,41 @@ CREATE TABLE IF NOT EXISTS zip_movements (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_zip_movements_item ON zip_movements(item_id, created_at DESC);
+
+-- Фонари: статистика работоспособности по отчёту "Текущие местоположение"
+-- (SPPD/SBeacon), загружается вручную (.xls/.xlsx) — см. server/lib/lampReportParser.js.
+-- lamp_reports — одна строка на загрузку; is_broken на записи считается один
+-- раз при загрузке относительно generated_at ИЗ САМОГО ОТЧЁТА (не текущего
+-- времени сервера) и порога lamp_fail_after_hours на момент загрузки —
+-- поэтому история прошлых отчётов не "переобувается" задним числом при
+-- смене порога в "⚙ Пороги".
+CREATE TABLE IF NOT EXISTS lamp_reports (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  generated_at TEXT NOT NULL,
+  source_filename TEXT,
+  total_count INTEGER NOT NULL,
+  ok_count INTEGER NOT NULL,
+  broken_count INTEGER NOT NULL,
+  uploaded_by TEXT NOT NULL,
+  uploaded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_lamp_reports_project ON lamp_reports(project_id, generated_at DESC);
+
+CREATE TABLE IF NOT EXISTS lamp_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  report_id TEXT NOT NULL REFERENCES lamp_reports(id) ON DELETE CASCADE,
+  tab_number TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  position TEXT,
+  department TEXT,
+  organization TEXT,
+  lamp_id TEXT,
+  reader TEXT,
+  last_seen_at TEXT NOT NULL,
+  is_broken INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_lamp_records_report ON lamp_records(report_id);
 `);
 
 // Одноразовая миграция: ping_fail_threshold (счётчик подряд неудач) заменён
@@ -225,6 +261,7 @@ if (monitorThresholdsCols.some((c) => c.name === "ping_fail_threshold")) {
       sppd_stale_after_sec INTEGER NOT NULL DEFAULT 120,
       sppd_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
       fs_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
+      lamp_fail_after_hours INTEGER NOT NULL DEFAULT 24,
       updated_by TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
@@ -238,6 +275,9 @@ if (monitorThresholdsCols.some((c) => c.name === "ping_fail_threshold")) {
   }
   if (!monitorThresholdsCols.some((c) => c.name === "fs_fail_duration_sec")) {
     db.exec("ALTER TABLE project_monitor_thresholds ADD COLUMN fs_fail_duration_sec INTEGER NOT NULL DEFAULT 300");
+  }
+  if (!monitorThresholdsCols.some((c) => c.name === "lamp_fail_after_hours")) {
+    db.exec("ALTER TABLE project_monitor_thresholds ADD COLUMN lamp_fail_after_hours INTEGER NOT NULL DEFAULT 24");
   }
 }
 
