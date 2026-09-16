@@ -183,7 +183,7 @@ router.put("/:id/state", requireRole("editor", "admin"), (req, res) => {
   // прямым вызовом API.
   const patchesResult = isAdmin
     ? mergeCollection(currentSnapshot.patches, body.patches, logCtx + "patches")
-    : { merged: currentSnapshot.patches || [], conflicts: [] };
+    : { merged: currentSnapshot.patches || [], conflicts: [], applied: [] };
 
   const nextSnapshot = {
     version: 1,
