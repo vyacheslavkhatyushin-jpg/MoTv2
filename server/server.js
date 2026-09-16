@@ -9,6 +9,7 @@ const projectRoutes = require("./routes/projects");
 const usersRoutes = require("./routes/users");
 const zipRoutes = require("./routes/zip");
 const lampsRoutes = require("./routes/lamps");
+const auditRoutes = require("./routes/audit");
 const { verifyToken } = require("./auth");
 const db = require("./db");
 
@@ -24,6 +25,7 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/projects", zipRoutes);
 app.use("/api/projects", lampsRoutes);
 app.use("/api/users", usersRoutes);
+app.use("/api/audit-log", auditRoutes);
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
@@ -42,6 +44,11 @@ app.get(/^\/[^/]+\/monitoring\/stats\/?$/, (req, res) => {
 // Фонари — отдельная лёгкая страница, поверх /api/projects/:id/lamps/reports.
 app.get(/^\/[^/]+\/lamps\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "lamps.html"));
+});
+
+// Журнал действий — только admin, поверх /api/audit-log.
+app.get(/^\/[^/]+\/log\/?$/, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "log.html"));
 });
 
 // SPA: any other GET (e.g. /:projectId) serves the app; the frontend reads

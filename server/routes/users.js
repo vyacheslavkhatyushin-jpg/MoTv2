@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const db = require("../db");
 const { requireAuth, requireRole } = require("../auth");
+const { logAudit } = require("../lib/audit");
 
 const router = express.Router();
 const ROLES = new Set(["viewer", "editor", "admin"]);
@@ -25,6 +26,7 @@ router.post("/", (req, res) => {
   if (exists) return res.status(409).json({ error: "already_exists" });
   const hash = bcrypt.hashSync(password, 10);
   db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)").run(name, hash, role);
+  logAudit({ actor: req.user.username, action: "user.create", entityType: "user", entityId: name, entityLabel: name, details: { role }, ip: req.ip });
   res.status(201).json({ ok: true });
 });
 
@@ -38,11 +40,13 @@ router.patch("/:username", (req, res) => {
   if (role !== undefined) {
     if (!ROLES.has(role)) return res.status(400).json({ error: "invalid_role" });
     db.prepare("UPDATE users SET role = ? WHERE username = ?").run(role, username);
+    logAudit({ actor: req.user.username, action: "user.role_change", entityType: "user", entityId: username, entityLabel: username, details: { role }, ip: req.ip });
   }
   if (password !== undefined) {
     if (!password || password.length < 4) return res.status(400).json({ error: "weak_password" });
     const hash = bcrypt.hashSync(password, 10);
     db.prepare("UPDATE users SET password_hash = ? WHERE username = ?").run(hash, username);
+    logAudit({ actor: req.user.username, action: "user.password_reset", entityType: "user", entityId: username, entityLabel: username, ip: req.ip });
   }
   res.json({ ok: true });
 });
@@ -54,6 +58,7 @@ router.delete("/:username", (req, res) => {
   }
   const result = db.prepare("DELETE FROM users WHERE username = ?").run(username);
   if (result.changes === 0) return res.status(404).json({ error: "not_found" });
+  logAudit({ actor: req.user.username, action: "user.delete", entityType: "user", entityId: username, entityLabel: username, ip: req.ip });
   res.json({ ok: true });
 });
 

@@ -15,6 +15,7 @@ Example:
   node create-project.js shaft-1 "Шахта №1"
 */
 const db = require("./db");
+const { logAudit } = require("./lib/audit");
 
 const [, , id, name] = process.argv;
 if (!id || !name) {
@@ -28,8 +29,11 @@ db.prepare(
    ON CONFLICT(id) DO UPDATE SET name = excluded.name`
 ).run(id, name);
 
+const actor = process.env.USER || "cli";
 if (existing) {
+  logAudit({ actor, projectId: id, action: "project.rename", entityType: "project", entityId: id, entityLabel: name, details: { from: existing.name, to: name } });
   console.log(`Проект "${id}" переименован: "${existing.name}" → "${name}".`);
 } else {
+  logAudit({ actor, projectId: id, action: "project.create", entityType: "project", entityId: id, entityLabel: name });
   console.log(`Проект "${id}" ("${name}") создан. Доступен по адресу /${id}`);
 }

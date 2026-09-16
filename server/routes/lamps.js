@@ -12,6 +12,7 @@ const express = require("express");
 const db = require("../db");
 const { requireAuth, requireRole } = require("../auth");
 const { parseLampReport } = require("../lib/lampReportParser");
+const { logAudit } = require("../lib/audit");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -131,6 +132,11 @@ router.post("/:id/lamps/reports", requireRole("editor", "admin"), uploadParser, 
   insertAll();
 
   const row = db.prepare("SELECT * FROM lamp_reports WHERE id = ?").get(reportId);
+  logAudit({
+    actor: req.user.username, projectId: req.params.id, action: "lamp_report.upload",
+    entityType: "lamp_report", entityId: reportId, entityLabel: row.source_filename,
+    details: { totalCount: row.total_count, okCount: row.ok_count, brokenCount: row.broken_count }, ip: req.ip,
+  });
   res.status(201).json(serializeReportSummary(row));
 });
 
@@ -192,10 +198,15 @@ router.get("/:id/lamps/reports/:reportId", (req, res) => {
 
 router.delete("/:id/lamps/reports/:reportId", requireRole("admin"), (req, res) => {
   if (!requireProject(req, res)) return;
+  const row = db.prepare("SELECT source_filename FROM lamp_reports WHERE project_id = ? AND id = ?").get(req.params.id, req.params.reportId);
   const result = db
     .prepare("DELETE FROM lamp_reports WHERE project_id = ? AND id = ?")
     .run(req.params.id, req.params.reportId);
   if (!result.changes) return res.status(404).json({ error: "report_not_found" });
+  logAudit({
+    actor: req.user.username, projectId: req.params.id, action: "lamp_report.delete",
+    entityType: "lamp_report", entityId: req.params.reportId, entityLabel: row && row.source_filename, ip: req.ip,
+  });
   res.status(204).end();
 });
 
