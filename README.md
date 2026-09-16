@@ -126,9 +126,11 @@ JWT_SECRET=... node server.js
 
 ### Добавление новых проектов/пользователей позже
 
-Через `seed.js` (см. выше, с `docker compose exec` при Docker-варианте)
-или через API (`POST /api/projects`, только для роли `admin`, токен из
-`/api/auth/login`).
+Пользователи — через `seed.js` (см. выше, с `docker compose exec` при
+Docker-варианте). Проекты — `node create-project.js <id> "<name>"` (та же
+операция, что и `seed.js project`, но отдельным скриптом; см.
+`docs/emergency-cli-scripts.md`) или через API (`POST /api/projects`,
+только для роли `admin`, токен из `/api/auth/login`).
 
 ### Удаление проекта
 
