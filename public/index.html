@@ -254,6 +254,18 @@
   .uo-group-header-label{ flex:1; }
   .uo-group-arrow{ flex-shrink:0; width:10px; color:var(--text-faint); font-size:10px; transition:transform .12s ease; }
   .uo-group-header.uo-group-open .uo-group-arrow{ transform:rotate(90deg); }
+  /* ---- подписи по группам: значок вкл/выкл + цвет, в заголовке группы ---- */
+  .uo-group-header .lbl-color{
+    width:14px; height:14px; padding:0; border:1px solid var(--border); border-radius:3px;
+    background:none; cursor:pointer; flex-shrink:0;
+  }
+  .uo-group-header .lbl-toggle{
+    flex-shrink:0; width:19px; height:17px; padding:0; display:flex; align-items:center; justify-content:center;
+    border-radius:4px; border:1px solid var(--border); background:var(--panel-alt);
+    color:var(--text-faint); font-size:10px; line-height:1; cursor:pointer; font-family:inherit;
+  }
+  .uo-group-header .lbl-toggle:hover{ border-color:var(--accent); }
+  .uo-group-header .lbl-toggle.on{ background:var(--accent); border-color:var(--accent); color:#14171a; }
   /* Дочерние строки под заголовком группы — небольшой отступ вправо,
      как у leaf-row относительно horizon-head на вкладке "Шахта". */
   #cableList .uo-row, #equipList .uo-row,
@@ -855,11 +867,11 @@
             </div>
           </div>
           <div class="label-settings">
-            <label class="check"><input type="checkbox" id="cableLabelToggle">Подписи на модели</label>
+            <div style="font-size:11px; color:var(--text-dim); margin-bottom:6px;">Размер подписей</div>
             <div class="label-row">
               <input type="range" id="cableLabelSize" min="8" max="28" value="12">
-              <input type="color" id="cableLabelColor" value="#ffcc00">
             </div>
+            <div style="font-size:10.5px; color:var(--text-faint); margin-top:6px; line-height:1.5;">Видимость и цвет подписи — отдельно у каждой группы ниже (🏷 и цветной квадратик).</div>
           </div>
         </div>
         <div class="uo-list" id="cableList"></div>
@@ -918,11 +930,11 @@
             <div class="hint-actions"><button id="btnCancelEquip">Отмена</button></div>
           </div>
           <div class="label-settings">
-            <label class="check"><input type="checkbox" id="equipLabelToggle">Подписи на модели</label>
+            <div style="font-size:11px; color:var(--text-dim); margin-bottom:6px;">Размер подписей</div>
             <div class="label-row">
               <input type="range" id="equipLabelSize" min="8" max="28" value="12">
-              <input type="color" id="equipLabelColor" value="#ffffff">
             </div>
+            <div style="font-size:10.5px; color:var(--text-faint); margin-top:6px; line-height:1.5;">Видимость и цвет подписи — отдельно у каждой группы ниже (🏷 и цветной квадратик).</div>
           </div>
         </div>
         <div class="uo-list" id="equipList"></div>
@@ -1843,9 +1855,7 @@ const dom = {
   cableDExtend: document.getElementById("cableDExtend"),
   cableDDelete: document.getElementById("cableDDelete"),
   btnCableDClose: document.getElementById("btnCableDClose"),
-  cableLabelToggle: document.getElementById("cableLabelToggle"),
   cableLabelSize: document.getElementById("cableLabelSize"),
-  cableLabelColor: document.getElementById("cableLabelColor"),
   // оборудование
   btnAddEquip: document.getElementById("btnAddEquip"),
   equipHint: document.getElementById("equipHint"),
@@ -1871,9 +1881,7 @@ const dom = {
   equipDSppdAddress: document.getElementById("equipDSppdAddress"),
   equipDDelete: document.getElementById("equipDDelete"),
   btnEquipDClose: document.getElementById("btnEquipDClose"),
-  equipLabelToggle: document.getElementById("equipLabelToggle"),
   equipLabelSize: document.getElementById("equipLabelSize"),
-  equipLabelColor: document.getElementById("equipLabelColor"),
   // метки
   btnAddMark: document.getElementById("btnAddMark"),
   markHint: document.getElementById("markHint"),
@@ -2034,8 +2042,15 @@ let linkFirstPick = null; // { ring, highlightObj } — первая выбра�
 let equipShape = "map";
 let markType = "star";
 let cableTypeSelected = "vols";
-let cableLabelsOn = false, cableLabelSize = 12, cableLabelColor = 0xffcc00;
-let equipLabelsOn = false, equipLabelSize = 12, equipLabelColor = 0xffffff;
+// Подписи кабелей/оборудования — видимость и цвет настраиваются отдельно на
+// каждую группу (тип кабеля / форму оборудования), размер шрифта общий для
+// всей коллекции (третий контрол на группу — перебор, разный масштаб текста
+// в 3D только мешает читаемости). key -> {on, color}, лениво заполняется
+// дефолтами при первом обращении (см. getCableLabelGroup/getEquipLabelGroup).
+const cableLabelGroups = new Map();
+const equipLabelGroups = new Map();
+let cableLabelSize = 12;
+let equipLabelSize = 12;
 let markLabelsOn = false, markLabelSize = 12, markLabelColor = 0xffffff;
 function makeUOLabel(text, size, color) {
   const div = document.createElement("div");
@@ -3311,6 +3326,18 @@ const CABLE_TYPES = {
   ftp:   { label: "FTP",      color: 0x9b59b6, thickness: 3,  lineType: "dotted" },
 };
 const CABLE_TYPE_ORDER = ["vols", "lfc", "kao", "tk", "power", "ftp"];
+function cableGroupKey(c) {
+  return CABLE_TYPES[c.cableType] ? c.cableType : "custom";
+}
+// Дефолтный цвет подписи группы — цвет самого типа кабеля (тот же, что уже
+// красит линию в 3D): почти всегда сразу то, что нужно, перекрашивать
+// не обязательно. "custom" (нетиповые кабели) — нейтральный жёлтый.
+function getCableLabelGroup(key) {
+  if (!cableLabelGroups.has(key)) {
+    cableLabelGroups.set(key, { on: false, color: CABLE_TYPES[key] ? CABLE_TYPES[key].color : 0xffcc00 });
+  }
+  return cableLabelGroups.get(key);
+}
 function setCableVisible(c, visible) {
   c.visible = visible;
   c.mesh.visible = visible;
@@ -3451,9 +3478,10 @@ function createCable(nodes, overrides, select = true) {
   nodeGroup.visible = mesh.visible;
   scene.add(nodeGroup);
   const label = overrides?.label ?? ((typeDef?.label || "Кабель") + " " + objSeq);
-  const labelObj = makeUOLabel(label, cableLabelSize, cableLabelColor);
+  const labelGroup = getCableLabelGroup(CABLE_TYPES[cableType] ? cableType : "custom");
+  const labelObj = makeUOLabel(label, cableLabelSize, labelGroup.color);
   labelObj.position.copy(cableMidpoint(nodes));
-  labelObj.visible = cableLabelsOn;
+  labelObj.visible = labelGroup.on;
   scene.add(labelObj);
   const cableData = {
     id, type: "cable", nodes: nodes.map((p) => p.clone()), color, thickness, radius,
@@ -3509,6 +3537,57 @@ function deleteCable(id) {
 function byLabel(a, b) {
   return (a.label || "").localeCompare(b.label || "", "ru", { numeric: true, sensitivity: "base" });
 }
+// Общие элементы "подписи этой группы" в заголовке группы (кабели/
+// оборудование, и в редакторе, и на мониторинге — один и тот же вид):
+// цветной квадратик + значок 🏷 вкл/выкл. onChange вызывается и при смене
+// цвета, и при переключении — вызывающая сторона сама решает, что
+// пересобрать (buildCableList/buildEquipList плюс, если открыт, мониторинг).
+function appendGroupLabelControls(header, groupState, onChange) {
+  const colorInput = document.createElement("input");
+  colorInput.type = "color";
+  colorInput.className = "lbl-color";
+  colorInput.value = "#" + groupState.color.toString(16).padStart(6, "0");
+  colorInput.title = "Цвет подписи";
+  colorInput.addEventListener("click", (e) => e.stopPropagation());
+  colorInput.addEventListener("input", () => {
+    groupState.color = parseInt(colorInput.value.slice(1), 16);
+    onChange();
+  });
+  const toggleBtn = document.createElement("button");
+  toggleBtn.type = "button";
+  toggleBtn.className = "lbl-toggle" + (groupState.on ? " on" : "");
+  toggleBtn.textContent = "🏷";
+  toggleBtn.title = groupState.on ? "Подписи этой группы включены" : "Подписи этой группы выключены";
+  toggleBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    groupState.on = !groupState.on;
+    onChange();
+  });
+  header.appendChild(colorInput);
+  header.appendChild(toggleBtn);
+}
+function serializeLabelGroups(map) {
+  const out = {};
+  for (const [key, state] of map.entries()) out[key] = { on: state.on, color: state.color };
+  return out;
+}
+function loadLabelGroups(map, cfg, groupKeys, defaultColorFor) {
+  if (cfg.groups && typeof cfg.groups === "object") {
+    for (const key of groupKeys) {
+      const g = cfg.groups[key];
+      if (!g) continue;
+      map.set(key, {
+        on: !!g.on,
+        color: typeof g.color === "number" ? g.color : defaultColorFor(key),
+      });
+    }
+  } else if (typeof cfg.on === "boolean") {
+    const color = typeof cfg.color === "number" ? cfg.color : null;
+    for (const key of groupKeys) {
+      map.set(key, { on: cfg.on, color: color !== null ? color : defaultColorFor(key) });
+    }
+  }
+}
 const collapsedCableGroups = new Set();
 function buildCableList() {
   dom.cableList.innerHTML = "";
@@ -3552,6 +3631,18 @@ function buildCableList() {
     header.appendChild(arrow);
     header.appendChild(groupChk);
     header.appendChild(headerLabel);
+    const cableGroupState = getCableLabelGroup(key);
+    appendGroupLabelControls(header, cableGroupState, () => {
+      buildCableList();
+      if (dom.monitorCablesList) renderMonitorCables();
+    });
+    // Подписи применяются сразу, вне зависимости от того, свёрнута ли группа
+    // в списке — сворачивание влияет только на список, не на 3D-модель.
+    for (const c of groupItems) {
+      if (!c.labelObj) continue;
+      c.labelObj.visible = cableGroupState.on;
+      c.labelObj.element.style.color = "#" + cableGroupState.color.toString(16).padStart(6, "0");
+    }
     header.addEventListener("click", () => {
       if (collapsedCableGroups.has(key)) collapsedCableGroups.delete(key);
       else collapsedCableGroups.add(key);
@@ -3740,17 +3831,9 @@ dom.btnCableDClose.addEventListener("click", () => {
   dom.cableDetails.classList.remove("open");
   buildCableList();
 });
-dom.cableLabelToggle.addEventListener("change", () => {
-  cableLabelsOn = dom.cableLabelToggle.checked;
-  for (const c of cables.values()) if (c.labelObj) c.labelObj.visible = cableLabelsOn;
-});
 dom.cableLabelSize.addEventListener("input", () => {
   cableLabelSize = parseInt(dom.cableLabelSize.value, 10);
   for (const c of cables.values()) if (c.labelObj) c.labelObj.element.style.fontSize = cableLabelSize + "px";
-});
-dom.cableLabelColor.addEventListener("input", () => {
-  cableLabelColor = parseInt(dom.cableLabelColor.value.slice(1), 16);
-  for (const c of cables.values()) if (c.labelObj) c.labelObj.element.style.color = dom.cableLabelColor.value;
 });
 /* ---- оборудование ----
    Каталог реальных типов сетевого оборудования вместо произвольных фигур
@@ -3881,6 +3964,18 @@ const EQUIP_SHAPE_LABELS = {
   fs: "FS", tel: "TEL", stativ: "Статив",
 };
 const EQUIP_SHAPE_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ"];
+function equipGroupKey(eq) {
+  return EQUIP_SHAPE_LABELS[eq.shape] ? eq.shape : "custom";
+}
+// В отличие от кабелей, у форм оборудования нет своего "фирменного" цвета
+// (все формы создаются одним и тем же дефолтным цветом объекта) — дефолт
+// подписи такой же нейтральный белый, что был у общего переключателя раньше.
+function getEquipLabelGroup(key) {
+  if (!equipLabelGroups.has(key)) {
+    equipLabelGroups.set(key, { on: false, color: 0xffffff });
+  }
+  return equipLabelGroups.get(key);
+}
 function setEquipVisible(eq, visible) {
   eq.visible = visible;
   eq.mesh.visible = visible;
@@ -3901,8 +3996,9 @@ function placeEquipment(point, overrides, select = true) {
   mesh.visible = overrides?.visible ?? true;
   scene.add(mesh);
   const label = overrides?.label ?? ((EQUIP_SHAPE_LABELS[shape] || "Объект") + " " + objSeq);
-  const labelObj = makeUOLabel(label, equipLabelSize, equipLabelColor);
-  labelObj.visible = equipLabelsOn;
+  const equipLabelGroup = getEquipLabelGroup(EQUIP_SHAPE_LABELS[shape] ? shape : "custom");
+  const labelObj = makeUOLabel(label, equipLabelSize, equipLabelGroup.color);
+  labelObj.visible = equipLabelGroup.on;
   scene.add(labelObj);
   const equipData = {
     id, type: "equipment", shape, size, color,
@@ -3969,6 +4065,16 @@ function buildEquipList() {
     header.appendChild(arrow);
     header.appendChild(groupChk);
     header.appendChild(headerLabel);
+    const equipGroupState = getEquipLabelGroup(key);
+    appendGroupLabelControls(header, equipGroupState, () => {
+      buildEquipList();
+      if (dom.monitorEquipList) renderMonitorEquip();
+    });
+    for (const eq of groupItems) {
+      if (!eq.labelObj) continue;
+      eq.labelObj.visible = equipGroupState.on;
+      eq.labelObj.element.style.color = "#" + equipGroupState.color.toString(16).padStart(6, "0");
+    }
     header.addEventListener("click", () => {
       if (collapsedEquipGroups.has(key)) collapsedEquipGroups.delete(key);
       else collapsedEquipGroups.add(key);
@@ -4141,17 +4247,9 @@ dom.btnEquipDClose.addEventListener("click", () => {
   dom.equipDetails.classList.remove("open");
   buildEquipList();
 });
-dom.equipLabelToggle.addEventListener("change", () => {
-  equipLabelsOn = dom.equipLabelToggle.checked;
-  for (const eq of equipment.values()) if (eq.labelObj) eq.labelObj.visible = equipLabelsOn;
-});
 dom.equipLabelSize.addEventListener("input", () => {
   equipLabelSize = parseInt(dom.equipLabelSize.value, 10);
   for (const eq of equipment.values()) if (eq.labelObj) eq.labelObj.element.style.fontSize = equipLabelSize + "px";
-});
-dom.equipLabelColor.addEventListener("input", () => {
-  equipLabelColor = parseInt(dom.equipLabelColor.value.slice(1), 16);
-  for (const eq of equipment.values()) if (eq.labelObj) eq.labelObj.element.style.color = dom.equipLabelColor.value;
 });
 /* ---- метки ---- */
 function makeMarkTexture(type, color) {
@@ -5132,8 +5230,8 @@ function buildSnapshot() {
       opacity: parseInt(dom.rngOpacity.value, 10),
       grayscale: grayscaleMode,
       labelsOn: dom.chkLabels.checked,
-      cableLabel: { on: cableLabelsOn, size: cableLabelSize, color: cableLabelColor },
-      equipLabel: { on: equipLabelsOn, size: equipLabelSize, color: equipLabelColor },
+      cableLabel: { size: cableLabelSize, groups: serializeLabelGroups(cableLabelGroups) },
+      equipLabel: { size: equipLabelSize, groups: serializeLabelGroups(equipLabelGroups) },
       markLabel: { on: markLabelsOn, size: markLabelSize, color: markLabelColor },
     },
     layers: layersSnap,
@@ -5442,6 +5540,16 @@ function renderMonitorCables() {
     headerLabel.className = "uo-group-header-label";
     headerLabel.textContent = `${groupLabel} (${groupItems.length})`;
     header.appendChild(arrow); header.appendChild(groupChk); header.appendChild(headerLabel);
+    const cableGroupState = getCableLabelGroup(key);
+    appendGroupLabelControls(header, cableGroupState, () => {
+      buildCableList();
+      renderMonitorCables();
+    });
+    for (const c of groupItems) {
+      if (!c.labelObj) continue;
+      c.labelObj.visible = cableGroupState.on;
+      c.labelObj.element.style.color = "#" + cableGroupState.color.toString(16).padStart(6, "0");
+    }
     header.addEventListener("click", () => {
       monitorCollapsedGroups.has(gk) ? monitorCollapsedGroups.delete(gk) : monitorCollapsedGroups.add(gk);
       renderMonitorCables();
@@ -5518,6 +5626,16 @@ function renderMonitorEquip() {
     headerLabel.className = "uo-group-header-label";
     headerLabel.textContent = `${groupLabel} (${groupItems.length})`;
     header.appendChild(arrow); header.appendChild(groupChk); header.appendChild(headerLabel);
+    const equipGroupState = getEquipLabelGroup(key);
+    appendGroupLabelControls(header, equipGroupState, () => {
+      buildEquipList();
+      renderMonitorEquip();
+    });
+    for (const eq of groupItems) {
+      if (!eq.labelObj) continue;
+      eq.labelObj.visible = equipGroupState.on;
+      eq.labelObj.element.style.color = "#" + equipGroupState.color.toString(16).padStart(6, "0");
+    }
     header.addEventListener("click", () => {
       monitorCollapsedGroups.has(gk) ? monitorCollapsedGroups.delete(gk) : monitorCollapsedGroups.add(gk);
       renderMonitorEquip();
@@ -6298,6 +6416,23 @@ async function restoreFromSnapshot(state) {
           }
         }
       }
+      if (s.cableLabel) {
+        if (typeof s.cableLabel.size === "number") { cableLabelSize = s.cableLabel.size; dom.cableLabelSize.value = cableLabelSize; }
+        loadLabelGroups(cableLabelGroups, s.cableLabel, [...CABLE_TYPE_ORDER, "custom"],
+          (key) => (CABLE_TYPES[key] ? CABLE_TYPES[key].color : 0xffcc00));
+        for (const c of cables.values()) {
+          if (!c.labelObj) continue;
+          c.labelObj.element.style.fontSize = cableLabelSize + "px";
+        }
+      }
+      if (s.equipLabel) {
+        if (typeof s.equipLabel.size === "number") { equipLabelSize = s.equipLabel.size; dom.equipLabelSize.value = equipLabelSize; }
+        loadLabelGroups(equipLabelGroups, s.equipLabel, [...EQUIP_SHAPE_ORDER, "custom"], () => 0xffffff);
+        for (const eq of equipment.values()) {
+          if (!eq.labelObj) continue;
+          eq.labelObj.element.style.fontSize = equipLabelSize + "px";
+        }
+      }
       const applyUOLabelSettings = (cfg, onFlagSetter, sizeSetter, colorSetter, toggleEl, sizeEl, colorEl, items) => {
         if (!cfg) return;
         if (typeof cfg.on === "boolean") { onFlagSetter(cfg.on); toggleEl.checked = cfg.on; }
@@ -6310,10 +6445,6 @@ async function restoreFromSnapshot(state) {
           item.labelObj.element.style.color = "#" + cfg.color.toString(16).padStart(6, "0");
         }
       };
-      applyUOLabelSettings(s.cableLabel, (v) => (cableLabelsOn = v), (v) => (cableLabelSize = v), (v) => (cableLabelColor = v),
-        dom.cableLabelToggle, dom.cableLabelSize, dom.cableLabelColor, [...cables.values()]);
-      applyUOLabelSettings(s.equipLabel, (v) => (equipLabelsOn = v), (v) => (equipLabelSize = v), (v) => (equipLabelColor = v),
-        dom.equipLabelToggle, dom.equipLabelSize, dom.equipLabelColor, [...equipment.values()]);
       applyUOLabelSettings(s.markLabel, (v) => (markLabelsOn = v), (v) => (markLabelSize = v), (v) => (markLabelColor = v),
         dom.markLabelToggle, dom.markLabelSize, dom.markLabelColor, [...marks.values()]);
     }
