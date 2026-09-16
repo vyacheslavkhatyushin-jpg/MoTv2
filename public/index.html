@@ -642,6 +642,7 @@
     <div class="brand-spacer"></div>
     <div id="sessionInfo" style="display:flex; align-items:center; gap:12px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
       <span id="sessionProject"></span>
+      <select id="projectSelect" title="Переключить проект" style="display:none;"></select>
       <span id="sessionUser"></span>
       <a id="navToEditor" title="Вернуться в редактор" style="text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">✏️ Редактор</a>
       <a id="navToMonitoring" title="Мониторинг оборудования" style="text-decoration:none; display:inline-flex; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📡 Мониторинг</a>
@@ -5459,6 +5460,42 @@ async function apiFetch(url, options) {
   return resp;
 }
 
+// Переключатель проекта в топбаре — грузим список один раз, при выборе
+// другого проекта переходим на тот же путь (редактор/мониторинг), но для него.
+async function loadProjectSwitcher() {
+  const sel = document.getElementById("projectSelect");
+  if (!sel) return;
+  try {
+    const resp = await apiFetch("/api/projects");
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    sel.textContent = "";
+    let hasCurrent = false;
+    for (const p of data.projects) {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.name + " (" + p.id + ")";
+      if (p.id === CURRENT_PROJECT_ID) { opt.selected = true; hasCurrent = true; }
+      sel.appendChild(opt);
+    }
+    if (!hasCurrent) {
+      const opt = document.createElement("option");
+      opt.value = CURRENT_PROJECT_ID;
+      opt.textContent = CURRENT_PROJECT_ID;
+      opt.selected = true;
+      sel.insertBefore(opt, sel.firstChild);
+    }
+    sel.style.display = "";
+  } catch (e) {
+    // не смогли загрузить список — просто оставляем текст "Проект: X" без переключателя
+  }
+}
+document.getElementById("projectSelect").addEventListener("change", (e) => {
+  const newId = e.target.value;
+  if (!newId || newId === CURRENT_PROJECT_ID) return;
+  location.pathname = location.pathname.replace(/^\/[^/]+/, "/" + newId);
+});
+
 /* ---------- лог удалений: кто/когда удалил кабель/оборудование/метку/заплатку ----------
    Пишется на сервер сразу в момент удаления (отдельная append-only таблица,
    не часть снапшота) — не теряется, если не нажали "Сохранить в проект", и
@@ -6013,11 +6050,12 @@ function applyRoleToUI() {
     if (deletedTabBtn) deletedTabBtn.style.display = "none";
     return;
   }
-  if (sessionProjectEl) sessionProjectEl.textContent = "Проект: " + CURRENT_PROJECT_ID;
+  if (sessionProjectEl) sessionProjectEl.textContent = "Проект:";
   if (sessionUserEl && auth) {
     const roleLabel = { viewer: "просмотр", editor: "редактирование", admin: "администратор" }[auth.role] || auth.role;
     sessionUserEl.textContent = auth.username + " (" + roleLabel + ")";
   }
+  loadProjectSwitcher();
 }
 
 async function loadProjectFromServer() {

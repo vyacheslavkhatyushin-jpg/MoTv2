@@ -50,6 +50,11 @@
     white-space:nowrap; flex-shrink:0;
   }
   #topBar a:hover, #topBar button:hover{ border-color:var(--accent); color:var(--accent); }
+  #topBar #projectSelect{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text); border-radius:5px;
+    padding:3px 6px; font-family:inherit; font-size:11.5px; cursor:pointer;
+  }
+  #topBar #projectSelect:hover{ border-color:var(--accent); }
   #topBar a.nav-current{ border-color:var(--accent); color:var(--accent); background:rgba(255,159,28,.08); pointer-events:none; cursor:default; }
   #app{ flex:1 1 auto; min-height:0; overflow-y:auto; }
 
@@ -292,6 +297,7 @@
     <div class="brand-spacer"></div>
     <div id="sessionInfo" style="display:flex; align-items:center; gap:10px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
       <span id="sessionProject"></span>
+      <select id="projectSelect" title="Переключить проект" style="display:none;"></select>
       <span id="sessionUser"></span>
       <a id="navToEditor" title="Редактор модели">✏️ Редактор</a>
       <a id="navToMonitoring" title="Мониторинг оборудования">📡 Мониторинг</a>
@@ -658,9 +664,45 @@ document.getElementById("btnRefreshStats").addEventListener("click", () => {
 });
 document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
 
+// Переключатель проекта в топбаре — грузим список один раз, при выборе
+// другого проекта переходим на тот же путь (страницу/фильтры), но для него.
+async function loadProjectSwitcher() {
+  const sel = document.getElementById("projectSelect");
+  if (!sel) return;
+  try {
+    const resp = await apiFetch("/api/projects");
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    sel.textContent = "";
+    let hasCurrent = false;
+    for (const p of data.projects) {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.name + " (" + p.id + ")";
+      if (p.id === CURRENT_PROJECT_ID) { opt.selected = true; hasCurrent = true; }
+      sel.appendChild(opt);
+    }
+    if (!hasCurrent) {
+      const opt = document.createElement("option");
+      opt.value = CURRENT_PROJECT_ID;
+      opt.textContent = CURRENT_PROJECT_ID;
+      opt.selected = true;
+      sel.insertBefore(opt, sel.firstChild);
+    }
+    sel.style.display = "";
+  } catch (e) {
+    // не смогли загрузить список — просто оставляем текст "Проект: X" без переключателя
+  }
+}
+document.getElementById("projectSelect").addEventListener("change", (e) => {
+  const newId = e.target.value;
+  if (!newId || newId === CURRENT_PROJECT_ID) return;
+  location.pathname = location.pathname.replace(/^\/[^/]+/, "/" + newId);
+});
+
 function applyRoleUI() {
   const auth = window.__auth;
-  document.getElementById("sessionProject").textContent = "Проект: " + CURRENT_PROJECT_ID;
+  document.getElementById("sessionProject").textContent = "Проект:";
   document.getElementById("crumbProject").textContent = "· " + CURRENT_PROJECT_ID;
   document.getElementById("sessionUser").textContent = auth ? `${auth.username} (${auth.role})` : "";
   document.getElementById("navToEditor").href = `/${CURRENT_PROJECT_ID}`;
@@ -681,6 +723,7 @@ function applyRoleUI() {
 const MONITOR_SYSTEMS_LIST = ["ВОЛС", "LFC", "АО", "Телефония", "ВН"];
 function boot() {
   applyRoleUI();
+  loadProjectSwitcher();
   const urlSystem = new URL(location.href).searchParams.get("system");
   if (urlSystem && (urlSystem === "all" || MONITOR_SYSTEMS_LIST.includes(urlSystem))) {
     showTableView(urlSystem);
