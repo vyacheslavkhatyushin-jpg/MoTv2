@@ -150,6 +150,8 @@ function parseLampReport(buffer, filename) {
     const get = (field) => (cols[field] !== undefined ? row[cols[field]] : "");
 
     const tabNumber = cellText(get("tabNumber"));
+    if (!tabNumber) continue; // строки без таб.№ — служебные дубли-заголовки (см. комментарий выше про apk), не реальные записи
+
     let fullName;
     if (cols.fio !== undefined) {
       fullName = cellText(get("fio"));
@@ -158,7 +160,11 @@ function parseLampReport(buffer, filename) {
         .filter(Boolean)
         .join(" ");
     }
-    if (!tabNumber || !fullName) continue; // пустые/служебные строки-дубли — пропускаем
+    // ФИО пустое (или сплошные пробелы) — реальная ситуация, не мусор: у части
+    // подрядчиков (по наблюдению на живом отчёте apk — STROY ИНДУСТРИЯ,
+    // ВТ-СТРОЙ, КГК) в системе заведён таб.№/тег, но не заведено имя. Такую
+    // запись нельзя тихо терять из статистики — просто нет ФИО для показа.
+    if (!fullName) fullName = "(без ФИО)";
 
     const lastSeenRaw = get("lastSeenAt");
     const lastSeenAt = excelDateToJs(lastSeenRaw);
