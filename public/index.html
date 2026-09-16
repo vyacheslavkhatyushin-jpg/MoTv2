@@ -46,9 +46,16 @@
   body.monitoring-mode #actionButtonsRow,
   body.monitoring-mode #progressWrap,
   body.monitoring-mode #tabs{ display:none !important; }
-  body.monitoring-mode #navToMonitoring{ display:none !important; }
-  #navToEditor{ display:none; }
-  body.monitoring-mode #navToEditor{ display:inline-flex; }
+  /* Кнопки-ссылки в топбаре не должны переноситься на две строки (иконка
+     отдельно от подписи) и не должны сжиматься меньше своей ширины — их
+     сжимает/переносит только текст внутри, если в строке не хватает места. */
+  #topBar #sessionInfo a{ white-space:nowrap; flex-shrink:0; }
+  /* Кнопка активного раздела остаётся на месте (не пропадает) — просто
+     подсвечивается и перестаёт быть кликабельной; см. applyMonitoringPageUI(). */
+  #topBar a.nav-current{
+    border-color:var(--accent) !important; color:var(--accent) !important;
+    background:rgba(255,159,28,.08); pointer-events:none; cursor:default;
+  }
   #monitorPageTitle{ display:none; padding:14px 12px 2px; font-size:14.5px; font-weight:700; color:var(--text); }
   body.monitoring-mode #monitorPageTitle{ display:block; }
   body.monitoring-mode #tab-monitor.active{ display:block; overflow-y:auto; flex:1 1 auto; }
@@ -5389,6 +5396,8 @@ function applyMonitoringPageUI() {
   if (navToRegistry) navToRegistry.href = `/${CURRENT_PROJECT_ID}/registry`;
   if (navToMonitorStats) navToMonitorStats.href = `/${CURRENT_PROJECT_ID}/monitoring/stats`;
   if (navToLamps) navToLamps.href = `/${CURRENT_PROJECT_ID}/lamps`;
+  const current = IS_MONITORING_PAGE ? navToMonitoring : navToEditor;
+  if (current) current.classList.add("nav-current");
   if (!IS_MONITORING_PAGE) return;
   document.body.classList.add("monitoring-mode");
   document.querySelectorAll(".tabpanel").forEach((p) => p.classList.remove("active"));
