@@ -51,16 +51,6 @@
   body.monitoring-mode #navToEditor{ display:inline-flex; }
   #monitorPageTitle{ display:none; padding:14px 12px 2px; font-size:14.5px; font-weight:700; color:var(--text); }
   body.monitoring-mode #monitorPageTitle{ display:block; }
-  #navToMonitorStats{
-    display:none; align-items:center; justify-content:center; gap:7px;
-    margin:8px 12px 10px; padding:10px; text-decoration:none;
-    border:1px solid var(--accent); border-radius:6px;
-    background:rgba(255,159,28,.1); color:var(--accent);
-    cursor:pointer; font-family:inherit; font-size:13px; font-weight:700;
-    transition:background .12s ease, color .12s ease;
-  }
-  body.monitoring-mode #navToMonitorStats{ display:flex; }
-  #navToMonitorStats:hover{ background:var(--accent); color:#14171a; }
   body.monitoring-mode #tab-monitor.active{ display:block; overflow-y:auto; flex:1 1 auto; }
   body.monitoring-mode .layer-remove{ display:none !important; }
   #monitorActiveWrap{ max-height:220px; overflow-y:auto; border-bottom:1px solid var(--border-soft); }
@@ -646,8 +636,9 @@
     <div id="sessionInfo" style="display:flex; align-items:center; gap:12px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
       <span id="sessionProject"></span>
       <span id="sessionUser"></span>
-      <a id="navToMonitoring" title="Мониторинг оборудования" style="text-decoration:none; display:inline-flex; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📡 Мониторинг</a>
       <a id="navToEditor" title="Вернуться в редактор" style="text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">✏️ Редактор</a>
+      <a id="navToMonitoring" title="Мониторинг оборудования" style="text-decoration:none; display:inline-flex; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📡 Мониторинг</a>
+      <a id="navToMonitorStats" title="История аварий по системам" style="text-decoration:none; display:inline-flex; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📊 Статистика</a>
       <a id="navToRegistry" title="Реестр ЗИП" style="text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">📦 ЗИП</a>
       <button id="btnUserAdmin" title="Управление пользователями" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">👥 Пользователи</button>
       <button id="btnSppdConfig" title="Подключение к SPPD для этого проекта" style="display:none; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">⚙ SPPD</button>
@@ -779,7 +770,6 @@
   </div>
   <div id="sidebar">
     <div id="monitorPageTitle">📡 Мониторинг оборудования</div>
-    <a id="navToMonitorStats" title="История аварий по системам">📊 Статистика по авариям</a>
     <button id="btnSaveAll" class="save-btn-big" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере">☁ Сохранить изменения</button>
     <div id="saveStatus"></div>
     <div id="fileMeta"></div>
