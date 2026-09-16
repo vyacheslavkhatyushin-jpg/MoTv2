@@ -143,20 +143,35 @@ function parseLampReport(buffer, filename) {
   }
 
   const { cols } = header;
+  const get = (row, field) => (cols[field] !== undefined ? row[cols[field]] : "");
+  // "Сигнатура" строки без таб.№ — фонарь/тег + считыватель + время посл. рег.
+  // Живой отчёт показывает: часть строк без таб.№/ФИО — это буквальный
+  // повтор уже посчитанной строки (тот же скан продублирован без привязки к
+  // личности, обычно через несколько строк, а не сразу следующей); но
+  // встречаются и строки без таб.№, у которых совпадения нигде в файле нет —
+  // это отдельный, ранее выданный тег/фонарь того же человека (другой номер
+  // тега, гораздо более старое время регистрации, обычно на "Ламповая"/"Мед.
+  // пункт") — реальный отдельный фонарь, а не дубль, и его нельзя тихо терять.
+  const rowSignature = (row) => [cellText(get(row, "lampNumber")), cellText(get(row, "reader")), cellText(get(row, "lastSeenAt"))].join("|");
+  const identifiedSignatures = new Set();
+  for (let r = header.rowIndex + 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (row && row.length && cellText(get(row, "tabNumber"))) identifiedSignatures.add(rowSignature(row));
+  }
+
   const records = [];
   for (let r = header.rowIndex + 1; r < rows.length; r++) {
     const row = rows[r];
     if (!row || !row.length) continue;
-    const get = (field) => (cols[field] !== undefined ? row[cols[field]] : "");
 
-    const tabNumber = cellText(get("tabNumber"));
-    if (!tabNumber) continue; // строки без таб.№ — служебные дубли-заголовки (см. комментарий выше про apk), не реальные записи
+    const tabNumber = cellText(get(row, "tabNumber"));
+    if (!tabNumber && identifiedSignatures.has(rowSignature(row))) continue; // дубль уже учтённой строки
 
     let fullName;
     if (cols.fio !== undefined) {
-      fullName = cellText(get("fio"));
+      fullName = cellText(get(row, "fio"));
     } else {
-      fullName = [cellText(get("lastName")), cellText(get("firstName")), cellText(get("middleName"))]
+      fullName = [cellText(get(row, "lastName")), cellText(get(row, "firstName")), cellText(get(row, "middleName"))]
         .filter(Boolean)
         .join(" ");
     }
@@ -166,18 +181,18 @@ function parseLampReport(buffer, filename) {
     // запись нельзя тихо терять из статистики — просто нет ФИО для показа.
     if (!fullName) fullName = "(без ФИО)";
 
-    const lastSeenRaw = get("lastSeenAt");
+    const lastSeenRaw = get(row, "lastSeenAt");
     const lastSeenAt = excelDateToJs(lastSeenRaw);
     if (!lastSeenAt) continue;
 
     records.push({
       tabNumber,
       fullName,
-      position: cellText(get("position")),
-      department: cellText(get("department")),
-      organization: cellText(get("organization")),
-      lampId: resolveLampId(get("lampNumber"), tabNumber, get("tagCombined"), get("tag433"), get("tag24")),
-      reader: cellText(get("reader")),
+      position: cellText(get(row, "position")),
+      department: cellText(get(row, "department")),
+      organization: cellText(get(row, "organization")),
+      lampId: resolveLampId(get(row, "lampNumber"), tabNumber, get(row, "tagCombined"), get(row, "tag433"), get(row, "tag24")),
+      reader: cellText(get(row, "reader")),
       lastSeenAt,
     });
   }
