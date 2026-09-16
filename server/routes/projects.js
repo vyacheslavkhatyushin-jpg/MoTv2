@@ -269,20 +269,6 @@ router.get("/:id/monitor/status", (req, res) => {
   res.json({ status: rows });
 });
 
-router.get("/:id/monitor/events", (req, res) => {
-  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
-  if (!project) return res.status(404).json({ error: "project_not_found" });
-
-  const rows = db
-    .prepare(
-      `SELECT id, equipment_id, equipment_label, from_state, to_state,
-              started_at, ended_at, duration_sec, acknowledged_by, acknowledged_at
-       FROM monitor_events WHERE project_id = ? ORDER BY started_at DESC, id DESC LIMIT 500`
-    )
-    .all(req.params.id);
-  res.json({ events: rows });
-});
-
 // Дашборд "История аварий" (/<project>/monitoring/stats) — сводка по пяти
 // системам (ВОЛС/LFC/АО/Телефония/ВН), та же группировка, что у кнопок
 // фильтра на странице мониторинга (EQUIP_SHAPE_SYSTEMS в index.html — этот
