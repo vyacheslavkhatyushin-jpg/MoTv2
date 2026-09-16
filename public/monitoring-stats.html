@@ -160,13 +160,14 @@
   .card-foot{ padding:9px 15px; font-size:11px; color:var(--text-faint); }
 
   /* ---- таблица событий одной системы ---- */
-  .table-head{ display:flex; align-items:center; gap:14px; margin:4px 0 14px; }
+  .table-head{ display:flex; align-items:center; flex-wrap:wrap; gap:14px; margin:4px 0 14px; }
   .back-btn{
     background:var(--panel-alt); border:1px solid var(--border); color:var(--text-dim);
     border-radius:6px; padding:6px 12px; font-size:11.5px; font-family:inherit; cursor:pointer;
   }
   .back-btn:hover{ border-color:var(--accent); color:var(--accent); }
   .table-head h2{ margin:0; font-size:15.5px; font-weight:700; color:var(--text); }
+  .table-head .spacer{ flex:1 1 auto; }
   .events-table-wrap{ background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
   table.events-table{ width:100%; border-collapse:collapse; min-width:640px; }
   table.events-table th{
@@ -174,6 +175,9 @@
     color:var(--text-faint); padding:10px 14px; background:var(--panel-alt); border-bottom:1px solid var(--border);
     position:sticky; top:0;
   }
+  table.events-table th.sortable{ cursor:pointer; user-select:none; white-space:nowrap; }
+  table.events-table th.sortable:hover{ color:var(--text); }
+  table.events-table th.sortable.sorted{ color:var(--accent); }
   table.events-table td{ padding:9px 14px; border-bottom:1px solid var(--border-soft); color:var(--text-dim); font-size:12.5px; vertical-align:middle; }
   table.events-table tr:last-child td{ border-bottom:none; }
   table.events-table tr:hover td{ background:rgba(255,255,255,.02); }
@@ -325,6 +329,8 @@
         <div class="table-head">
           <button id="btnTableBack" class="back-btn">← Все системы</button>
           <h2 id="tableTitle">Все события</h2>
+          <div class="spacer"></div>
+          <button id="btnExportEvents" class="back-btn" title="Скачать таблицу событий в CSV">⤓ Экспорт CSV</button>
         </div>
         <div id="tableWrap"></div>
       </div>
@@ -430,6 +436,53 @@ function renderCard(sys, data) {
   </div>`;
 }
 
+const EVENT_COLUMNS = [
+  { key: "equipment", label: "Оборудование" },
+  { key: "status", label: "Статус" },
+  { key: "started", label: "Начало" },
+  { key: "ended", label: "Устранено" },
+  { key: "duration", label: "Длительность" },
+];
+
+// По умолчанию (sortState.key === "default") активные аварии всегда наверху
+// списка независимо от даты начала — их дата начала часто старше, чем у уже
+// устранённых коротких сбоев, поэтому обычная сортировка по дате прятала их
+// внизу таблицы.
+function compareEvents(a, b, key, dir) {
+  if (key === "default") {
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    return (parseServerDate(b.startedAt)?.getTime() || 0) - (parseServerDate(a.startedAt)?.getTime() || 0);
+  }
+  let cmp = 0;
+  switch (key) {
+    case "equipment":
+      cmp = (a.equipmentLabel || a.equipmentId || "").localeCompare(b.equipmentLabel || b.equipmentId || "", "ru");
+      break;
+    case "status":
+      cmp = a.active === b.active ? 0 : a.active ? -1 : 1;
+      break;
+    case "started":
+      cmp = (parseServerDate(a.startedAt)?.getTime() || 0) - (parseServerDate(b.startedAt)?.getTime() || 0);
+      break;
+    case "ended": {
+      const av = a.endedAt ? parseServerDate(a.endedAt)?.getTime() : Infinity;
+      const bv = b.endedAt ? parseServerDate(b.endedAt)?.getTime() : Infinity;
+      cmp = (av ?? Infinity) - (bv ?? Infinity);
+      break;
+    }
+    case "duration":
+      cmp = (a.durationSec || 0) - (b.durationSec || 0);
+      break;
+  }
+  return dir === "asc" ? cmp : -cmp;
+}
+
+function sortHeaderCell(col) {
+  const isSorted = sortState.key === col.key;
+  const arrow = isSorted ? (sortState.dir === "asc" ? " ▲" : " ▼") : "";
+  return `<th class="sortable${isSorted ? " sorted" : ""}" data-sort-key="${col.key}">${esc(col.label)}${arrow}</th>`;
+}
+
 function renderEventsTable(events) {
   if (!events.length) {
     return `<div class="events-table-wrap"><div class="events-empty">Событий за выбранный период не найдено.</div></div>`;
@@ -445,13 +498,61 @@ function renderEventsTable(events) {
       <td class="dur">${esc(fmtDurationSec(e.durationSec))}</td>
     </tr>`).join("");
   return `<div class="events-table-wrap"><table class="events-table"><thead><tr>
-    <th>Оборудование</th><th>Статус</th><th>Начало</th><th>Устранено</th><th>Длительность</th>
+    ${EVENT_COLUMNS.map(sortHeaderCell).join("")}
   </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function csvCell(v) {
+  const s = String(v == null ? "" : v);
+  return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function eventsToCsv(events) {
+  const header = ["Оборудование", "Статус", "Начало", "Устранено", "Длительность (сек)"];
+  const lines = [header.map(csvCell).join(";")];
+  for (const e of events) {
+    lines.push([
+      e.equipmentLabel || e.equipmentId,
+      e.active ? "Авария" : "Устранено",
+      fmtWhen(e.startedAt),
+      e.endedAt ? fmtWhen(e.endedAt) : "",
+      e.durationSec != null ? Math.round(e.durationSec) : "",
+    ].map(csvCell).join(";"));
+  }
+  return "﻿" + lines.join("\r\n");
 }
 
 let currentRange = "7d";
 let currentSystem = null; // null = сетка карточек, иначе имя системы
 let loadSeq = 0;
+let currentEvents = [];
+let sortState = { key: "default", dir: "desc" };
+
+function getSortedEvents() {
+  return currentEvents.slice().sort((a, b) => compareEvents(a, b, sortState.key, sortState.dir));
+}
+function renderSortedTable() {
+  document.getElementById("tableWrap").innerHTML = renderEventsTable(getSortedEvents());
+}
+document.getElementById("tableWrap").addEventListener("click", (e) => {
+  const th = e.target.closest("th.sortable");
+  if (!th) return;
+  const key = th.dataset.sortKey;
+  sortState = sortState.key === key ? { key, dir: sortState.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" };
+  renderSortedTable();
+});
+document.getElementById("btnExportEvents").addEventListener("click", () => {
+  const events = getSortedEvents();
+  const csv = eventsToCsv(events);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `avarii_${CURRENT_PROJECT_ID}_${currentSystem || "all"}_${currentRange}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
 
 async function loadEventsTable(sys) {
   const mySeq = ++loadSeq;
@@ -463,15 +564,18 @@ async function loadEventsTable(sys) {
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
     if (mySeq !== loadSeq) return;
-    wrap.innerHTML = renderEventsTable(data.events);
+    currentEvents = data.events;
+    renderSortedTable();
   } catch (err) {
     if (mySeq !== loadSeq) return;
+    currentEvents = [];
     wrap.innerHTML = `<div class="events-table-wrap"><div class="events-empty">Не удалось загрузить события: ${esc(err.message)}</div></div>`;
   }
 }
 
 function showTableView(sys) {
   currentSystem = sys;
+  sortState = { key: "default", dir: "desc" };
   document.getElementById("statsGrid").style.display = "none";
   document.getElementById("tableView").style.display = "block";
   loadEventsTable(sys);
