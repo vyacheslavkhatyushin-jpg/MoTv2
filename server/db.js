@@ -117,16 +117,20 @@ CREATE TABLE IF NOT EXISTS project_sppd_config (
 );
 
 -- Пороги фиксации аварии — per-project (у шахт разная сеть/оборудование,
--- глобальные env-переменные воркеров одни на все проекты сразу). Отсутствие
--- строки для проекта = используются старые дефолты воркеров (ping: таймаут
--- из PING_TIMEOUT_SEC, 1 неудачный пинг подряд; sppd: SPPD_STALE_AFTER_MS) —
--- так что добавление этой таблицы само по себе ничего не меняет в поведении
--- для уже работающих проектов, пока админ явно не настроит пороги через UI
--- (кнопка "⚙ Пороги", см. server/routes/projects.js).
+-- глобальные env-переменные воркеров одни на все проекты сразу).
+--
+-- Статус на дашборде/3D-модели всегда живой (сырой результат последнего
+-- пинга/SPPD-сигнала) — красим сразу, без задержки. А вот "авария" как
+-- событие в monitor_events (то, что считает аптайм/длительности) фиксируется
+-- только после ping_fail_duration_sec непрерывного простоя — одиночный
+-- потерянный пакет не должен создавать запись в истории аварий.
+-- Отсутствие строки для проекта = дефолты воркеров ниже; так что добавление
+-- этой таблицы само по себе ничего не меняет для проектов, которые никто не
+-- настраивал через UI (кнопка "⚙ Пороги", см. server/routes/projects.js).
 CREATE TABLE IF NOT EXISTS project_monitor_thresholds (
   project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
   ping_timeout_sec INTEGER NOT NULL DEFAULT 1,
-  ping_fail_threshold INTEGER NOT NULL DEFAULT 1,
+  ping_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
   sppd_stale_after_sec INTEGER NOT NULL DEFAULT 120,
   updated_by TEXT,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -197,5 +201,25 @@ CREATE TABLE IF NOT EXISTS zip_movements (
 );
 CREATE INDEX IF NOT EXISTS idx_zip_movements_item ON zip_movements(item_id, created_at DESC);
 `);
+
+// Одноразовая миграция: ping_fail_threshold (счётчик подряд неудач) заменён
+// на ping_fail_duration_sec (длительность простоя) — семантика поля другая,
+// не просто переименование. Таблица прожила всего несколько часов до этой
+// правки и заведомо пуста на всех деплоях, поэтому проще пересоздать её с
+// новой схемой, чем городить преобразование значений.
+const monitorThresholdsCols = db.prepare("PRAGMA table_info(project_monitor_thresholds)").all();
+if (monitorThresholdsCols.some((c) => c.name === "ping_fail_threshold")) {
+  db.exec("DROP TABLE project_monitor_thresholds");
+  db.exec(`
+    CREATE TABLE project_monitor_thresholds (
+      project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+      ping_timeout_sec INTEGER NOT NULL DEFAULT 1,
+      ping_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
+      sppd_stale_after_sec INTEGER NOT NULL DEFAULT 120,
+      updated_by TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+}
 
 module.exports = db;
