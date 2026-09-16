@@ -31,6 +31,12 @@ app.get(/^\/[^/]+\/registry\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "registry.html"));
 });
 
+// Дашборд "История аварий" (/<project>/monitoring/stats) — тоже отдельная
+// лёгкая страница без Three.js, поверх /api/projects/:id/monitor/stats.
+app.get(/^\/[^/]+\/monitoring\/stats\/?$/, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "monitoring-stats.html"));
+});
+
 // SPA: any other GET (e.g. /:projectId) serves the app; the frontend reads
 // the project id from the URL path itself.
 app.get(/^\/(?!api\/).*/, (req, res) => {

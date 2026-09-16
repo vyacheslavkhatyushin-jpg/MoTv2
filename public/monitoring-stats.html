@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>История аварий — Mine Operations Tool</title>
+<style>
+  :root{
+    --bg:#14171a;
+    --panel:#1b1f23;
+    --panel-alt:#22272b;
+    --panel-alt2:#262c31;
+    --border:#31373d;
+    --border-soft:#282e33;
+    --text:#e4e8eb;
+    --text-dim:#8d979f;
+    --text-faint:#5f6a71;
+    --accent:#ff9f1c;
+    --accent-dim:#8a5713;
+    --accent-2:#39b8b0;
+    --danger:#e6553d;
+    --ok:#2ecc71;
+    --sidebar-w:375px;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size:13px;
+  }
+  .mono{ font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  ::selection{ background:var(--accent); color:#14171a; }
+
+  /* ---- shell / top bar (переиспользовано из index.html) ---- */
+  #shell{ display:flex; flex-direction:column; width:100vw; height:100vh; }
+  #topBar{
+    flex:0 0 auto; height:56px; display:flex; align-items:center; gap:14px;
+    padding:0 18px; background:linear-gradient(180deg,#1c2126,#14171a);
+    border-bottom:1px solid var(--border); user-select:none;
+  }
+  #topBar .brand-titles{ display:flex; flex-direction:column; line-height:1.25; }
+  #topBar .brand-titles .t1{ font-size:15px; font-weight:700; color:var(--text); letter-spacing:.2px; }
+  #topBar .brand-titles .t2{ font-size:11px; color:var(--text-dim); }
+  #topBar .brand-spacer{ flex:1 1 auto; }
+  #topBar .brand-copyright{ font-size:10.5px; color:var(--text-faint); text-align:right; line-height:1.4; }
+  #topBar a, #topBar button{
+    text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;
+  }
+  #topBar a:hover, #topBar button:hover{ border-color:var(--accent); color:var(--accent); }
+  #topBar a.nav-current{ border-color:var(--accent); color:var(--accent); background:rgba(255,159,28,.08); }
+  #app{ flex:1 1 auto; min-height:0; overflow-y:auto; }
+
+  /* ---- экран входа (переиспользовано из index.html) ---- */
+  #authGate{
+    position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(1200px 800px at 50% 20%, #1c2126 0%, #0d0f11 70%);
+  }
+  #authGate.hidden{ display:none; }
+  #authCard{
+    width:360px; max-width:90vw; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:28px 26px 22px; box-shadow:0 20px 60px rgba(0,0,0,.45); text-align:center;
+  }
+  #authCard h1{ margin:0 0 2px; font-size:16px; font-weight:700; color:var(--text); text-align:center; }
+  #authCard h2{ margin:0 0 18px; font-size:12px; font-weight:500; color:var(--text-dim); text-align:center; }
+  #authCard label{ display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:6px; text-align:left; }
+  #authCard input[type="password"], #authCard input[type="text"]{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:9px 10px; font-size:13px; font-family:inherit; letter-spacing:1px;
+  }
+  #authCard input[type="password"]:focus, #authCard input[type="text"]:focus{ outline:none; border-color:var(--accent); }
+  #authCard #authError{ min-height:16px; font-size:11.5px; color:var(--danger); margin-top:8px; text-align:left; }
+  #authCard #btnAuthSubmit{
+    width:100%; margin-top:10px; padding:9px; border-radius:5px; border:1px solid var(--accent);
+    background:var(--accent); color:#14171a; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;
+  }
+  #authCard #btnAuthSubmit:hover{ filter:brightness(1.08); }
+  #authCard .authHint{ margin-top:14px; font-size:10.5px; color:var(--text-faint); text-align:center; line-height:1.5; }
+
+  /* ---- дашборд ---- */
+  .wrap{ max-width:1180px; margin:0 auto; padding:20px 20px 40px; }
+  .pagehead{ display:flex; align-items:baseline; flex-wrap:wrap; gap:10px; margin-bottom:4px; }
+  .crumb{ font-size:11.5px; color:var(--text-faint); }
+  .crumb b{ color:var(--text-dim); font-weight:600; }
+  h1{ margin:2px 0 16px; font-size:19px; font-weight:700; letter-spacing:.1px; }
+
+  .controlbar{
+    display:flex; align-items:center; flex-wrap:wrap; gap:14px;
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:12px 16px; margin-bottom:18px;
+  }
+  .range-toggle{ display:flex; gap:2px; background:var(--panel-alt); border:1px solid var(--border); border-radius:7px; padding:2px; }
+  .range-toggle button{
+    border:none; background:none; color:var(--text-dim); font:inherit; font-size:11.5px; font-weight:600;
+    padding:6px 12px; border-radius:5px; cursor:pointer; transition:background .12s ease, color .12s ease;
+  }
+  .range-toggle button.active{ background:var(--accent); color:#14171a; }
+  .range-toggle button:not(.active):hover{ color:var(--text); }
+  .controlbar .spacer{ flex:1 1 auto; }
+  .global-stat{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-dim); white-space:nowrap; }
+  .global-stat .n{ font-size:15px; font-weight:700; color:var(--text); }
+  .global-stat.crit .n{ color:var(--danger); }
+  .global-stat .dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .global-divider{ width:1px; align-self:stretch; background:var(--border-soft); }
+  #btnRefreshStats{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text-dim);
+    border-radius:6px; padding:6px 12px; font-size:11.5px; cursor:pointer; font-family:inherit;
+  }
+  #btnRefreshStats:hover{ border-color:var(--accent); color:var(--accent); }
+
+  .grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px; }
+
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:10px; display:flex; flex-direction:column; overflow:hidden; }
+  .card.has-alarm{ border-color:rgba(230,85,61,.5); }
+
+  .card-head{ display:flex; align-items:center; gap:10px; padding:13px 15px 11px; border-bottom:1px solid var(--border-soft); }
+  .card-head .sysname{ font-size:14px; font-weight:700; color:var(--text); flex:1; min-width:0; }
+  .card-head .sysname .sub{ display:block; font-size:10.5px; font-weight:500; color:var(--text-faint); margin-top:1px; }
+  .status-pill{ display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; padding:4px 10px; border-radius:99px; white-space:nowrap; flex-shrink:0; }
+  .status-pill .dot{ width:6px; height:6px; border-radius:50%; }
+  .status-pill.ok{ background:rgba(46,204,113,.12); color:var(--ok); }
+  .status-pill.ok .dot{ background:var(--ok); }
+  .status-pill.crit{ background:rgba(230,85,61,.14); color:var(--danger); }
+  .status-pill.crit .dot{ background:var(--danger); animation:pulse 1.4s ease-in-out infinite; }
+  .status-pill.na{ background:var(--panel-alt); color:var(--text-faint); }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+
+  .kpis{ display:grid; grid-template-columns:repeat(3, 1fr); border-bottom:1px solid var(--border-soft); }
+  .kpi{ padding:10px 12px; border-right:1px solid var(--border-soft); }
+  .kpi:last-child{ border-right:none; }
+  .kpi .val{ font-size:17px; font-weight:700; color:var(--text); }
+  .kpi .val.warn{ color:var(--danger); }
+  .kpi .lbl{ font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+
+  .spark{ padding:11px 15px 4px; border-bottom:1px solid var(--border-soft); }
+  .spark-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px; }
+  .spark-top .t{ font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.05em; }
+  .spark-top .v{ font-size:10.5px; color:var(--text-dim); }
+  .bars{ display:flex; align-items:flex-end; gap:4px; height:34px; }
+  .bars .bar{ flex:1; background:var(--panel-alt2); border-radius:2px 2px 0 0; min-height:3px; }
+  .bars .bar.hit{ background:var(--danger); }
+
+  .alarmlist{ flex:1 1 auto; }
+  .alarm-row{ display:flex; align-items:center; gap:9px; padding:8px 15px; border-bottom:1px solid var(--border-soft); font-size:11.5px; }
+  .alarm-row:last-child{ border-bottom:none; }
+  .alarm-row .adot{ width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .alarm-row .adot.live{ background:var(--danger); animation:pulse 1.4s ease-in-out infinite; }
+  .alarm-row .adot.resolved{ background:var(--text-faint); }
+  .alarm-row .aname{ color:var(--text); font-weight:600; flex-shrink:0; }
+  .alarm-row .adesc{ color:var(--text-dim); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .alarm-row .adur{ color:var(--text-faint); flex-shrink:0; }
+  .alarm-row .adur.live{ color:var(--danger); font-weight:600; }
+  .alarm-empty{ padding:16px 15px; text-align:center; color:var(--text-faint); font-size:11.5px; }
+  .card-foot{ padding:9px 15px; font-size:11px; color:var(--text-faint); }
+
+  #statsEmpty, #statsError{ text-align:center; color:var(--text-faint); padding:60px 20px; line-height:1.6; }
+  #statsEmpty b, #statsError b{ color:var(--text-dim); }
+  #statsError{ color:var(--danger); }
+
+  @media (max-width:520px){
+    .kpis{ grid-template-columns:1fr 1fr; }
+    .kpi:nth-child(3){ border-right:none; grid-column:1 / -1; border-top:1px solid var(--border-soft); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= Экран входа по паролю (тот же кэш сессии, что в index.html) ================= -->
+<div id="authGate">
+  <div id="authCard">
+    <h1>Mine Operations Tool</h1>
+    <h2>KazMinerals LLP — История аварий</h2>
+    <label for="authUsername">Логин</label>
+    <input type="text" id="authUsername" autocomplete="username" placeholder="Логин" style="margin-bottom:10px;" />
+    <label for="authPassword">Пароль</label>
+    <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
+    <div id="authError"></div>
+    <button id="btnAuthSubmit">Войти</button>
+    <div class="authHint">Доступ только для авторизованных сотрудников KazMinerals LLP.<br>© 2026 KazMinerals LLP. Все права защищены.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var gate = document.getElementById("authGate");
+  var userInput = document.getElementById("authUsername");
+  var passInput = document.getElementById("authPassword");
+  var errorEl = document.getElementById("authError");
+  var btn = document.getElementById("btnAuthSubmit");
+
+  function unlock(session){
+    gate.classList.add("hidden");
+    window.__auth = session;
+    document.dispatchEvent(new CustomEvent("kzmAuthReady"));
+  }
+  function readStoredSession(){
+    try {
+      var raw = localStorage.getItem("kzmAuthSession");
+      if (!raw) return null;
+      var s = JSON.parse(raw);
+      if (s && s.token && s.username && s.role) return s;
+    } catch(e){}
+    return null;
+  }
+  async function tryLogin(){
+    var username = (userInput.value || "").trim();
+    var password = passInput.value || "";
+    if (!username || !password) {
+      errorEl.textContent = "Введите логин и пароль.";
+      return;
+    }
+    btn.disabled = true;
+    try {
+      var resp = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username, password: password }),
+      });
+      if (!resp.ok) {
+        errorEl.textContent = "Неверный логин или пароль.";
+        passInput.value = "";
+        passInput.focus();
+        return;
+      }
+      var data = await resp.json();
+      var session = { token: data.token, username: data.username, role: data.role };
+      try { localStorage.setItem("kzmAuthSession", JSON.stringify(session)); } catch(e){}
+      errorEl.textContent = "";
+      unlock(session);
+    } catch(e) {
+      errorEl.textContent = "Не удалось связаться с сервером.";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  var stored = readStoredSession();
+  if (stored) { unlock(stored); } else { userInput.focus(); }
+  btn.addEventListener("click", tryLogin);
+  passInput.addEventListener("keydown", function(e){ if (e.key === "Enter") tryLogin(); });
+  userInput.addEventListener("keydown", function(e){ if (e.key === "Enter") passInput.focus(); });
+  window.__kzmLogout = function(){
+    try { localStorage.removeItem("kzmAuthSession"); } catch(e){}
+    location.reload();
+  };
+})();
+</script>
+
+<div id="shell">
+  <header id="topBar">
+    <div class="brand-titles">
+      <span class="t1">История аварий</span>
+      <span class="t2">KazMinerals LLP — по системам</span>
+    </div>
+    <div class="brand-spacer"></div>
+    <div id="sessionInfo" style="display:flex; align-items:center; gap:10px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
+      <span id="sessionProject"></span>
+      <span id="sessionUser"></span>
+      <a id="navToEditor" title="Редактор модели">✏️ Редактор</a>
+      <a id="navToMonitoring" title="Мониторинг оборудования">📡 Мониторинг</a>
+      <a id="navToStats" class="nav-current" title="История аварий">📊 Статистика</a>
+      <a id="navToRegistry" title="Реестр ЗИП">📦 ЗИП</a>
+      <button id="btnLogout" title="Выйти">Выйти</button>
+    </div>
+    <div class="brand-copyright">© 2026 KazMinerals LLP<br>Все права защищены</div>
+  </header>
+
+  <div id="app">
+    <div class="wrap">
+      <div class="pagehead"><span class="crumb"><b>Мониторинг</b> <span id="crumbProject"></span></span></div>
+      <h1>История аварий — по системам</h1>
+
+      <div class="controlbar">
+        <div class="range-toggle" role="group" aria-label="Период">
+          <button data-range="24h">24 часа</button>
+          <button data-range="7d" class="active">7 дней</button>
+          <button data-range="30d">30 дней</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="global-stat crit" id="globalActiveStat"><span class="dot" style="background:var(--danger); animation:pulse 1.4s ease-in-out infinite;"></span><span class="n mono" id="globalActive">—</span> активных сейчас</div>
+        <div class="global-divider"></div>
+        <div class="global-stat"><span class="n mono" id="globalIncidents">—</span> аварий за период</div>
+        <div class="global-divider"></div>
+        <div class="global-stat"><span class="n mono" id="globalUptime">—</span> средний uptime</div>
+        <button id="btnRefreshStats" title="Обновить">↻</button>
+      </div>
+
+      <div id="statsError" style="display:none;"></div>
+      <div id="statsEmpty" style="display:none;"><b>Проект не найден.</b></div>
+      <div class="grid" id="statsGrid"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+const CURRENT_PROJECT_ID = (location.pathname.split("/").filter(Boolean)[0] || "default").toLowerCase();
+
+function apiHeaders(extra) {
+  const auth = window.__auth;
+  const headers = Object.assign({}, extra || {});
+  if (auth && auth.token) headers["Authorization"] = "Bearer " + auth.token;
+  return headers;
+}
+async function apiFetch(url, options) {
+  const resp = await fetch(url, Object.assign({}, options, { headers: apiHeaders((options && options.headers) || {}) }));
+  if (resp.status === 401) {
+    if (window.__kzmLogout) window.__kzmLogout();
+    throw new Error("Сессия истекла, требуется повторный вход.");
+  }
+  return resp;
+}
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function parseServerDate(s) {
+  if (!s) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/.exec(s);
+  return m ? new Date(m[1] + "T" + m[2] + "Z") : new Date(s);
+}
+function fmtWhen(iso) {
+  const d = parseServerDate(iso);
+  if (!d || isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+function fmtDurationSec(sec) {
+  if (sec == null) return "—";
+  const s = Math.max(0, Math.round(sec));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h} ч ${m} мин`;
+  if (m > 0) return `${m} мин`;
+  return `${s} сек`;
+}
+
+const SYSTEM_SUBLABELS = {
+  "ВОЛС": "MAP · ODF · WiFi",
+  "LFC": "IILB · ISIB · Статив",
+  "АО": "Статив · FS",
+  "Телефония": "MAP · TEL",
+  "ВН": "MAP · CAM",
+};
+
+function renderCard(sys, data) {
+  const activeCount = data.activeAlarms.length;
+  const pillClass = activeCount ? "crit" : "ok";
+  const pillText = activeCount ? `${activeCount} авари${activeCount === 1 ? "я" : (activeCount < 5 ? "и" : "й")}` : "норма";
+  const maxDaily = Math.max(1, ...data.dailyCounts);
+
+  const barsHtml = data.dailyCounts.map((n) => {
+    const pct = n === 0 ? 6 : Math.max(10, Math.round((n / maxDaily) * 100));
+    return `<div class="bar${n > 0 ? " hit" : ""}" style="height:${pct}%" title="${n} авари${n === 1 ? "я" : (n < 5 && n > 0 ? "и" : "й")}"></div>`;
+  }).join("");
+
+  const rows = [];
+  for (const a of data.activeAlarms) {
+    rows.push(`<div class="alarm-row">
+      <span class="adot live"></span>
+      <span class="aname">${esc(a.equipmentLabel || a.equipmentId)}</span>
+      <span class="adesc">Нет связи</span>
+      <span class="adur live mono">${esc(fmtDurationSec(a.durationSec))}</span>
+    </div>`);
+  }
+  for (const e of data.recentEvents) {
+    if (e.active) continue; // уже показан выше как активная авария
+    rows.push(`<div class="alarm-row">
+      <span class="adot resolved"></span>
+      <span class="aname">${esc(e.equipmentLabel || e.equipmentId)}</span>
+      <span class="adesc">Устранено — ${esc(fmtWhen(e.startedAt))}</span>
+      <span class="adur mono">${esc(fmtDurationSec(e.durationSec))}</span>
+    </div>`);
+  }
+  const alarmListHtml = rows.length ? rows.slice(0, 6).join("") : `<div class="alarm-empty">Аварий за период не было</div>`;
+
+  return `<div class="card${activeCount ? " has-alarm" : ""}">
+    <div class="card-head">
+      <div class="sysname">${esc(sys)}<span class="sub">${esc(SYSTEM_SUBLABELS[sys] || "")}</span></div>
+      <div class="status-pill ${pillClass}"><span class="dot"></span>${pillText}</div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="val${data.incidentCount > 0 ? " warn" : ""} mono">${data.incidentCount}</div><div class="lbl">за период</div></div>
+      <div class="kpi"><div class="val mono">${data.avgResolutionSec == null ? "—" : fmtDurationSec(data.avgResolutionSec)}</div><div class="lbl">сред. устранение</div></div>
+      <div class="kpi"><div class="val mono">${data.uptimePct == null ? "—" : data.uptimePct + "%"}</div><div class="lbl">uptime</div></div>
+    </div>
+    <div class="spark">
+      <div class="spark-top"><span class="t">Аварий по дням</span><span class="v">7 дней</span></div>
+      <div class="bars">${barsHtml}</div>
+    </div>
+    <div class="alarmlist">${alarmListHtml}</div>
+    <div class="card-foot">${data.monitoredCount} объект${data.monitoredCount === 1 ? "" : (data.monitoredCount < 5 && data.monitoredCount > 0 ? "а" : "ов")} под наблюдением</div>
+  </div>`;
+}
+
+let currentRange = "7d";
+let loadSeq = 0;
+
+async function loadStats() {
+  const mySeq = ++loadSeq;
+  const grid = document.getElementById("statsGrid");
+  const errEl = document.getElementById("statsError");
+  const emptyEl = document.getElementById("statsEmpty");
+  errEl.style.display = "none";
+  emptyEl.style.display = "none";
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/stats?range=${encodeURIComponent(currentRange)}`);
+    if (mySeq !== loadSeq) return;
+    if (resp.status === 404) {
+      grid.innerHTML = "";
+      emptyEl.style.display = "block";
+      return;
+    }
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    if (mySeq !== loadSeq) return;
+
+    document.getElementById("globalActive").textContent = data.totals.activeNow;
+    document.getElementById("globalActiveStat").style.opacity = data.totals.activeNow ? "1" : ".55";
+    document.getElementById("globalIncidents").textContent = data.totals.incidentsInRange;
+    document.getElementById("globalUptime").textContent = data.totals.avgUptimePct == null ? "—" : data.totals.avgUptimePct + "%";
+
+    const order = ["ВОЛС", "LFC", "АО", "Телефония", "ВН"];
+    grid.innerHTML = order.map((sys) => renderCard(sys, data.systems[sys])).join("");
+  } catch (err) {
+    if (mySeq !== loadSeq) return;
+    grid.innerHTML = "";
+    errEl.textContent = "Не удалось загрузить статистику: " + err.message;
+    errEl.style.display = "block";
+  }
+}
+
+document.querySelectorAll(".range-toggle button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".range-toggle button").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentRange = btn.dataset.range;
+    loadStats();
+  });
+});
+document.getElementById("btnRefreshStats").addEventListener("click", loadStats);
+document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
+
+function applyRoleUI() {
+  const auth = window.__auth;
+  document.getElementById("sessionProject").textContent = "Проект: " + CURRENT_PROJECT_ID;
+  document.getElementById("crumbProject").textContent = "· " + CURRENT_PROJECT_ID;
+  document.getElementById("sessionUser").textContent = auth ? `${auth.username} (${auth.role})` : "";
+  document.getElementById("navToEditor").href = `/${CURRENT_PROJECT_ID}`;
+  document.getElementById("navToMonitoring").href = `/${CURRENT_PROJECT_ID}/monitoring`;
+  document.getElementById("navToStats").href = `/${CURRENT_PROJECT_ID}/monitoring/stats`;
+  document.getElementById("navToRegistry").href = `/${CURRENT_PROJECT_ID}/registry`;
+}
+function boot() {
+  applyRoleUI();
+  loadStats();
+  setInterval(loadStats, 30000);
+}
+if (window.__auth) boot();
+else document.addEventListener("kzmAuthReady", boot, { once: true });
+</script>
+</body>
+</html>

@@ -283,6 +283,155 @@ router.get("/:id/monitor/events", (req, res) => {
   res.json({ events: rows });
 });
 
+// Дашборд "История аварий" (/<project>/monitoring/stats) — сводка по пяти
+// системам (ВОЛС/LFC/АО/Телефония/ВН), та же группировка, что у кнопок
+// фильтра на странице мониторинга (EQUIP_SHAPE_SYSTEMS в index.html — этот
+// список продублирован здесь, т.к. страницы не делят JS-модули между собой).
+// Оборудование одной формы может входить сразу в несколько систем (MAP —
+// во все три), поэтому событие на нём учитывается в каждой из них; глобальные
+// итоги считаются по уникальным id оборудования/событий, чтобы не задваивались.
+const MONITOR_SYSTEMS_LIST = ["ВОЛС", "LFC", "АО", "Телефония", "ВН"];
+const MONITOR_EQUIP_SHAPE_SYSTEMS = {
+  map: ["ВОЛС", "Телефония", "ВН"],
+  odf: ["ВОЛС"],
+  wifi: ["ВОЛС"],
+  mla: ["LFC"], iilb: ["LFC"], isib: ["LFC"], mps: ["LFC"], mpc: ["LFC"],
+  mtu: ["LFC"], mvsa: ["LFC"], mbu: ["LFC"],
+  stativ: ["LFC", "АО"],
+  fs: ["АО"],
+  tel: ["Телефония"],
+  cam: ["ВН"],
+};
+const MONITOR_STATS_RANGE_MS = { "24h": 24 * 3600 * 1000, "7d": 7 * 24 * 3600 * 1000, "30d": 30 * 24 * 3600 * 1000 };
+const MONITOR_STATS_SPARK_MS = 7 * 24 * 3600 * 1000;
+
+// SQLite datetime('now') отдаёт "YYYY-MM-DD HH:MM:SS" (UTC, без T/Z) — тот же
+// формат, что чинили на клиенте через parseServerDate(): без нормализации
+// Date.parse() на сервере с TZ != UTC прочитал бы её как локальное время.
+function parseMonitorDate(s) {
+  if (!s) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/.exec(s);
+  return m ? Date.parse(m[1] + "T" + m[2] + "Z") : Date.parse(s);
+}
+
+router.get("/:id/monitor/stats", (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const range = MONITOR_STATS_RANGE_MS[req.query.range] ? req.query.range : "7d";
+  const rangeMs = MONITOR_STATS_RANGE_MS[range];
+  const now = Date.now();
+  const sinceMs = now - rangeMs;
+  const sparkSinceMs = now - MONITOR_STATS_SPARK_MS;
+  const fetchSinceMs = Math.min(sinceMs, sparkSinceMs);
+
+  const stateRow = db.prepare("SELECT snapshot_json FROM project_state WHERE project_id = ?").get(req.params.id);
+  const equipment = stateRow ? JSON.parse(stateRow.snapshot_json).equipment || [] : [];
+  const equipSystems = new Map(); // equipmentId -> ["ВОЛС", ...]
+  const monitoredCountBySystem = {};
+  for (const sys of MONITOR_SYSTEMS_LIST) monitoredCountBySystem[sys] = 0;
+  for (const eq of equipment) {
+    if (!eq.monitorMethod || eq.monitorMethod === "none") continue;
+    const systems = MONITOR_EQUIP_SHAPE_SYSTEMS[eq.shape] || [];
+    if (!systems.length) continue;
+    equipSystems.set(eq.id, systems);
+    for (const sys of systems) monitoredCountBySystem[sys]++;
+  }
+
+  // Только "down" — это и есть авария; "up" лишь закрывает уже открытую
+  // запись (см. server/monitor/*-worker.js), отдельной строки не создаёт.
+  const events = db
+    .prepare(
+      `SELECT id, equipment_id, equipment_label, started_at, ended_at, duration_sec
+       FROM monitor_events
+       WHERE project_id = ? AND to_state = 'down' AND (ended_at IS NULL OR ended_at >= ?)
+       ORDER BY started_at DESC`
+    )
+    .all(req.params.id, new Date(fetchSinceMs).toISOString());
+
+  const perSystem = {};
+  for (const sys of MONITOR_SYSTEMS_LIST) {
+    perSystem[sys] = { activeAlarms: [], recentEvents: [], incidentCount: 0, resolvedDurations: [], downtimeSec: 0, dailyCounts: new Array(7).fill(0) };
+  }
+  const dayMs = 24 * 3600 * 1000;
+  const todayStartMs = Math.floor(now / dayMs) * dayMs;
+  const activeIdsGlobal = new Set();
+  const incidentIdsGlobal = new Set();
+
+  for (const ev of events) {
+    const systems = equipSystems.get(ev.equipment_id);
+    if (!systems || !systems.length) continue;
+    const startedMs = parseMonitorDate(ev.started_at);
+    const endedMs = ev.ended_at ? parseMonitorDate(ev.ended_at) : now;
+    const isActive = !ev.ended_at;
+    const startedInRange = startedMs >= sinceMs;
+    const startedInSparkWindow = startedMs >= sparkSinceMs;
+    const overlapSec = Math.max(0, Math.min(endedMs, now) - Math.max(startedMs, sinceMs)) / 1000;
+    const dayIndex = 6 - Math.round((todayStartMs - Math.floor(startedMs / dayMs) * dayMs) / dayMs);
+
+    if (isActive) activeIdsGlobal.add(ev.equipment_id);
+    if (startedInRange) incidentIdsGlobal.add(ev.id);
+
+    for (const sys of systems) {
+      const b = perSystem[sys];
+      if (isActive) {
+        b.activeAlarms.push({
+          equipmentId: ev.equipment_id, equipmentLabel: ev.equipment_label,
+          startedAt: ev.started_at, durationSec: Math.round((now - startedMs) / 1000),
+        });
+      }
+      if (startedInRange) {
+        b.incidentCount++;
+        if (!isActive) b.resolvedDurations.push(ev.duration_sec ?? Math.round(overlapSec));
+      }
+      if (overlapSec > 0) b.downtimeSec += overlapSec;
+      if (startedInSparkWindow && dayIndex >= 0 && dayIndex < 7) b.dailyCounts[dayIndex]++;
+      if (startedInRange || isActive) {
+        b.recentEvents.push({
+          equipmentId: ev.equipment_id, equipmentLabel: ev.equipment_label,
+          startedAt: ev.started_at, endedAt: ev.ended_at, durationSec: ev.duration_sec, active: isActive,
+        });
+      }
+    }
+  }
+
+  const rangeSec = rangeMs / 1000;
+  const systemsOut = {};
+  let uptimeSum = 0, uptimeCount = 0;
+  for (const sys of MONITOR_SYSTEMS_LIST) {
+    const b = perSystem[sys];
+    const monitoredCount = monitoredCountBySystem[sys] || 0;
+    const totalPossibleSec = monitoredCount * rangeSec;
+    const uptimePct = totalPossibleSec > 0 ? Math.max(0, 100 - (b.downtimeSec / totalPossibleSec) * 100) : null;
+    const avgResolutionSec = b.resolvedDurations.length
+      ? Math.round(b.resolvedDurations.reduce((a, c) => a + c, 0) / b.resolvedDurations.length)
+      : null;
+    b.recentEvents.sort((a, c) => (c.startedAt || "").localeCompare(a.startedAt || ""));
+    b.activeAlarms.sort((a, c) => (a.startedAt || "").localeCompare(c.startedAt || ""));
+    systemsOut[sys] = {
+      monitoredCount,
+      activeAlarms: b.activeAlarms,
+      recentEvents: b.recentEvents.slice(0, 6),
+      incidentCount: b.incidentCount,
+      avgResolutionSec,
+      uptimePct: uptimePct === null ? null : Math.round(uptimePct * 100) / 100,
+      dailyCounts: b.dailyCounts,
+    };
+    if (uptimePct !== null) { uptimeSum += uptimePct; uptimeCount++; }
+  }
+
+  res.json({
+    range,
+    since: new Date(sinceMs).toISOString(),
+    systems: systemsOut,
+    totals: {
+      activeNow: activeIdsGlobal.size,
+      incidentsInRange: incidentIdsGlobal.size,
+      avgUptimePct: uptimeCount ? Math.round((uptimeSum / uptimeCount) * 100) / 100 : null,
+    },
+  });
+});
+
 // Настройка подключения к SPPD для этого проекта (Этап 4, см.
 // docs/monitoring-plan.md) — у каждой шахты свой сервер SPPD, поэтому это
 // per-project настройка, а не общая переменная окружения одного воркера.

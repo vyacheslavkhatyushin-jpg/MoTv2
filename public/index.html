@@ -49,8 +49,14 @@
   body.monitoring-mode #navToMonitoring{ display:none !important; }
   #navToEditor{ display:none; }
   body.monitoring-mode #navToEditor{ display:inline-flex; }
-  #monitorPageTitle{ display:none; padding:14px 12px 6px; font-size:14.5px; font-weight:700; color:var(--text); }
-  body.monitoring-mode #monitorPageTitle{ display:block; }
+  #monitorPageTitle{ display:none; padding:14px 12px 6px; font-size:14.5px; font-weight:700; color:var(--text); align-items:center; gap:10px; }
+  body.monitoring-mode #monitorPageTitle{ display:flex; }
+  #monitorPageTitle .title-text{ flex:1; min-width:0; }
+  #navToMonitorStats{
+    flex-shrink:0; text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:4px; padding:4px 9px; cursor:pointer; font-family:inherit; font-size:11px; font-weight:500;
+  }
+  #navToMonitorStats:hover{ border-color:var(--accent); color:var(--accent); }
   body.monitoring-mode #tab-monitor.active{ display:block; overflow-y:auto; flex:1 1 auto; }
   body.monitoring-mode .layer-remove{ display:none !important; }
   #monitorActiveWrap{ max-height:220px; overflow-y:auto; border-bottom:1px solid var(--border-soft); }
@@ -725,7 +731,10 @@
     </div>
   </div>
   <div id="sidebar">
-    <div id="monitorPageTitle">📡 Мониторинг оборудования</div>
+    <div id="monitorPageTitle">
+      <span class="title-text">📡 Мониторинг оборудования</span>
+      <a id="navToMonitorStats" title="История аварий по системам">📊 Статистика</a>
+    </div>
     <button id="btnSaveAll" class="save-btn-big" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере">☁ Сохранить изменения</button>
     <div id="saveStatus"></div>
     <div id="fileMeta"></div>
@@ -1013,10 +1022,6 @@
           <div class="mon-sec-head" data-mon-toggle="marks"><span class="mon-arrow">▾</span><span class="mon-sec-name">Метки</span><span class="mon-sec-count" id="monitorMarksCount"></span></div>
           <div class="mon-sec-body" id="monitorMarksList"></div>
         </div>
-
-        <div style="padding:8px 12px 4px; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); border-top:1px solid var(--border-soft);">История</div>
-        <div class="uo-list" id="monitorHistoryList" style="flex:0 0 auto; min-height:0;"></div>
-        <div class="placeholder" id="monitorHistoryPlaceholder" style="padding:16px; margin:0;">История пуста.</div>
       </div>
     </div>
   </div>
@@ -1882,8 +1887,6 @@ const dom = {
   monitorVehiclesTotal: document.getElementById("monitorVehiclesTotal"),
   monitorActiveList: document.getElementById("monitorActiveList"),
   monitorActivePlaceholder: document.getElementById("monitorActivePlaceholder"),
-  monitorHistoryList: document.getElementById("monitorHistoryList"),
-  monitorHistoryPlaceholder: document.getElementById("monitorHistoryPlaceholder"),
   monitorSystems: document.getElementById("monitorSystems"),
   monitorCablesCount: document.getElementById("monitorCablesCount"),
   monitorCablesList: document.getElementById("monitorCablesList"),
@@ -5153,9 +5156,11 @@ function applyMonitoringPageUI() {
   const navToMonitoring = document.getElementById("navToMonitoring");
   const navToEditor = document.getElementById("navToEditor");
   const navToRegistry = document.getElementById("navToRegistry");
+  const navToMonitorStats = document.getElementById("navToMonitorStats");
   if (navToMonitoring) navToMonitoring.href = `/${CURRENT_PROJECT_ID}/monitoring`;
   if (navToEditor) navToEditor.href = `/${CURRENT_PROJECT_ID}`;
   if (navToRegistry) navToRegistry.href = `/${CURRENT_PROJECT_ID}/registry`;
+  if (navToMonitorStats) navToMonitorStats.href = `/${CURRENT_PROJECT_ID}/monitoring/stats`;
   if (!IS_MONITORING_PAGE) return;
   document.body.classList.add("monitoring-mode");
   document.querySelectorAll(".tabpanel").forEach((p) => p.classList.remove("active"));
@@ -5585,14 +5590,6 @@ function timeSinceLabel(isoStr) {
   const d = Math.floor(h / 24);
   return d + " дн " + (h % 24) + " ч";
 }
-function formatDurationSec(sec) {
-  if (sec == null) return "";
-  if (sec < 60) return sec + " с";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return min + " мин";
-  const h = Math.floor(min / 60);
-  return h + " ч " + (min % 60) + " мин";
-}
 function renderMonitorActiveList(rows) {
   const active = rows
     .filter((r) => r.state === "down" || r.state === "degraded")
@@ -5653,31 +5650,6 @@ function applyMonitorStatus(rows) {
   if (dom.monitorVehiclesTotal) dom.monitorVehiclesTotal.textContent = vehiclesTotal;
   if (dom.monitorActiveList) renderMonitorActiveList(rows);
   if (IS_MONITORING_PAGE) renderMonitorEquip();
-}
-async function loadMonitorHistory() {
-  try {
-    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/events`);
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const data = await resp.json();
-    const closed = (data.events || []).filter((e) => e.ended_at);
-    dom.monitorHistoryList.innerHTML = "";
-    dom.monitorHistoryPlaceholder.style.display = closed.length ? "none" : "block";
-    for (const e of closed) {
-      const row = document.createElement("div");
-      row.className = "uo-row";
-      row.style.cssText = "flex-direction:column; align-items:flex-start; gap:2px; cursor:default;";
-      const title = document.createElement("div");
-      title.style.fontWeight = "600";
-      title.textContent = e.equipment_label || e.equipment_id;
-      const meta = document.createElement("div");
-      meta.style.cssText = "font-size:11px; color:var(--text-dim);";
-      meta.textContent = `Простой ${formatDurationSec(e.duration_sec)} · с ${parseServerDate(e.started_at).toLocaleString()}`;
-      row.appendChild(title); row.appendChild(meta);
-      dom.monitorHistoryList.appendChild(row);
-    }
-  } catch (err) {
-    console.error("Не удалось загрузить историю мониторинга:", err);
-  }
 }
 let monitorWS = null;
 function connectMonitorWS() {
@@ -6337,7 +6309,6 @@ animate();
     if (IS_MONITORING_PAGE) {
       renderMonitorLayerLists();
       connectMonitorWS();
-      loadMonitorHistory();
     }
   }
 })();
