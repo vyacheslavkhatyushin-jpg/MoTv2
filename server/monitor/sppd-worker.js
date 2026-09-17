@@ -153,7 +153,10 @@ function collectSppdTargets(projectId) {
 }
 
 /* ---------- запись состояния в monitor_status/monitor_events ---------- */
-const stmtGetStatus = db.prepare("SELECT state FROM monitor_status WHERE project_id = ? AND equipment_id = ?");
+// state + raw_metrics_json вместе — applyOnlineState() мёрджит новый патч
+// метрик поверх уже сохранённых (см. mergeMetricsJson), чтобы State-событие
+// без TxRx/VLine не стирало то, что пришло отдельными сообщениями раньше.
+const stmtGetStatus = db.prepare("SELECT state, raw_metrics_json FROM monitor_status WHERE project_id = ? AND equipment_id = ?");
 const stmtUpsertState = db.prepare(`
   INSERT INTO monitor_status (project_id, equipment_id, state, last_checked_at, last_change_at, raw_metrics_json)
   VALUES (@projectId, @equipmentId, @state, @checkedAt, @changedAt, @metrics)
@@ -171,6 +174,34 @@ const stmtUpsertCounts = db.prepare(`
     person_count = @personCount,
     vehicle_count = @vehicleCount
 `);
+// TxRx/Firmware/VLine прилетают отдельными сообщениями SB_EVENT, без
+// State рядом (State — редкое событие смены online/offline, не регулярный
+// хартбит) — раньше это означало, что такие сообщения целиком
+// отбрасывались (см. handleSbEvent), теперь пишутся тем же
+// upsert-без-состояния паттерном, что и счётчики SBeacon.
+const stmtUpsertMetricsOnly = db.prepare(`
+  INSERT INTO monitor_status (project_id, equipment_id, state, last_checked_at, raw_metrics_json)
+  VALUES (@projectId, @equipmentId, 'unknown', @checkedAt, @metrics)
+  ON CONFLICT(project_id, equipment_id) DO UPDATE SET
+    last_checked_at = @checkedAt,
+    raw_metrics_json = @metrics
+`);
+// Мёрдж патча метрик поверх уже сохранённых (а не перезапись) — иначе,
+// например, VLine-сообщение стирало бы TxRx, записанный предыдущим
+// сообщением на тот же Addr, и наоборот.
+function mergeMetricsJson(currentRawJson, patch) {
+  const current = currentRawJson ? JSON.parse(currentRawJson) : {};
+  return JSON.stringify(Object.assign({}, current, patch));
+}
+function applyMetricsOnly(target, metricsPatch) {
+  const current = stmtGetStatus.get(target.projectId, target.equipmentId);
+  stmtUpsertMetricsOnly.run({
+    projectId: target.projectId,
+    equipmentId: target.equipmentId,
+    checkedAt: new Date().toISOString(),
+    metrics: mergeMetricsJson(current && current.raw_metrics_json, metricsPatch),
+  });
+}
 const stmtOpenEvent = db.prepare(`
   INSERT INTO monitor_events (project_id, equipment_id, equipment_label, from_state, to_state, started_at)
   VALUES (@projectId, @equipmentId, @label, @fromState, @toState, @startedAt)
@@ -239,19 +270,23 @@ function clearDownAndMaybeCloseEvent(target, wasDown) {
 // вместо sppd_fail_duration_sec (например, fieldsense-worker.js читает
 // fs_fail_duration_sec и передаёт готовые мс сюда, а не полагается на
 // getFailDurationMs ниже, которая жёстко привязана к колонке SPPD).
-function applyOnlineState(target, online, metrics, failDurationMsOverride) {
+function applyOnlineState(target, online, metricsPatch, failDurationMsOverride) {
   const nowIso = new Date().toISOString();
   const nextState = online ? "up" : "down";
   const current = stmtGetStatus.get(target.projectId, target.equipmentId);
 
   // Статус — сразу, сырой: явный push от считывателя красит немедленно.
+  // Метрики — мёрджим поверх уже накопленного, а не затираем: State-событие
+  // само по себе редко несёт TxRx/VLine, они обычно из более ранних сообщений.
   stmtUpsertState.run({
     projectId: target.projectId,
     equipmentId: target.equipmentId,
     state: nextState,
     checkedAt: nowIso,
     changedAt: nowIso,
-    metrics: metrics ? JSON.stringify(metrics) : null,
+    metrics: metricsPatch
+      ? mergeMetricsJson(current && current.raw_metrics_json, metricsPatch)
+      : (current ? current.raw_metrics_json : null),
   });
 
   if (online) {
@@ -347,11 +382,25 @@ function handleSbEvent(msg, targetsByAddr, siteLabel) {
     console.log(`[sppd-worker]${siteLabel ? " [" + siteLabel + "]" : ""} SB_EVENT Addr=${data.Addr} OnLine=${data.State && data.State.OnLine} matched=${targets ? targets.length : 0}`);
   }
   if (!targets || !targets.length) return;
+
+  // TxRx/Firmware/VLine (RSSI+напряжение) приходят каждый своим отдельным
+  // SB_EVENT, без State рядом — State сам по себе редкое событие смены
+  // online/offline, а не регулярный хартбит. Раньше метрики собирались
+  // только если State тоже был в этом же сообщении, из-за чего почти все
+  // TxRx/Firmware/VLine молча терялись.
+  const metricsPatch = {};
+  if (data.TxRx) metricsPatch.txRx = data.TxRx;
+  if (data.Firmware) metricsPatch.firmware = data.Firmware;
+  if (data.VLine && typeof data.VLine.VLine === "number") {
+    metricsPatch.voltage = Math.round(data.VLine.VLine * 100) / 100;
+    if (typeof data.VLine.RSSI === "number") metricsPatch.rssi = data.VLine.RSSI;
+  }
+  const hasMetrics = Object.keys(metricsPatch).length > 0;
+
   if (data.State && typeof data.State.OnLine === "boolean") {
-    const metrics = {};
-    if (data.TxRx) metrics.txRx = data.TxRx;
-    if (data.Firmware) metrics.firmware = data.Firmware;
-    for (const target of targets) applyOnlineState(target, data.State.OnLine, Object.keys(metrics).length ? metrics : null);
+    for (const target of targets) applyOnlineState(target, data.State.OnLine, hasMetrics ? metricsPatch : null);
+  } else if (hasMetrics) {
+    for (const target of targets) applyMetricsOnly(target, metricsPatch);
   }
 }
 
@@ -582,6 +631,7 @@ module.exports = {
   loadSiteConfigs,
   collectSppdTargets,
   applyOnlineState,
+  applyMetricsOnly,
   applyCounts,
   emitTagPulse,
   handleSbEvent,

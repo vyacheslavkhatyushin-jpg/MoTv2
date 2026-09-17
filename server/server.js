@@ -83,7 +83,7 @@ function getMonitorStatus(projectId) {
   return db
     .prepare(
       `SELECT equipment_id, state, last_checked_at, last_change_at, latency_ms,
-              person_count, vehicle_count
+              person_count, vehicle_count, raw_metrics_json
        FROM monitor_status WHERE project_id = ?`
     )
     .all(projectId);
