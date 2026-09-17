@@ -975,6 +975,7 @@
               <option value="stativ_ao">Статив АО</option>
               <option value="poe">PoE</option>
               <option value="go">ГО</option>
+              <option value="custom">Другое</option>
             </select>
           </div>
           <button class="uo-add-btn" id="btnAddEquip">+ Добавить объект</button>
@@ -1003,7 +1004,7 @@
           <div class="drow"><span>Расположение</span><input type="text" id="equipDLocation" placeholder="Например: гор. 340, ПК 12"></div>
           <div class="drow"><span>IP-адрес</span><input type="text" id="equipDIp" placeholder="192.168.0.1"></div>
           <div class="drow"><span>ID номер</span><input type="text" id="equipDIdNumber" placeholder="Инвентарный/серийный номер"></div>
-          <div class="drow"><span>Мониторинг</span>
+          <div class="drow" id="equipDMonitorRow"><span>Мониторинг</span>
             <select id="equipDMonitorMethod" style="background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 6px; font-family:inherit;">
               <option value="none">Не мониторится</option>
               <option value="ping">Ping</option>
@@ -1951,6 +1952,7 @@ const dom = {
   equipDLocation: document.getElementById("equipDLocation"),
   equipDIp: document.getElementById("equipDIp"),
   equipDIdNumber: document.getElementById("equipDIdNumber"),
+  equipDMonitorRow: document.getElementById("equipDMonitorRow"),
   equipDMonitorMethod: document.getElementById("equipDMonitorMethod"),
   equipDMonitorSppdOption: document.getElementById("equipDMonitorSppdOption"),
   equipDMonitorFsOption: document.getElementById("equipDMonitorFsOption"),
@@ -4116,11 +4118,16 @@ const EQUIP_SHAPE_LABELS = {
   // "Статив" без уточнения — устаревшее значение, оставлено только чтобы
   // объекты, созданные до разделения на LFC/АО, не потерялись из списков.
   stativ: "Статив (устар.)",
+  custom: "Другое",
 };
-const EQUIP_SHAPE_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "go", "stativ"];
+const EQUIP_SHAPE_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "go", "stativ", "custom"];
 function equipGroupKey(eq) {
   return EQUIP_SHAPE_LABELS[eq.shape] ? eq.shape : "custom";
 }
+// Формы, для которых физически возможен опрос (см. docs/monitoring-plan.md) —
+// остальные (MLA, ODF, MPS/MPC/MTU/MVSA, MBU, PoE, устаревший "Статив")
+// пассивные, у них нет интерфейса для связи с внешней системой мониторинга.
+const MONITORABLE_SHAPES = new Set(["map", "iilb", "isib", "wifi", "cam", "fs", "tel", "stativ_lfc", "stativ_ao", "go", "custom"]);
 // В отличие от кабелей, у форм оборудования нет своего "фирменного" цвета
 // (все формы создаются одним и тем же дефолтным цветом объекта) — дефолт
 // подписи такой же нейтральный белый, что был у общего переключателя раньше.
@@ -4191,7 +4198,7 @@ function buildEquipList() {
     groups.get(key).push(eq);
   }
   for (const arr of groups.values()) arr.sort(byLabel);
-  const orderedKeys = [...EQUIP_SHAPE_ORDER, "custom"].filter((k) => groups.has(k));
+  const orderedKeys = EQUIP_SHAPE_ORDER.filter((k) => groups.has(k));
   for (const key of orderedKeys) {
     const groupItems = groups.get(key);
     const groupLabel = EQUIP_SHAPE_LABELS[key] || "Другое";
@@ -4300,7 +4307,13 @@ function selectEquip(eq) {
 // для остальных типов оборудования эти варианты в выпадающем списке
 // скрываются, чтобы не вводить в заблуждение (см. docs/monitoring-plan.md).
 function updateEquipMonitorRows(eq) {
-  const canSppd = eq.shape === "iilb" || eq.shape === "isib";
+  const canMonitor = MONITORABLE_SHAPES.has(eq.shape);
+  dom.equipDMonitorRow.style.display = canMonitor ? "" : "none";
+  if (!canMonitor && dom.equipDMonitorMethod.value !== "none") {
+    dom.equipDMonitorMethod.value = "none";
+    eq.monitorMethod = "none";
+  }
+  const canSppd = canMonitor && (eq.shape === "iilb" || eq.shape === "isib");
   dom.equipDMonitorSppdOption.disabled = !canSppd;
   dom.equipDMonitorSppdOption.hidden = !canSppd;
   if (!canSppd && dom.equipDMonitorMethod.value === "sppd") {
@@ -5889,7 +5902,7 @@ function renderMonitorEquip() {
     groups.get(key).push(eq);
   }
   for (const arr of groups.values()) arr.sort(byLabel);
-  const orderedKeys = [...EQUIP_SHAPE_ORDER, "custom"].filter((k) => groups.has(k));
+  const orderedKeys = EQUIP_SHAPE_ORDER.filter((k) => groups.has(k));
   let total = 0;
   for (const key of orderedKeys) {
     const groupItems = groups.get(key);
@@ -6831,7 +6844,7 @@ async function restoreFromSnapshot(state) {
       }
       if (s.equipLabel) {
         if (typeof s.equipLabel.size === "number") { equipLabelSize = s.equipLabel.size; dom.equipLabelSize.value = equipLabelSize; }
-        loadLabelGroups(equipLabelGroups, s.equipLabel, [...EQUIP_SHAPE_ORDER, "custom"], () => 0xffffff);
+        loadLabelGroups(equipLabelGroups, s.equipLabel, EQUIP_SHAPE_ORDER, () => 0xffffff);
         for (const eq of equipment.values()) {
           if (!eq.labelObj) continue;
           eq.labelObj.element.style.fontSize = equipLabelSize + "px";
