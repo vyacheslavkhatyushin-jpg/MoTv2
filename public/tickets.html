@@ -179,8 +179,15 @@
   .comment-head{ display:flex; justify-content:space-between; font-size:11px; color:var(--text-faint); margin-bottom:5px; }
   .comment-head b{ color:var(--text-dim); }
   .comment-body{ font-size:12.5px; color:var(--text); white-space:pre-wrap; line-height:1.45; }
-  .comment-photo{ display:block; max-width:100%; max-height:220px; border-radius:6px; margin-top:8px; border:1px solid var(--border); }
+  .comment-photo{ display:block; max-width:100%; max-height:220px; border-radius:6px; margin-top:8px; border:1px solid var(--border); cursor:zoom-in; }
   .comment-file-link{ display:inline-block; font-size:11.5px; color:var(--accent-2); margin-top:6px; }
+  .lightbox{ z-index:950; background:rgba(0,0,0,.85); cursor:zoom-out; }
+  .lightbox img{ max-width:92vw; max-height:92vh; border-radius:6px; box-shadow:0 20px 60px rgba(0,0,0,.6); cursor:default; }
+  .lightbox-close{
+    position:fixed; top:18px; right:22px; background:rgba(0,0,0,.4); border:1px solid var(--border); color:#fff;
+    border-radius:50%; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .lightbox-close:hover{ background:rgba(0,0,0,.6); }
   .comment-form{ display:flex; flex-direction:column; gap:8px; margin-top:6px; }
   .comment-form .row{ display:flex; gap:8px; align-items:center; }
   .file-pick{ font-size:11px; color:var(--text-dim); }
@@ -423,13 +430,19 @@
     <div class="comment-form" id="tdCommentForm" style="display:none;">
       <textarea id="tdCommentBody" placeholder="Написать комментарий…"></textarea>
       <div class="row">
-        <input type="file" id="tdCommentPhoto" accept="image/*" class="file-pick">
+        <input type="file" id="tdCommentPhoto" accept="image/jpeg,image/png,image/webp,image/gif" class="file-pick">
         <div class="spacer" style="flex:1;"></div>
         <button class="btn btn-primary btn-sm" id="btnSendComment">Отправить</button>
       </div>
       <div class="modal-error" id="tdCommentError"></div>
     </div>
   </div>
+</div>
+
+<!-- ================= Модалка: просмотр вложения ================= -->
+<div id="attachmentLightbox" class="overlay lightbox hidden">
+  <button id="btnLightboxClose" class="lightbox-close" title="Закрыть"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button>
+  <img id="lightboxImg" alt="">
 </div>
 
 <div id="toast"></div>
@@ -649,9 +662,56 @@ document.getElementById("btnNewTicketSave").addEventListener("click", async () =
 
 /* ---------------- Карточка тикета ---------------- */
 const tdOverlay = document.getElementById("ticketDetailOverlay");
-function closeTicketDetail() { tdOverlay.classList.add("hidden"); currentTicketId = null; }
+function closeTicketDetail() { tdOverlay.classList.add("hidden"); currentTicketId = null; revokeAttachmentBlobs(); closeLightbox(); }
 document.getElementById("btnTicketDetailClose").addEventListener("click", closeTicketDetail);
 tdOverlay.addEventListener("click", (e) => { if (e.target === tdOverlay) closeTicketDetail(); });
+
+// Вложения — картинка/файл, отданные через /attachments/:id, требуют
+// Authorization-заголовок (обычный REST, не query-токен как у WS), а
+// <img src="..."> и обычная ссылка такой заголовок никогда не отправляют —
+// поэтому сразу после рендера подгружаем каждое вложение через apiFetch и
+// подставляем результат как blob: URL (см. renderAttachment/loadAttachmentBlobs).
+let attachmentBlobUrls = [];
+function revokeAttachmentBlobs() {
+  attachmentBlobUrls.forEach((u) => URL.revokeObjectURL(u));
+  attachmentBlobUrls = [];
+}
+function openLightbox(src, alt) {
+  document.getElementById("lightboxImg").src = src;
+  document.getElementById("lightboxImg").alt = alt || "";
+  document.getElementById("attachmentLightbox").classList.remove("hidden");
+}
+function closeLightbox() {
+  document.getElementById("attachmentLightbox").classList.add("hidden");
+  document.getElementById("lightboxImg").src = "";
+}
+document.getElementById("ticketDetailOverlay").addEventListener("click", (e) => {
+  const img = e.target.closest("img.comment-photo");
+  if (img && img.src) openLightbox(img.src, img.alt);
+});
+document.getElementById("btnLightboxClose").addEventListener("click", closeLightbox);
+document.getElementById("attachmentLightbox").addEventListener("click", (e) => {
+  if (e.target.id === "attachmentLightbox") closeLightbox();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeLightbox();
+});
+
+async function loadAttachmentBlobs(attachments) {
+  for (const a of attachments) {
+    try {
+      const resp = await apiFetch(`${API}/${currentTicketId}/attachments/${a.id}`);
+      if (!resp.ok) continue;
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      attachmentBlobUrls.push(blobUrl);
+      document.querySelectorAll(`[data-att-id="${a.id}"]`).forEach((el) => {
+        if (el.tagName === "IMG") el.src = blobUrl;
+        else el.href = blobUrl;
+      });
+    } catch (e) {}
+  }
+}
 
 async function openTicketDetail(id) {
   currentTicketId = id;
@@ -661,6 +721,7 @@ async function openTicketDetail(id) {
 
 async function refreshTicketDetail() {
   if (!currentTicketId) return;
+  revokeAttachmentBlobs();
   const auth = window.__auth;
   const isAdmin = auth && auth.role === "admin";
   let data;
@@ -755,14 +816,19 @@ async function refreshTicketDetail() {
 
   const canComment = !closedLike && (auth.role === "editor" || auth.role === "admin");
   document.getElementById("tdCommentForm").style.display = canComment ? "flex" : "none";
+
+  if (data.attachments.length) loadAttachmentBlobs(data.attachments);
 }
 
 function renderAttachment(a) {
-  const url = `${API}/${currentTicketId}/attachments/${a.id}`;
+  // src/href подставляются позже, из blob-URL (см. loadAttachmentBlobs) —
+  // прямой API-урл без токена в заголовке отдаёт 401 (no_token). Клик по
+  // превью открывает его в модалке-просмотрщике (см. openLightbox), а не
+  // в новой вкладке.
   if ((a.mimeType || "").startsWith("image/")) {
-    return `<a href="${url}" target="_blank"><img class="comment-photo" src="${url}" alt="${escapeHtml(a.filename || "фото")}"></a>`;
+    return `<img class="comment-photo" data-att-id="${a.id}" alt="${escapeHtml(a.filename || "фото")}">`;
   }
-  return `<a class="comment-file-link" href="${url}" target="_blank">📎 ${escapeHtml(a.filename || "файл")}</a>`;
+  return `<a class="comment-file-link" data-att-id="${a.id}" target="_blank">📎 ${escapeHtml(a.filename || "файл")}</a>`;
 }
 
 async function changeStatus(status, resolutionNote) {
@@ -816,9 +882,16 @@ document.getElementById("btnSendComment").addEventListener("click", async () => 
     if (fileEl.files && fileEl.files[0]) {
       const file = fileEl.files[0];
       const buf = await file.arrayBuffer();
-      await apiFetch(`${API}/${currentTicketId}/attachments?filename=${encodeURIComponent(file.name)}&commentId=${comment.id}`, {
+      const resp = await apiFetch(`${API}/${currentTicketId}/attachments?filename=${encodeURIComponent(file.name)}&commentId=${comment.id}`, {
         method: "POST", headers: { "Content-Type": file.type || "application/octet-stream" }, body: buf,
       });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        const msg = data.error === "unsupported_file_type"
+          ? "Комментарий отправлен, но фото не прикрепилось: поддерживаются только JPEG, PNG, WebP и GIF."
+          : "Комментарий отправлен, но фото не прикрепилось: " + (data.error || ("HTTP " + resp.status));
+        errEl.textContent = msg;
+      }
     }
     bodyEl.value = "";
     fileEl.value = "";
