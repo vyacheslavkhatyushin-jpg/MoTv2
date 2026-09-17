@@ -4139,11 +4139,11 @@ function buildEquipGeometry(shape, size) {
       return BufferGeometryUtils.mergeGeometries([body, ridge]);
     }
     case "cam": {
-      // CAM (камера) — сферический корпус + конус-объектив
-      const body = new THREE.SphereGeometry(s * 0.35, 14, 10);
-      const lens = new THREE.ConeGeometry(s * 0.2, s * 0.35, 12);
+      // CAM (камера) — горизонтальный корпус-брусок с объективом-цилиндром по центру
+      const body = new THREE.BoxGeometry(s * 0.9, s * 0.32, s * 0.32);
+      const lens = new THREE.CylinderGeometry(s * 0.16, s * 0.16, s * 0.3, 16);
       lens.rotateX(Math.PI / 2);
-      lens.translate(0, 0, s * 0.45);
+      lens.translate(0, 0, s * 0.28);
       return BufferGeometryUtils.mergeGeometries([body, lens]);
     }
     case "mps": {
@@ -4251,17 +4251,11 @@ function buildEquipGeometry(shape, size) {
       return BufferGeometryUtils.mergeGeometries([body, port1, port2, port3]);
     }
     case "go": {
-      // ГО (оповещатель гражданской обороны) — крупный мегафон-рупор с
-      // корпусом мотора на настенном креплении
-      const mount = new THREE.BoxGeometry(s * 0.08, s * 0.4, s * 0.08);
-      mount.translate(0, s * 0.05, -s * 0.18);
-      const motor = new THREE.CylinderGeometry(s * 0.14, s * 0.14, s * 0.22, 12);
-      motor.rotateX(Math.PI / 2);
-      motor.translate(0, s * 0.28, s * 0.02);
-      const horn = new THREE.ConeGeometry(s * 0.42, s * 0.6, 18, 1, true);
-      horn.rotateX(-Math.PI / 2);
-      horn.translate(0, s * 0.28, s * 0.34);
-      return BufferGeometryUtils.mergeGeometries([mount, motor, horn]);
+      // ГО (оповещатель гражданской обороны) — усечённая пирамида (рупор),
+      // расположенная горизонтально
+      const horn = new THREE.CylinderGeometry(s * 0.16, s * 0.36, s * 0.7, 4, 1, false, Math.PI / 4);
+      horn.rotateZ(Math.PI / 2);
+      return horn;
     }
     default:
       return new THREE.SphereGeometry(s * 0.5, 16, 12);
@@ -4277,6 +4271,15 @@ const EQUIP_SHAPE_LABELS = {
   custom: "Другое",
 };
 const EQUIP_SHAPE_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "go", "stativ", "custom"];
+// Цвет по умолчанию при создании объекта — свой на каждую форму, чтобы разные
+// типы оборудования были различимы на модели ещё до того, как их перекрасят
+// вручную. Не трогает уже расставленные объекты — только новые.
+const EQUIP_SHAPE_DEFAULT_COLOR = {
+  mla: 0x4fd6e0, map: 0x2ecc71, odf: 0xf1c40f, iilb: 0x3498db, isib: 0x9b59b6,
+  cam: 0x455a64, mps: 0xe67e22, mpc: 0xe67e22, mtu: 0xe67e22, mvsa: 0xe67e22,
+  wifi: 0x1abc9c, mbu: 0x95a5a6, fs: 0xe74c3c, tel: 0x3498db,
+  stativ_lfc: 0x2ecc71, stativ_ao: 0x9b59b6, poe: 0xf39c12, go: 0xe74c3c,
+};
 function equipGroupKey(eq) {
   return EQUIP_SHAPE_LABELS[eq.shape] ? eq.shape : "custom";
 }
@@ -4305,7 +4308,7 @@ function placeEquipment(point, overrides, select = true) {
   objSeq++;
   const shape = overrides?.shape ?? equipShape;
   const size = overrides?.size ?? 10;
-  const color = overrides?.color ?? 0x4fd6e0;
+  const color = overrides?.color ?? EQUIP_SHAPE_DEFAULT_COLOR[shape] ?? 0x4fd6e0;
   const geo = buildEquipGeometry(shape, size);
   const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.15 });
   const mesh = new THREE.Mesh(geo, mat);
