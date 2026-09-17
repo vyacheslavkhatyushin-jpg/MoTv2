@@ -580,17 +580,34 @@ function escapeHtml(s) {
 
 /* ---------------- Новый тикет ---------------- */
 const ntOverlay = document.getElementById("newTicketOverlay");
-document.getElementById("btnNewTicket").addEventListener("click", async () => {
-  document.getElementById("ntTitle").value = "";
-  document.getElementById("ntDescription").value = "";
-  document.getElementById("ntPriority").value = "medium";
+let ntPrefillMonitorEventId = null;
+
+async function openNewTicketModal(prefill) {
+  document.getElementById("ntTitle").value = (prefill && prefill.title) || "";
+  document.getElementById("ntDescription").value = (prefill && prefill.description) || "";
+  document.getElementById("ntPriority").value = (prefill && prefill.priority) || "medium";
   document.getElementById("ntError").textContent = "";
+  ntPrefillMonitorEventId = (prefill && prefill.monitorEventId) || null;
   await loadEquipmentOptions();
-  document.getElementById("ntEquipment").value = "";
+  const sel = document.getElementById("ntEquipment");
+  if (prefill && prefill.equipmentId) {
+    if (!equipmentOptions.some((e) => e.id === prefill.equipmentId)) {
+      // Оборудование могло исчезнуть из модели с момента фиксации аварии —
+      // всё равно даём создать тикет, просто с меткой без реального id в дропдауне.
+      const opt = document.createElement("option");
+      opt.value = prefill.equipmentId;
+      opt.textContent = prefill.equipmentLabel || prefill.equipmentId;
+      sel.appendChild(opt);
+    }
+    sel.value = prefill.equipmentId;
+  } else {
+    sel.value = "";
+  }
   ntOverlay.classList.remove("hidden");
   document.getElementById("ntTitle").focus();
-});
-function closeNewTicket() { ntOverlay.classList.add("hidden"); }
+}
+document.getElementById("btnNewTicket").addEventListener("click", () => openNewTicketModal(null));
+function closeNewTicket() { ntOverlay.classList.add("hidden"); ntPrefillMonitorEventId = null; }
 document.getElementById("btnNewTicketClose").addEventListener("click", closeNewTicket);
 document.getElementById("btnNewTicketCancel").addEventListener("click", closeNewTicket);
 ntOverlay.addEventListener("click", (e) => { if (e.target === ntOverlay) closeNewTicket(); });
@@ -601,7 +618,7 @@ document.getElementById("btnNewTicketSave").addEventListener("click", async () =
   if (!title) { errEl.textContent = "Введите заголовок."; return; }
   const equipmentId = document.getElementById("ntEquipment").value || null;
   const equipmentLabel = equipmentId
-    ? (equipmentOptions.find((e) => e.id === equipmentId) || {}).label || equipmentId
+    ? (equipmentOptions.find((e) => e.id === equipmentId) || {}).label || document.getElementById("ntEquipment").selectedOptions[0].textContent
     : null;
   try {
     await apiJson(API, {
@@ -610,6 +627,7 @@ document.getElementById("btnNewTicketSave").addEventListener("click", async () =
         title, description: document.getElementById("ntDescription").value.trim() || null,
         priority: document.getElementById("ntPriority").value,
         equipmentId, equipmentLabel,
+        monitorEventId: ntPrefillMonitorEventId,
       },
     });
     closeNewTicket();
@@ -871,11 +889,28 @@ function applyRoleUI() {
   document.getElementById("ticketsContent").style.display = "flex";
 }
 
+// Переход "Создать тикет" с Мониторинга/Статистики кладёт сюда данные
+// аварии перед редиректом (см. createTicketFromActiveRow/createTicketFromAlarm) —
+// открываем модалку сразу заполненной и подчищаем за собой.
+function consumeTicketPrefill() {
+  let prefill = null;
+  try {
+    const raw = sessionStorage.getItem("motTicketPrefill");
+    if (raw) { prefill = JSON.parse(raw); sessionStorage.removeItem("motTicketPrefill"); }
+  } catch (e) {}
+  return prefill;
+}
+
 async function boot() {
   applyRoleUI();
   loadProjectSwitcher();
   await loadProjectUsers(window.__auth && window.__auth.role === "admin");
   loadTickets();
+  const role = window.__auth && window.__auth.role;
+  const prefill = consumeTicketPrefill();
+  if (prefill && (role === "editor" || role === "admin")) {
+    openNewTicketModal(prefill);
+  }
 }
 if (window.__auth) boot();
 else document.addEventListener("kzmAuthReady", boot, { once: true });

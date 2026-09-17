@@ -278,6 +278,12 @@
   .uo-row:hover{ background:var(--panel-alt); color:var(--text); }
   .uo-row.selected{ background:rgba(255,159,28,.12); color:var(--text); }
   .uo-row .swatch{ width:9px; height:9px; border-radius:2px; flex-shrink:0; border:1px solid rgba(255,255,255,.15); }
+  .mk-ticket-btn{
+    flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+    width:20px; height:20px; padding:0; background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:4px; cursor:pointer;
+  }
+  .mk-ticket-btn:hover{ border-color:var(--accent); color:var(--accent); }
   .uo-row .lname{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .uo-row .llen{ color:var(--text-faint); font-size:10.5px; flex-shrink:0; }
   .uo-edit-btn{
@@ -5966,10 +5972,63 @@ function renderMonitorActiveList(rows) {
     const since = document.createElement("span");
     since.className = "llen";
     since.textContent = row.last_change_at ? timeSinceLabel(row.last_change_at) : "";
-    el.appendChild(swatch); el.appendChild(lname); el.appendChild(since);
+    const ticketBtn = document.createElement("button");
+    ticketBtn.className = "mk-ticket-btn";
+    ticketBtn.title = "Создать тикет по этой аварии";
+    ticketBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l0 2" /><path d="M15 11l0 2" /><path d="M15 17l0 2" /><path d="M5 5a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h14a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2z" /></svg>';
+    ticketBtn.addEventListener("click", (e) => { e.stopPropagation(); createTicketFromActiveRow(row, eq); });
+    el.appendChild(swatch); el.appendChild(lname); el.appendChild(since); el.appendChild(ticketBtn);
     el.addEventListener("click", () => focusEquip(eq));
     dom.monitorActiveList.appendChild(el);
   }
+}
+
+const MONITOR_METHOD_LABELS = { ping: "Пинг", snmp: "SNMP", sppd: "SPPD", fs: "FieldSense" };
+
+async function createTicketFromActiveRow(row, eq) {
+  // Оборудование составное (несколько систем на одной единице) — уже
+  // открытый тикет по нему не блокирует создание нового, только предупреждает.
+  try {
+    const existingResp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/tickets?equipmentId=${encodeURIComponent(eq.id)}`);
+    const existingData = await existingResp.json();
+    const openTickets = (existingData.tickets || []).filter((t) => !["closed", "cancelled"].includes(t.status));
+    if (openTickets.length) {
+      const list = openTickets.map((t) => `#${t.id} — ${t.title} (${t.status})`).join("\n");
+      if (!confirm(`По оборудованию «${eq.label}» уже есть открытый тикет:\n${list}\n\nВсё равно создать новый?`)) {
+        return;
+      }
+    }
+  } catch (e) {}
+
+  // Момент возникновения аварии + id записи в monitor_events (если она уже
+  // создана — на живой пинг без debounce-порога может пока не быть) —
+  // берём из /monitor/events, чтобы тикет ссылался на конкретную аварию.
+  let monitorEventId = null;
+  let startedAt = row.last_change_at;
+  try {
+    const evResp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/events?system=all&range=7d`);
+    const evData = await evResp.json();
+    const activeEvent = (evData.events || []).find((e) => e.equipmentId === eq.id && e.active);
+    if (activeEvent) { monitorEventId = activeEvent.id; startedAt = activeEvent.startedAt; }
+  } catch (e) {}
+
+  const startedDate = startedAt ? parseServerDate(startedAt) : null;
+  const descLines = [`Авария зафиксирована: ${startedDate ? startedDate.toLocaleString() : "—"}`];
+  if (eq.location) descLines.push(`Расположение: ${eq.location}`);
+  if (eq.ip) descLines.push(`IP: ${eq.ip}`);
+  if (eq.monitorMethod && eq.monitorMethod !== "none") {
+    descLines.push(`Метод мониторинга: ${MONITOR_METHOD_LABELS[eq.monitorMethod] || eq.monitorMethod}`);
+  }
+
+  const prefill = {
+    title: `Авария: ${eq.label}`,
+    description: descLines.join("\n"),
+    priority: "critical",
+    equipmentId: eq.id, equipmentLabel: eq.label,
+    monitorEventId,
+  };
+  try { sessionStorage.setItem("motTicketPrefill", JSON.stringify(prefill)); } catch (e) {}
+  location.href = `/${CURRENT_PROJECT_ID}/tickets`;
 }
 // Полный пересчёт подсветки при каждом сообщении — раз в несколько секунд
 // на ~сотнях объектов это дёшево (пересоздать несколько маленьких сфер),

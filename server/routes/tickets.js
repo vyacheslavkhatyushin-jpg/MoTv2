@@ -113,6 +113,10 @@ router.get("/:id/tickets", (req, res) => {
     clauses.push("assignee = @assignee");
     params.assignee = req.query.assignee;
   }
+  if (req.query.equipmentId) {
+    clauses.push("equipment_id = @equipmentId");
+    params.equipmentId = req.query.equipmentId;
+  }
   const rows = db
     .prepare(`SELECT * FROM tickets WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC`)
     .all(params);
