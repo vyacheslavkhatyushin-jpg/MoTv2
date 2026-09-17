@@ -221,6 +221,7 @@
     width:26px; height:20px; border:1px solid var(--border); border-radius:3px; padding:0; cursor:pointer;
   }
   .color-swatch-btn:hover{ border-color:var(--text-dim); }
+  .color-swatch-btn-sm{ width:14px; height:14px; border-radius:2px; }
   .color-palette-popover{
     position:fixed; z-index:200; display:grid; grid-template-columns:repeat(5, 22px); gap:5px;
     padding:8px; background:var(--panel); border:1px solid var(--border); border-radius:6px;
@@ -2155,14 +2156,14 @@ function syncColorSwatch(input) {
 // для динамически создаваемых, см. horizon-color и lbl-color) в видимую
 // кнопку-квадратик + скрытый нативный input. Возвращает обёртку — вызывающая
 // сторона добавляет её в DOM вместо самого input (если он ещё не был добавлен).
-function wrapColorInput(input) {
+function wrapColorInput(input, small) {
   const wrap = document.createElement("span");
   wrap.className = "color-swatch-wrap";
   if (input.parentNode) input.parentNode.replaceChild(wrap, input);
   wrap.appendChild(input);
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = "color-swatch-btn";
+  btn.className = "color-swatch-btn" + (small ? " color-swatch-btn-sm" : "");
   btn.style.background = input.value;
   btn.title = input.title || "Выбрать цвет";
   btn.addEventListener("click", (e) => {
@@ -2844,7 +2845,7 @@ function buildTree() {
       const hcount = document.createElement("span");
       hcount.className = "count";
       hcount.textContent = h.leaves.size;
-      hhead.appendChild(hcaret); hhead.appendChild(hcheck); hhead.appendChild(wrapColorInput(hcolor)); hhead.appendChild(hname); hhead.appendChild(hcount);
+      hhead.appendChild(hcaret); hhead.appendChild(hcheck); hhead.appendChild(wrapColorInput(hcolor, true)); hhead.appendChild(hname); hhead.appendChild(hcount);
       hnode.appendChild(hhead);
       const list = document.createElement("div");
       list.className = "leaf-list";
@@ -3799,7 +3800,7 @@ function appendGroupLabelControls(header, groupState, onChange) {
     groupState.on = !groupState.on;
     onChange();
   });
-  header.appendChild(wrapColorInput(colorInput));
+  header.appendChild(wrapColorInput(colorInput, true));
   header.appendChild(toggleBtn);
 }
 function serializeLabelGroups(map) {
