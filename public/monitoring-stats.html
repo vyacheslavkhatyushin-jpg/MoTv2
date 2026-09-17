@@ -169,6 +169,12 @@
   .alarm-row .adesc{ color:var(--text-dim); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .alarm-row .adur{ color:var(--text-faint); flex-shrink:0; }
   .alarm-row .adur.live{ color:var(--danger); font-weight:600; }
+  .mk-ticket-btn{
+    flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+    width:20px; height:20px; padding:0; background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:4px; cursor:pointer;
+  }
+  .mk-ticket-btn:hover{ border-color:var(--accent); color:var(--accent); }
   .alarm-empty{ padding:16px 15px; text-align:center; color:var(--text-faint); font-size:11.5px; }
   .card-foot{ padding:9px 15px; font-size:11px; color:var(--text-faint); }
 
@@ -401,6 +407,82 @@ function fmtDurationSec(sec) {
   return `${s} сек`;
 }
 
+/* ---------------- Создать тикет по активной аварии ---------------- */
+const TICKET_ICON_SVG = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l0 2" /><path d="M15 11l0 2" /><path d="M15 17l0 2" /><path d="M5 5a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h14a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2z" /></svg>';
+function ticketButtonHtml(a) {
+  return `<button class="mk-ticket-btn" title="Создать тикет по этой аварии"
+    data-monitor-event-id="${esc(a.id)}" data-equipment-id="${esc(a.equipmentId)}"
+    data-equipment-label="${esc(a.equipmentLabel || a.equipmentId)}" data-started-at="${esc(a.startedAt)}"
+    >${TICKET_ICON_SVG}</button>`;
+}
+
+let equipmentSnapshotCache = null;
+async function getEquipmentById(equipmentId) {
+  if (!equipmentSnapshotCache) {
+    try {
+      const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/state`);
+      const data = await resp.json();
+      equipmentSnapshotCache = (data.snapshot && data.snapshot.equipment) || [];
+    } catch (e) {
+      equipmentSnapshotCache = [];
+    }
+  }
+  return equipmentSnapshotCache.find((eq) => eq.id === equipmentId) || null;
+}
+
+const MONITOR_METHOD_LABELS = { ping: "Пинг", snmp: "SNMP", sppd: "SPPD", fs: "FieldSense" };
+
+async function createTicketFromAlarm(btn) {
+  const equipmentId = btn.dataset.equipmentId;
+  const equipmentLabel = btn.dataset.equipmentLabel;
+  const monitorEventId = btn.dataset.monitorEventId ? parseInt(btn.dataset.monitorEventId, 10) : null;
+  const startedAt = btn.dataset.startedAt;
+  btn.disabled = true;
+  try {
+    // Предупреждаем, если по этому оборудованию уже есть открытый тикет —
+    // оборудование составное (несколько систем на одной единице), поэтому
+    // не блокируем, просто спрашиваем подтверждение.
+    try {
+      const existingResp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/tickets?equipmentId=${encodeURIComponent(equipmentId)}`);
+      const existingData = await existingResp.json();
+      const openTickets = (existingData.tickets || []).filter((t) => !["closed", "cancelled"].includes(t.status));
+      if (openTickets.length) {
+        const list = openTickets.map((t) => `#${t.id} — ${t.title} (${t.status})`).join("\n");
+        if (!confirm(`По оборудованию «${equipmentLabel}» уже есть открытый тикет:\n${list}\n\nВсё равно создать новый?`)) {
+          return;
+        }
+      }
+    } catch (e) {
+      // Не смогли проверить дубли — не блокируем создание тикета из-за этого.
+    }
+
+    const eq = await getEquipmentById(equipmentId);
+    const startedDate = parseServerDate(startedAt);
+    const descLines = [`Авария зафиксирована: ${startedDate ? startedDate.toLocaleString() : "—"}`];
+    if (eq && eq.location) descLines.push(`Расположение: ${eq.location}`);
+    if (eq && eq.ip) descLines.push(`IP: ${eq.ip}`);
+    if (eq && eq.monitorMethod && eq.monitorMethod !== "none") {
+      descLines.push(`Метод мониторинга: ${MONITOR_METHOD_LABELS[eq.monitorMethod] || eq.monitorMethod}`);
+    }
+
+    const prefill = {
+      title: `Авария: ${equipmentLabel}`,
+      description: descLines.join("\n"),
+      priority: "critical",
+      equipmentId, equipmentLabel,
+      monitorEventId,
+    };
+    try { sessionStorage.setItem("motTicketPrefill", JSON.stringify(prefill)); } catch (e) {}
+    location.href = `/${CURRENT_PROJECT_ID}/tickets`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".mk-ticket-btn");
+  if (btn) createTicketFromAlarm(btn);
+});
+
 const SYSTEM_SUBLABELS = {
   "ВОЛС": "MAP · ODF · WiFi",
   "LFC": "IILB · ISIB · Статив LFC",
@@ -427,6 +509,7 @@ function renderCard(sys, data) {
       <span class="aname">${esc(a.equipmentLabel || a.equipmentId)}</span>
       <span class="adesc">Нет связи</span>
       <span class="adur live mono">${esc(fmtDurationSec(a.durationSec))}</span>
+      ${ticketButtonHtml(a)}
     </div>`);
   }
   for (const e of data.recentEvents) {

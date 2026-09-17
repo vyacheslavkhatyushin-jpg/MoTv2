@@ -411,7 +411,7 @@ router.get("/:id/monitor/stats", (req, res) => {
       const b = perSystem[sys];
       if (isActive) {
         b.activeAlarms.push({
-          equipmentId: ev.equipment_id, equipmentLabel: ev.equipment_label,
+          id: ev.id, equipmentId: ev.equipment_id, equipmentLabel: ev.equipment_label,
           startedAt: ev.started_at, durationSec: Math.round((now - startedMs) / 1000),
         });
       }
@@ -423,7 +423,7 @@ router.get("/:id/monitor/stats", (req, res) => {
       if (startedInSparkWindow && dayIndex >= 0 && dayIndex < 7) b.dailyCounts[dayIndex]++;
       if (startedInRange || isActive) {
         b.recentEvents.push({
-          equipmentId: ev.equipment_id, equipmentLabel: ev.equipment_label,
+          id: ev.id, equipmentId: ev.equipment_id, equipmentLabel: ev.equipment_label,
           startedAt: ev.started_at, endedAt: ev.ended_at, durationSec: ev.duration_sec, active: isActive,
         });
       }
