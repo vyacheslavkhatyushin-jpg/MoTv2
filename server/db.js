@@ -265,7 +265,80 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_project ON audit_log(project_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action, created_at DESC);
+
+-- Тикетинг: устранение аварий/находок эксплуатацией. equipment_id и
+-- monitor_event_id — оба nullable: тикет может быть общим (без привязки к
+-- конкретному оборудованию) или заведён вручную, не по факту аварии из
+-- monitor_events. due_at считается один раз в момент назначения исполнителя
+-- (assigned_at), по текущему на тот момент SLA-порогу приоритета
+-- (project_monitor_thresholds.ticket_sla_*_hours) — как и lamp_records,
+-- сознательно не пересчитывается задним числом при смене порога позже.
+CREATE TABLE IF NOT EXISTS tickets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  equipment_id TEXT,
+  equipment_label TEXT,
+  monitor_event_id INTEGER REFERENCES monitor_events(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  priority TEXT NOT NULL DEFAULT 'medium' CHECK(priority IN ('low','medium','high','critical')),
+  status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','assigned','in_progress','on_review','closed','cancelled')),
+  assignee TEXT,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  assigned_at TEXT,
+  due_at TEXT,
+  closed_by TEXT,
+  closed_at TEXT,
+  resolution_note TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_tickets_project ON tickets(project_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tickets_assignee ON tickets(assignee, status);
+
+CREATE TABLE IF NOT EXISTS ticket_comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+  author TEXT NOT NULL,
+  body TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments(ticket_id, created_at);
+
+-- Фото хранятся как BLOB прямо в SQLite (не на диске) — так они попадают в
+-- тот же volume/бэкап, что и вся остальная база, без отдельного тома в
+-- docker-compose. comment_id nullable — фото можно прикрепить и просто к
+-- тикету, и к конкретному комментарию.
+CREATE TABLE IF NOT EXISTS ticket_attachments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+  comment_id INTEGER REFERENCES ticket_comments(id) ON DELETE CASCADE,
+  filename TEXT,
+  mime_type TEXT,
+  size INTEGER,
+  data BLOB NOT NULL,
+  uploaded_by TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket ON ticket_attachments(ticket_id);
 `);
+
+// Добавочная миграция: SLA-сроки тикетов по приоритету (часы на устранение)
+// — те же 4 столбца, что и остальные пороги, поэтому просто ADD COLUMN,
+// без пересоздания таблицы (см. миграцию ping_fail_threshold выше).
+{
+  const cols = db.prepare("PRAGMA table_info(project_monitor_thresholds)").all();
+  const slaDefaults = {
+    ticket_sla_critical_hours: 2,
+    ticket_sla_high_hours: 8,
+    ticket_sla_medium_hours: 24,
+    ticket_sla_low_hours: 72,
+  };
+  for (const [col, def] of Object.entries(slaDefaults)) {
+    if (!cols.some((c) => c.name === col)) {
+      db.exec(`ALTER TABLE project_monitor_thresholds ADD COLUMN ${col} INTEGER NOT NULL DEFAULT ${def}`);
+    }
+  }
+}
 
 // Одноразовая миграция: ping_fail_threshold (счётчик подряд неудач) заменён
 // на ping_fail_duration_sec (длительность простоя) — семантика поля другая,

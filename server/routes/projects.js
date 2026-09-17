@@ -606,6 +606,10 @@ const THRESHOLD_DEFAULTS = {
   sppdFailDurationSec: 300,
   fsFailDurationSec: 300,
   lampFailAfterHours: 24,
+  ticketSlaCriticalHours: 2,
+  ticketSlaHighHours: 8,
+  ticketSlaMediumHours: 24,
+  ticketSlaLowHours: 72,
 };
 
 function serializeThresholds(row) {
@@ -618,6 +622,10 @@ function serializeThresholds(row) {
     sppdFailDurationSec: row.sppd_fail_duration_sec,
     fsFailDurationSec: row.fs_fail_duration_sec,
     lampFailAfterHours: row.lamp_fail_after_hours,
+    ticketSlaCriticalHours: row.ticket_sla_critical_hours,
+    ticketSlaHighHours: row.ticket_sla_high_hours,
+    ticketSlaMediumHours: row.ticket_sla_medium_hours,
+    ticketSlaLowHours: row.ticket_sla_low_hours,
     updatedBy: row.updated_by,
     updatedAt: row.updated_at,
   };
@@ -635,7 +643,10 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
-  const { pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec, lampFailAfterHours } = req.body || {};
+  const {
+    pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec, lampFailAfterHours,
+    ticketSlaCriticalHours, ticketSlaHighHours, ticketSlaMediumHours, ticketSlaLowHours,
+  } = req.body || {};
   if (!Number.isInteger(pingTimeoutSec) || pingTimeoutSec < 1 || pingTimeoutSec > 10) {
     return res.status(400).json({ error: "invalid_ping_timeout_sec" });
   }
@@ -656,19 +667,29 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   if (!Number.isInteger(lampFailAfterHours) || lampFailAfterHours < 1 || lampFailAfterHours > 336) {
     return res.status(400).json({ error: "invalid_lamp_fail_after_hours" });
   }
+  for (const [key, val] of Object.entries({ ticketSlaCriticalHours, ticketSlaHighHours, ticketSlaMediumHours, ticketSlaLowHours })) {
+    if (!Number.isInteger(val) || val < 1 || val > 720) {
+      return res.status(400).json({ error: `invalid_${key.replace(/([A-Z])/g, "_$1").toLowerCase()}` });
+    }
+  }
 
   db.prepare(
     `INSERT INTO project_monitor_thresholds
-       (project_id, ping_timeout_sec, ping_fail_duration_sec, sppd_stale_after_sec, sppd_fail_duration_sec, fs_fail_duration_sec, lamp_fail_after_hours, updated_by, updated_at)
-     VALUES (@id, @pingTimeoutSec, @pingFailDurationSec, @sppdStaleAfterSec, @sppdFailDurationSec, @fsFailDurationSec, @lampFailAfterHours, @by, datetime('now'))
+       (project_id, ping_timeout_sec, ping_fail_duration_sec, sppd_stale_after_sec, sppd_fail_duration_sec, fs_fail_duration_sec, lamp_fail_after_hours,
+        ticket_sla_critical_hours, ticket_sla_high_hours, ticket_sla_medium_hours, ticket_sla_low_hours, updated_by, updated_at)
+     VALUES (@id, @pingTimeoutSec, @pingFailDurationSec, @sppdStaleAfterSec, @sppdFailDurationSec, @fsFailDurationSec, @lampFailAfterHours,
+             @ticketSlaCriticalHours, @ticketSlaHighHours, @ticketSlaMediumHours, @ticketSlaLowHours, @by, datetime('now'))
      ON CONFLICT(project_id) DO UPDATE SET
        ping_timeout_sec = @pingTimeoutSec, ping_fail_duration_sec = @pingFailDurationSec,
        sppd_stale_after_sec = @sppdStaleAfterSec, sppd_fail_duration_sec = @sppdFailDurationSec,
        fs_fail_duration_sec = @fsFailDurationSec, lamp_fail_after_hours = @lampFailAfterHours,
+       ticket_sla_critical_hours = @ticketSlaCriticalHours, ticket_sla_high_hours = @ticketSlaHighHours,
+       ticket_sla_medium_hours = @ticketSlaMediumHours, ticket_sla_low_hours = @ticketSlaLowHours,
        updated_by = @by, updated_at = datetime('now')`
   ).run({
     id: req.params.id,
     pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec, lampFailAfterHours,
+    ticketSlaCriticalHours, ticketSlaHighHours, ticketSlaMediumHours, ticketSlaLowHours,
     by: req.user.username,
   });
 
