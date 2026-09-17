@@ -22,7 +22,7 @@ services:
     command: ["node", "monitor/ping-worker.js"]
     restart: unless-stopped
     environment:
-      - PING_INTERVAL_MS=30000
+      - PING_INTERVAL_MS=60000
       - PING_CONCURRENCY=20
     volumes:
       - mine-ops-data:/app/server/data
