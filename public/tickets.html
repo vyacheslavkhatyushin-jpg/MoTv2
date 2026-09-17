@@ -125,6 +125,7 @@
   table.tk-table tr:last-child td{ border-bottom:none; }
   table.tk-table tr.tk-row{ cursor:pointer; }
   table.tk-table tr.tk-row:hover td{ background:rgba(255,255,255,.02); }
+  .tk-num{ color:var(--text-faint); white-space:nowrap; width:1%; }
   .tk-title{ color:var(--text); font-weight:600; }
   .tk-sub{ color:var(--text-faint); font-size:11px; margin-top:1px; }
   .chip{ display:inline-block; padding:2px 9px; border-radius:99px; font-size:10.5px; font-weight:600; border:1px solid var(--border); color:var(--text-dim); white-space:nowrap; }
@@ -557,6 +558,7 @@ function renderTickets() {
   }
   const rows = currentTickets.map((t) => `
     <tr class="tk-row ${t.isOverdue ? "row-overdue" : ""}" data-id="${t.id}">
+      <td class="tk-num mono">#${t.id}</td>
       <td>
         <div class="tk-title">${escapeHtml(t.title)}</div>
         ${t.equipmentLabel ? `<div class="tk-sub">${escapeHtml(t.equipmentLabel)}</div>` : ""}
@@ -570,7 +572,7 @@ function renderTickets() {
   `).join("");
   panel.innerHTML = `
     <table class="tk-table">
-      <thead><tr><th>Тикет</th><th>Приоритет</th><th>Статус</th><th>Исполнитель</th><th>Создан</th><th>Дедлайн</th></tr></thead>
+      <thead><tr><th>№</th><th>Тикет</th><th>Приоритет</th><th>Статус</th><th>Исполнитель</th><th>Создан</th><th>Дедлайн</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   `;
