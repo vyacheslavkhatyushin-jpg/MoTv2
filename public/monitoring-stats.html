@@ -898,36 +898,83 @@ function renderInventoryList(elId, rows, unit) {
   `;
   }).join("");
 }
-// TODO: заменить моковые данные ниже на реальные с сервера (сумма длины
-// кабелей по типу, количество оборудования по форме, и сколько из него
-// реально мониторится — monitorMethod !== "none").
-function loadInventorySummaryMock() {
-  const cables = [
-    { label: "ВОЛС", value: 2000 },
-    { label: "LFC", value: 700 },
-    { label: "КАО", value: 450 },
-    { label: "Силовой", value: 220 },
-    { label: "FTP", value: 90 },
-  ];
-  const equipment = [
-    { label: "MAP", value: 47, monitored: 47 },
-    { label: "MLA", value: 12, monitored: 0 },
-    { label: "IILB", value: 9, monitored: 9 },
-    { label: "ISIB", value: 6, monitored: 6 },
-    { label: "CAM", value: 3, monitored: 0 },
-  ];
-  renderInventoryList("cablesSummaryList", cables, "м");
-  renderInventoryList("equipSummaryList", equipment, "шт.");
-  document.getElementById("invTotalCableLen").textContent = cables.reduce((s, c) => s + c.value, 0).toLocaleString("ru-RU");
-  document.getElementById("invTotalEquip").textContent = equipment.reduce((s, e) => s + e.value, 0).toLocaleString("ru-RU");
-  document.getElementById("invMonitoredEquip").textContent = equipment.reduce((s, e) => s + e.monitored, 0).toLocaleString("ru-RU");
+// Метки типов кабелей/форм оборудования дублируют CABLE_TYPES/EQUIP_SHAPE_LABELS
+// из index.html — эта страница не грузит редактор целиком, только /state.
+const INV_CABLE_LABELS = { vols: "ВОЛС", lfc: "LFC", kao: "КАО", tk: "ТК", power: "Силовой", ftp: "FTP" };
+const INV_CABLE_ORDER = ["vols", "lfc", "kao", "tk", "power", "ftp"];
+const INV_EQUIP_LABELS = {
+  mla: "MLA", map: "MAP", odf: "Муфта ODF", iilb: "IILB", isib: "ISIB", cam: "CAM",
+  mps: "MPS", mpc: "MPC", mtu: "MTU", mvsa: "MVSA", wifi: "WiFi", mbu: "MBU",
+  fs: "FS", tel: "TEL", stativ_lfc: "Статив LFC", stativ_ao: "Статив АО", poe: "PoE", go: "ГО",
+  stativ: "Статив (устар.)",
+};
+const INV_EQUIP_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "go", "stativ"];
+function cablePathLen(nodes) {
+  let len = 0;
+  for (let i = 1; i < (nodes || []).length; i++) {
+    const [x1, y1, z1] = nodes[i - 1], [x2, y2, z2] = nodes[i];
+    len += Math.hypot(x2 - x1, y2 - y1, z2 - z1);
+  }
+  return len;
+}
+async function loadInventorySummary() {
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/state`);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    const snapshot = data.snapshot || {};
+    const cablesRaw = snapshot.cables || [];
+    const equipRaw = snapshot.equipment || [];
+
+    const cableLenByType = new Map();
+    for (const c of cablesRaw) {
+      const key = INV_CABLE_LABELS[c.cableType] ? c.cableType : "custom";
+      cableLenByType.set(key, (cableLenByType.get(key) || 0) + cablePathLen(c.nodes));
+    }
+    const cableRows = INV_CABLE_ORDER
+      .filter((k) => cableLenByType.has(k))
+      .map((k) => ({ label: INV_CABLE_LABELS[k], value: Math.round(cableLenByType.get(k)) }));
+    if (cableLenByType.has("custom")) {
+      cableRows.push({ label: "Другое", value: Math.round(cableLenByType.get("custom")) });
+    }
+
+    const equipStats = new Map();
+    for (const eq of equipRaw) {
+      const key = INV_EQUIP_LABELS[eq.shape] ? eq.shape : "custom";
+      const entry = equipStats.get(key) || { total: 0, monitored: 0 };
+      entry.total += 1;
+      if (eq.monitorMethod && eq.monitorMethod !== "none") entry.monitored += 1;
+      equipStats.set(key, entry);
+    }
+    const equipRows = INV_EQUIP_ORDER
+      .filter((k) => equipStats.has(k))
+      .map((k) => ({ label: INV_EQUIP_LABELS[k], value: equipStats.get(k).total, monitored: equipStats.get(k).monitored }));
+    if (equipStats.has("custom")) {
+      const c = equipStats.get("custom");
+      equipRows.push({ label: "Другое", value: c.total, monitored: c.monitored });
+    }
+
+    renderInventoryList("cablesSummaryList", cableRows, "м");
+    renderInventoryList("equipSummaryList", equipRows, "шт.");
+    const totalCableLen = Math.round([...cableLenByType.values()].reduce((s, v) => s + v, 0));
+    const totalMonitored = [...equipStats.values()].reduce((s, e) => s + e.monitored, 0);
+    document.getElementById("invTotalCableLen").textContent = totalCableLen.toLocaleString("ru-RU");
+    document.getElementById("invTotalEquip").textContent = equipRaw.length.toLocaleString("ru-RU");
+    document.getElementById("invMonitoredEquip").textContent = totalMonitored.toLocaleString("ru-RU");
+  } catch (err) {
+    document.getElementById("cablesSummaryList").innerHTML = `<div class="inv-empty">Ошибка загрузки</div>`;
+    document.getElementById("equipSummaryList").innerHTML = `<div class="inv-empty">Ошибка загрузки</div>`;
+    document.getElementById("invTotalCableLen").textContent = "—";
+    document.getElementById("invTotalEquip").textContent = "—";
+    document.getElementById("invMonitoredEquip").textContent = "—";
+  }
 }
 
 function boot() {
   applyRoleUI();
   updateTicketsBadge();
   loadProjectSwitcher();
-  loadInventorySummaryMock();
+  loadInventorySummary();
   const urlSystem = new URL(location.href).searchParams.get("system");
   if (urlSystem && (urlSystem === "all" || MONITOR_SYSTEMS_LIST.includes(urlSystem))) {
     showTableView(urlSystem);
