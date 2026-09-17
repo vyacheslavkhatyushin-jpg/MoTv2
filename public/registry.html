@@ -1040,6 +1040,7 @@ async function updateTicketsBadge() {
 function boot() {
   applyRoleUI();
   updateTicketsBadge();
+  setInterval(updateTicketsBadge, 30000);
   loadProjectSwitcher();
   switchTab("catalog");
 }
