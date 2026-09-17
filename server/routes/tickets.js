@@ -282,6 +282,11 @@ router.post("/:id/tickets/:ticketId/comments", requireRole("editor", "admin"), (
 // иначе пришлось бы кодировать бинарные данные в base64 внутри тела.
 const ATTACHMENT_LIMIT = "15mb";
 const attachmentParser = express.raw({ type: () => true, limit: ATTACHMENT_LIMIT });
+// Вложения к тикету — это фото-подтверждения (см. подпись "Фото" в UI), не
+// произвольные файлы: ограничиваем набором форматов, которые реально нужны
+// для снимков с телефона/камеры и скриншотов, а не только jpg — иначе
+// скриншот в PNG или GIF из мессенджера не прикрепить.
+const ALLOWED_ATTACHMENT_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 router.post("/:id/tickets/:ticketId/attachments", requireRole("editor", "admin"), attachmentParser, (req, res) => {
   if (!requireProject(req, res)) return;
@@ -290,13 +295,16 @@ router.post("/:id/tickets/:ticketId/attachments", requireRole("editor", "admin")
   if (!Buffer.isBuffer(req.body) || !req.body.length) {
     return res.status(400).json({ error: "empty_file" });
   }
+  const mimeType = req.headers["content-type"] || "application/octet-stream";
+  if (!ALLOWED_ATTACHMENT_MIME.has(mimeType)) {
+    return res.status(415).json({ error: "unsupported_file_type" });
+  }
   const filename = typeof req.query.filename === "string" ? req.query.filename : "photo";
   const commentId = req.query.commentId ? parseInt(req.query.commentId, 10) : null;
   if (commentId) {
     const comment = db.prepare("SELECT id FROM ticket_comments WHERE id = ? AND ticket_id = ?").get(commentId, ticket.id);
     if (!comment) return res.status(400).json({ error: "invalid_comment_id" });
   }
-  const mimeType = req.headers["content-type"] || "application/octet-stream";
 
   const info = db
     .prepare(
