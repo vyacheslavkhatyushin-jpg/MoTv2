@@ -186,14 +186,11 @@
   .card-foot{ padding:9px 15px; font-size:11px; color:var(--text-faint); }
 
   /* ---- сводка по кабелям/оборудованию ---- */
-  .inv-section{ margin-bottom:16px; }
-  .inv-section:last-child{ margin-bottom:0; }
-  .inv-section-title{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-faint); font-weight:700; margin-bottom:8px; }
-  .inv-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:10px; }
-  .inv-tile{ background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:10px 12px; text-align:center; }
-  .inv-tile .val{ font-size:18px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; }
-  .inv-tile .lbl{ font-size:11px; color:var(--text-dim); margin-top:3px; }
-  .inv-empty{ padding:14px; text-align:center; color:var(--text-faint); font-size:11.5px; }
+  .inv-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(95px, 1fr)); gap:9px; padding:13px 15px; }
+  .inv-tile{ background:var(--panel-alt); border:1px solid var(--border-soft); border-radius:7px; padding:9px 8px; text-align:center; }
+  .inv-tile .val{ font-size:16px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; }
+  .inv-tile .lbl{ font-size:10.5px; color:var(--text-dim); margin-top:3px; }
+  .inv-empty{ padding:14px 15px; text-align:center; color:var(--text-faint); font-size:11.5px; }
 
   /* ---- таблица событий одной системы ---- */
   .table-head{ display:flex; align-items:center; flex-wrap:wrap; gap:14px; margin:4px 0 14px; }
@@ -373,13 +370,15 @@
 
       <div id="inventorySummary">
         <h1 style="margin-top:26px;">Кабели и оборудование</h1>
-        <div class="inv-section">
-          <div class="inv-section-title">Кабели, м</div>
-          <div class="inv-grid" id="cablesSummaryList"></div>
-        </div>
-        <div class="inv-section">
-          <div class="inv-section-title">Оборудование, шт.</div>
-          <div class="inv-grid" id="equipSummaryList"></div>
+        <div class="grid">
+          <div class="card">
+            <div class="card-head"><div class="sysname">Кабели, м</div></div>
+            <div class="inv-grid" id="cablesSummaryList"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><div class="sysname">Оборудование, шт.</div></div>
+            <div class="inv-grid" id="equipSummaryList"></div>
+          </div>
         </div>
       </div>
 
