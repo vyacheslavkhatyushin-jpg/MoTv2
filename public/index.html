@@ -1015,6 +1015,7 @@
           <div class="drow" id="equipDSnmpCommunityRow" style="display:none;"><span>SNMP community</span><input type="text" id="equipDSnmpCommunity" placeholder="public"></div>
           <div class="drow" id="equipDSnmpProfileRow" style="display:none;"><span>SNMP профиль</span><input type="text" id="equipDSnmpProfile" placeholder="по умолчанию"></div>
           <div class="drow" id="equipDSppdAddressRow" style="display:none;"><span>Адрес SPPD</span><input type="text" id="equipDSppdAddress" placeholder="напр. 3934"></div>
+          <div class="drow" id="equipDVoltageRow" style="display:none;"><span>Напряжение (SPPD)</span><span id="equipDVoltage" class="mono" style="color:var(--text-dim);">—</span></div>
           <div class="drow" id="equipDFsAddressRow" style="display:none;"><span>Номер датчика FS</span><input type="text" id="equipDFsAddress" placeholder="напр. 3 (колонка # на странице fieldsense)"></div>
           <button id="equipDDelete" class="danger-btn">Удалить объект</button>
         </div>
@@ -1956,6 +1957,8 @@ const dom = {
   equipDSnmpProfile: document.getElementById("equipDSnmpProfile"),
   equipDSppdAddressRow: document.getElementById("equipDSppdAddressRow"),
   equipDSppdAddress: document.getElementById("equipDSppdAddress"),
+  equipDVoltageRow: document.getElementById("equipDVoltageRow"),
+  equipDVoltage: document.getElementById("equipDVoltage"),
   equipDFsAddressRow: document.getElementById("equipDFsAddressRow"),
   equipDFsAddress: document.getElementById("equipDFsAddress"),
   equipDDelete: document.getElementById("equipDDelete"),
@@ -4307,7 +4310,39 @@ function updateEquipMonitorRows(eq) {
   dom.equipDSnmpProfileRow.style.display = method === "snmp" ? "" : "none";
   dom.equipDSppdAddressRow.style.display = method === "sppd" ? "" : "none";
   dom.equipDFsAddressRow.style.display = method === "fs" ? "" : "none";
+  dom.equipDVoltageRow.style.display = method === "sppd" ? "" : "none";
+  refreshEquipDetailVoltage();
 }
+// Живое значение — обновляется и при выборе объекта, и на каждом тике
+// WS-статуса мониторинга (см. applyMonitorStatus), пока карточка открыта.
+// На странице Мониторинга живой статус уже льётся по WS в monitorStatusById
+// (см. applyMonitorStatus), но карточка оборудования открывается только со
+// страницы Редактора, где этот WS не подключён (см. connectMonitorWS —
+// вызывается только для IS_MONITORING_PAGE) — там просто раз в 10 сек
+// опрашиваем REST-эндпоинт напрямую, только пока карточка sppd-оборудования
+// открыта.
+async function refreshEquipDetailVoltage() {
+  if (!selectedEquip || selectedEquip.monitorMethod !== "sppd" || !dom.equipDetails.classList.contains("open")) return;
+  if (IS_MONITORING_PAGE) {
+    const v = equipVoltage(selectedEquip.id);
+    dom.equipDVoltage.textContent = v !== null ? `U=${v} В` : "—";
+    return;
+  }
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/status`);
+    const data = await resp.json();
+    const row = (data.status || []).find((r) => r.equipment_id === selectedEquip.id);
+    let v = null;
+    if (row && row.raw_metrics_json) {
+      try {
+        const metrics = JSON.parse(row.raw_metrics_json);
+        if (typeof metrics.voltage === "number") v = metrics.voltage.toFixed(2);
+      } catch (e) {}
+    }
+    dom.equipDVoltage.textContent = v !== null ? `U=${v} В` : "—";
+  } catch (e) {}
+}
+setInterval(refreshEquipDetailVoltage, 10000);
 document.getElementById("equipShapeSelect").addEventListener("change", (e) => {
   equipShape = e.target.value;
 });
@@ -5716,6 +5751,25 @@ function monitorCountsBadgeEl(equipmentId) {
   span.title = "Людей/техники на считывателе (SBeacon)";
   return span;
 }
+// Напряжение считывателя (SPPD, поле VLine в SB_EVENT) — накапливается в
+// raw_metrics_json воркером (см. server/monitor/sppd-worker.js), уже
+// округлено до сотых на момент записи.
+function equipVoltage(equipmentId) {
+  const row = monitorStatusById.get(equipmentId);
+  if (!row || !row.raw_metrics_json) return null;
+  let metrics;
+  try { metrics = JSON.parse(row.raw_metrics_json); } catch (e) { return null; }
+  return typeof metrics.voltage === "number" ? metrics.voltage.toFixed(2) : null;
+}
+function monitorVoltageBadgeEl(equipmentId) {
+  const v = equipVoltage(equipmentId);
+  if (v === null) return null;
+  const span = document.createElement("span");
+  span.className = "mon-counts-badge";
+  span.textContent = `U=${v}`;
+  span.title = "Напряжение (SPPD)";
+  return span;
+}
 function renderMonitorCables() {
   if (!dom.monitorCablesList) return;
   dom.monitorCablesList.innerHTML = "";
@@ -5875,6 +5929,7 @@ function renderMonitorEquip() {
       const lname = document.createElement("span");
       lname.className = "lname"; lname.textContent = eq.label;
       const countsBadge = monitorCountsBadgeEl(eq.id);
+      const voltageBadge = monitorVoltageBadgeEl(eq.id);
       const btnFocus = document.createElement("button");
       btnFocus.className = "uo-edit-btn"; btnFocus.innerHTML = ICON_FOCUS; btnFocus.title = "Перейти к объекту";
       btnFocus.addEventListener("click", (e) => { e.stopPropagation(); focusEquip(eq); });
@@ -5883,6 +5938,7 @@ function renderMonitorEquip() {
       btnGlow.addEventListener("click", (e) => { e.stopPropagation(); highlightEquip(eq); });
       row.appendChild(lname);
       if (countsBadge) row.appendChild(countsBadge);
+      if (voltageBadge) row.appendChild(voltageBadge);
       row.appendChild(btnFocus); row.appendChild(btnGlow);
       dom.monitorEquipList.appendChild(row);
     }
@@ -6074,6 +6130,7 @@ function applyMonitorStatus(rows) {
   if (dom.monitorVehiclesTotal) dom.monitorVehiclesTotal.textContent = vehiclesTotal;
   if (dom.monitorActiveList) renderMonitorActiveList(rows);
   if (IS_MONITORING_PAGE) renderMonitorEquip();
+  refreshEquipDetailVoltage();
 }
 let monitorWS = null;
 function connectMonitorWS() {
