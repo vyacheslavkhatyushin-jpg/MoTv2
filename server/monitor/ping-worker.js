@@ -15,7 +15,7 @@ monitorMethod:"ping" и непустым IP, пингует параллельн
 const { execFile } = require("child_process");
 const db = require("../db");
 
-const INTERVAL_MS = parseInt(process.env.PING_INTERVAL_MS || "30000", 10);
+const INTERVAL_MS = parseInt(process.env.PING_INTERVAL_MS || "60000", 10);
 const CONCURRENCY = parseInt(process.env.PING_CONCURRENCY || "20", 10);
 const PING_TIMEOUT_SEC = parseInt(process.env.PING_TIMEOUT_SEC || "1", 10);
 const PING_FAIL_DURATION_SEC = parseInt(process.env.PING_FAIL_DURATION_SEC || "300", 10);
