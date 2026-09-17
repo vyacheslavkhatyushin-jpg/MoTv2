@@ -368,20 +368,6 @@
       <div id="statsEmpty" style="display:none;"><b>Проект не найден.</b></div>
       <div class="grid" id="statsGrid"></div>
 
-      <div id="inventorySummary">
-        <h1 style="margin-top:26px;">Кабели и оборудование</h1>
-        <div class="grid">
-          <div class="card">
-            <div class="card-head"><div class="sysname">Кабели, м</div></div>
-            <div class="inv-grid" id="cablesSummaryList"></div>
-          </div>
-          <div class="card">
-            <div class="card-head"><div class="sysname">Оборудование, шт.</div></div>
-            <div class="inv-grid" id="equipSummaryList"></div>
-          </div>
-        </div>
-      </div>
-
       <div id="tableView" style="display:none;">
         <div class="table-head">
           <button id="btnTableBack" class="back-btn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M5 12l14 0" /><path d="M5 12l6 6" /><path d="M5 12l6 -6" /></svg> Все системы</button>
@@ -711,7 +697,6 @@ function showTableView(sys) {
   currentSystem = sys;
   sortState = { key: "default", dir: "desc" };
   document.getElementById("statsGrid").style.display = "none";
-  document.getElementById("inventorySummary").style.display = "none";
   document.getElementById("tableView").style.display = "block";
   loadEventsTable(sys);
 }
@@ -719,7 +704,6 @@ function showGridView() {
   currentSystem = null;
   document.getElementById("tableView").style.display = "none";
   document.getElementById("statsGrid").style.display = "";
-  document.getElementById("inventorySummary").style.display = "";
   loadStats();
 }
 function openTableView(sys) {
@@ -765,7 +749,7 @@ async function loadStats() {
     document.getElementById("globalUptime").textContent = data.totals.avgUptimePct == null ? "—" : data.totals.avgUptimePct + "%";
 
     const order = ["ВОЛС", "LFC", "АО", "Телефония", "ВН"];
-    grid.innerHTML = order.map((sys) => renderCard(sys, data.systems[sys])).join("");
+    grid.innerHTML = order.map((sys) => renderCard(sys, data.systems[sys])).join("") + mockInventoryCardsHtml();
   } catch (err) {
     if (mySeq !== loadSeq) return;
     grid.innerHTML = "";
@@ -867,27 +851,30 @@ async function updateTicketsBadge() {
   }
 }
 /* ---------------- Сводка по кабелям/оборудованию (макет, тестовые данные) ---------------- */
-function renderInventoryList(elId, rows, unit) {
-  const el = document.getElementById(elId);
-  if (!rows.length) { el.innerHTML = `<div class="inv-empty">Нет данных</div>`; return; }
-  el.innerHTML = rows.map((r) => `
-    <div class="inv-tile">
-      <div class="val">${r.value.toLocaleString("ru-RU")} <span style="font-size:11px; font-weight:600; color:var(--text-faint);">${unit}</span></div>
-      <div class="lbl">${esc(r.label)}</div>
-    </div>
-  `).join("");
+// Карточка того же вида, что renderCard() для систем (ВОЛС/LFC/...) —
+// подмешивается в тот же #statsGrid, поэтому встаёт в общую сетку рядом
+// с ними, а не отдельным блоком ниже.
+function renderInventoryCard(title, rows, unit) {
+  const body = rows.length
+    ? `<div class="inv-grid">${rows.map((r) => `
+        <div class="inv-tile">
+          <div class="val">${r.value.toLocaleString("ru-RU")} <span style="font-size:11px; font-weight:600; color:var(--text-faint);">${unit}</span></div>
+          <div class="lbl">${esc(r.label)}</div>
+        </div>
+      `).join("")}</div>`
+    : `<div class="inv-empty">Нет данных</div>`;
+  return `<div class="card"><div class="card-head"><div class="sysname">${esc(title)}</div></div>${body}</div>`;
 }
-function loadInventorySummaryMock() {
-  // TODO: заменить на реальные данные с сервера (сумма длины кабелей по
-  // типу + количество оборудования по форме) — пока для оценки макета.
-  renderInventoryList("cablesSummaryList", [
+// TODO: заменить моковые данные ниже на реальные с сервера (сумма длины
+// кабелей по типу + количество оборудования по форме).
+function mockInventoryCardsHtml() {
+  return renderInventoryCard("Кабели, м", [
     { label: "ВОЛС", value: 2000 },
     { label: "LFC", value: 700 },
     { label: "КАО", value: 450 },
     { label: "Силовой", value: 220 },
     { label: "FTP", value: 90 },
-  ], "м");
-  renderInventoryList("equipSummaryList", [
+  ], "м") + renderInventoryCard("Оборудование, шт.", [
     { label: "MAP", value: 47 },
     { label: "MLA", value: 12 },
     { label: "IILB", value: 9 },
@@ -899,7 +886,6 @@ function loadInventorySummaryMock() {
 function boot() {
   applyRoleUI();
   updateTicketsBadge();
-  loadInventorySummaryMock();
   loadProjectSwitcher();
   const urlSystem = new URL(location.href).searchParams.get("system");
   if (urlSystem && (urlSystem === "all" || MONITOR_SYSTEMS_LIST.includes(urlSystem))) {
