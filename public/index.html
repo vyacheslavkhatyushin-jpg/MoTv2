@@ -332,6 +332,7 @@
     border-top:1px solid var(--border); flex-shrink:0; max-height:150px; overflow-y:auto;
     background:var(--panel-alt);
   }
+  #quickInfoPanel.collapsed{ display:none; }
   .quick-info-head{
     display:flex; align-items:center; justify-content:space-between; padding:7px 12px;
     font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint);
@@ -6245,6 +6246,7 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 function showQuickInfoCable(c) {
+  dom.quickInfoPanel.classList.remove("collapsed");
   currentQuickInfoEquip = null;
   const rows = [];
   rows.push(qiRow("Тип", CABLE_TYPES[c.cableType] ? CABLE_TYPES[c.cableType].label : "Другое"));
@@ -6269,6 +6271,7 @@ function metricsRowsHtml(metrics) {
   ].join("");
 }
 function showQuickInfoEquip(eq) {
+  dom.quickInfoPanel.classList.remove("collapsed");
   currentQuickInfoEquip = eq;
   const rows = [];
   rows.push(qiRow("Форма", EQUIP_SHAPE_LABELS[eq.shape] || "Другое"));
@@ -6306,6 +6309,7 @@ async function refreshQuickInfoMetrics() {
 }
 setInterval(refreshQuickInfoMetrics, 10000);
 function showQuickInfoMark(m) {
+  dom.quickInfoPanel.classList.remove("collapsed");
   currentQuickInfoEquip = null;
   const rows = [];
   rows.push(qiRow("Тип", MARK_TYPE_LABELS[m.markType] || m.markType));
@@ -6316,6 +6320,7 @@ if (dom.quickInfoClose) {
   dom.quickInfoClose.addEventListener("click", () => {
     currentQuickInfoEquip = null;
     dom.quickInfoBody.textContent = "Кликните по объекту в списке слева — здесь появится краткая карточка.";
+    dom.quickInfoPanel.classList.add("collapsed");
   });
 }
 
