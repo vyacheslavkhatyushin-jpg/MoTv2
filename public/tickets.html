@@ -931,6 +931,7 @@ async function updateTicketsBadge() {
 async function boot() {
   applyRoleUI();
   updateTicketsBadge();
+  setInterval(updateTicketsBadge, 30000);
   loadProjectSwitcher();
   await loadProjectUsers(window.__auth && window.__auth.role === "admin");
   loadTickets();

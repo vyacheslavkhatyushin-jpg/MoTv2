@@ -781,6 +781,7 @@ function boot() {
   const isAdmin = applyRoleUI();
   loadProjectSwitcher();
   updateTicketsBadge();
+  setInterval(updateTicketsBadge, 30000);
   if (!isAdmin) return;
   loadFilters();
   showDashboardView();

@@ -6186,6 +6186,7 @@ function applyRoleToUI() {
   }
   loadProjectSwitcher();
   updateTicketsBadge();
+  setInterval(updateTicketsBadge, 30000);
 }
 
 async function updateTicketsBadge() {

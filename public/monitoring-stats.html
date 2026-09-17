@@ -853,7 +853,7 @@ function boot() {
   } else {
     loadStats();
   }
-  setInterval(() => { if (currentSystem) loadEventsTable(currentSystem); else loadStats(); }, 30000);
+  setInterval(() => { if (currentSystem) loadEventsTable(currentSystem); else loadStats(); updateTicketsBadge(); }, 30000);
 }
 window.addEventListener("popstate", () => {
   const urlSystem = new URL(location.href).searchParams.get("system");
