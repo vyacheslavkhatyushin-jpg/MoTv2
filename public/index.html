@@ -255,6 +255,7 @@
     flex:1; padding:6px 4px; border-radius:4px; border:1px solid var(--border); background:var(--panel-alt);
     color:var(--text-dim); font-size:11px; cursor:pointer; font-family:inherit;
   }
+  #tab-marks .shape-btn{ font-size:15px; font-weight:700; line-height:1; }
   .shape-btn:hover{ border-color:var(--accent); color:var(--accent); }
   .shape-btn.selected{ background:var(--accent); color:#14171a; border-color:var(--accent); }
   .uo-hint{
@@ -1063,9 +1064,12 @@
       <div class="tabpanel" id="tab-marks">
         <div class="uo-toolbar">
           <div class="shape-picker">
-            <button class="shape-btn selected" data-mark="star" title="Звезда">★ Звезда</button>
-            <button class="shape-btn" data-mark="dot" title="Точка">● Точка</button>
-            <button class="shape-btn" data-mark="check" title="Галочка">✓ Галочка</button>
+            <button class="shape-btn selected" data-mark="star" title="Звезда">★</button>
+            <button class="shape-btn" data-mark="dot" title="Точка">●</button>
+            <button class="shape-btn" data-mark="check" title="Галочка">✓</button>
+            <button class="shape-btn" data-mark="exclaim" title="Восклицательный знак">!</button>
+            <button class="shape-btn" data-mark="question" title="Вопросительный знак">?</button>
+            <button class="shape-btn" data-mark="plus" title="Плюс">+</button>
           </div>
           <button class="uo-add-btn" id="btnAddMark">+ Добавить метку</button>
           <div class="uo-hint" id="markHint" style="display:none;">
@@ -1085,7 +1089,11 @@
         <div class="uo-details" id="markDetails">
           <div class="dtitle"><span id="markDTitle">—</span><button class="dclose" id="btnMarkDClose" title="Закрыть">Готово</button></div>
           <div class="drow"><span>Видимость</span><input type="checkbox" id="markDVisible" checked></div>
-          <div class="drow"><span>Цвет</span><input type="color" id="markDColor" value="#ff5b7a"></div>
+          <div class="drow"><span>Цвет</span><input type="color" id="markDColor" value="#e53935"></div>
+          <div class="drow" style="align-items:flex-start;">
+            <span>Размер</span>
+            <input type="range" id="markDSize" min="3" max="20" value="8" style="flex:1;margin-left:8px;accent-color:var(--accent);">
+          </div>
           <div class="drow"><span>Подпись</span><input type="text" id="markDLabel" placeholder="Название метки"></div>
           <div class="drow" style="align-items:flex-start;">
             <span>Текст</span>
@@ -2028,6 +2036,7 @@ const dom = {
   markDTitle: document.getElementById("markDTitle"),
   markDVisible: document.getElementById("markDVisible"),
   markDColor: document.getElementById("markDColor"),
+  markDSize: document.getElementById("markDSize"),
   markDLabel: document.getElementById("markDLabel"),
   markDText: document.getElementById("markDText"),
   btnMarkDClose: document.getElementById("btnMarkDClose"),
@@ -3474,8 +3483,8 @@ renderer.domElement.addEventListener("click", (e) => {
   const hits = raycaster.intersectObjects(getIntersectableMeshes(), false);
   if (!hits.length) return;
   if (drawMode === "cable") { addCableNode(hits[0].point.clone()); return; }
-  if (drawMode === "equip") { placeEquipment(hits[0].point.clone()); return; }
-  if (drawMode === "mark") { placeMark(hits[0].point.clone()); return; }
+  if (drawMode === "equip") { placeEquipment(hits[0].point.clone()); exitDrawMode(); return; }
+  if (drawMode === "mark") { placeMark(hits[0].point.clone()); exitDrawMode(); return; }
   if (drawMode === "patch") { addPatchNode(hits[0].point.clone()); return; }
   if (drawMode === "link") { handleLinkPick(hits[0].point.clone(), findLeafFromIntersect(hits[0])); return; }
   if (pivotPickMode) {
@@ -4649,6 +4658,41 @@ function makeMarkTexture(type, color) {
     ctx.lineTo(size * 0.42, size * 0.75);
     ctx.lineTo(size * 0.8, size * 0.28);
     ctx.stroke();
+  } else if (type === "plus") {
+    const w = size * 0.18;
+    for (const [color, extra] of [["rgba(0,0,0,0.35)", size * 0.05], [hexColor, 0]]) {
+      ctx.strokeStyle = color; ctx.lineWidth = w + extra; ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(size * 0.5, size * 0.22); ctx.lineTo(size * 0.5, size * 0.78);
+      ctx.moveTo(size * 0.22, size * 0.5); ctx.lineTo(size * 0.78, size * 0.5);
+      ctx.stroke();
+    }
+  } else if (type === "exclaim") {
+    const w = size * 0.16;
+    for (const [color, extra] of [["rgba(0,0,0,0.35)", size * 0.05], [hexColor, 0]]) {
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = w + extra; ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(size * 0.5, size * 0.16); ctx.lineTo(size * 0.5, size * 0.6);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(size * 0.5, size * 0.8, w * 0.6 + extra * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (type === "question") {
+    const w = size * 0.14;
+    const toRad = (d) => d * Math.PI / 180;
+    for (const [color, extra] of [["rgba(0,0,0,0.35)", size * 0.05], [hexColor, 0]]) {
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = w + extra; ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(size * 0.5, size * 0.35, size * 0.2, toRad(200), toRad(450), false);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(size * 0.5, size * 0.55); ctx.lineTo(size * 0.5, size * 0.64);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(size * 0.5, size * 0.8, w * 0.6 + extra * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   } else {
     ctx.fillStyle = hexColor;
     ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 3;
@@ -4670,12 +4714,15 @@ function makeMarkTexture(type, color) {
   tex.needsUpdate = true;
   return tex;
 }
-const MARK_TYPE_LABELS = { star: "Звезда", dot: "Точка", check: "Галочка" };
+const MARK_TYPE_LABELS = {
+  star: "Звезда", dot: "Точка", check: "Галочка",
+  exclaim: "Восклицательный знак", question: "Вопросительный знак", plus: "Плюс",
+};
 function placeMark(point, overrides, select = true) {
   const id = overrides?.id ?? makeObjectId("mark");
   objSeq++;
   const type = overrides?.markType ?? markType;
-  const color = overrides?.color ?? 0xff5b7a;
+  const color = overrides?.color ?? 0xe53935;
   const texture = makeMarkTexture(type, color);
   const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: true });
   const sprite = new THREE.Sprite(mat);
@@ -4745,9 +4792,19 @@ function selectMark(m) {
   dom.markDVisible.checked = m.visible;
   dom.markDColor.value = "#" + m.color.toString(16).padStart(6, "0");
   syncColorSwatch(dom.markDColor);
+  dom.markDSize.value = m.scale;
   dom.markDLabel.value = m.label;
   dom.markDText.value = m.text || "";
 }
+dom.markDSize.addEventListener("input", () => {
+  if (!selectedMark) return;
+  const scale = parseFloat(dom.markDSize.value);
+  selectedMark.scale = scale;
+  selectedMark.sprite.scale.set(scale, scale, 1);
+  if (selectedMark.labelObj) {
+    selectedMark.labelObj.position.set(selectedMark.sprite.position.x, selectedMark.sprite.position.y + scale * 0.6 + 1, selectedMark.sprite.position.z);
+  }
+});
 document.querySelectorAll(".shape-btn[data-mark]").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".shape-btn[data-mark]").forEach((b) => b.classList.remove("selected"));
@@ -5451,7 +5508,7 @@ function importObjectsFromParsed(parsed) {
     } else if (kind === "mark") {
       const pos = realToScene(pl.points[0]);
       placeMark(pos, {
-        label, markType: a[3], color: parseColorAttr(a[4], 0xff5b7a),
+        label, markType: a[3], color: parseColorAttr(a[4], 0xe53935),
         createdBy: unsanitizeAttr(a[5]) || undefined, createdAt: unsanitizeAttr(a[6]) || undefined,
       }, false);
       counts.mark++;
@@ -5531,7 +5588,7 @@ function serializeEquip(eq) {
 function serializeMark(m) {
   return {
     id: m.id,
-    markType: m.markType, color: m.color, label: m.label, text: m.text, visible: m.visible,
+    markType: m.markType, color: m.color, label: m.label, text: m.text, visible: m.visible, scale: m.scale,
     position: [m.sprite.position.x, m.sprite.position.y, m.sprite.position.z],
     createdBy: m.createdBy, createdAt: m.createdAt,
   };
