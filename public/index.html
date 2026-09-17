@@ -311,6 +311,25 @@
   .uo-details .dtitle .dclose:hover{ filter:brightness(1.08); }
   .uo-details{ border-top:1px solid var(--border); padding:10px 12px; flex-shrink:0; display:none; max-height:50%; overflow-y:auto; }
   .uo-details.open{ display:block; }
+  #quickInfoPanel{
+    border-top:1px solid var(--border); flex-shrink:0; max-height:150px; overflow-y:auto;
+    background:var(--panel-alt);
+  }
+  .quick-info-head{
+    display:flex; align-items:center; justify-content:space-between; padding:7px 12px;
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint);
+    position:sticky; top:0; background:var(--panel-alt); border-bottom:1px solid var(--border-soft);
+  }
+  .quick-info-head #quickInfoClose{
+    width:auto; background:none; border:none; color:var(--text-faint); font-size:15px; line-height:1;
+    cursor:pointer; padding:0 2px;
+  }
+  .quick-info-head #quickInfoClose:hover{ color:var(--text); }
+  .quick-info-body{ padding:9px 12px 11px; font-size:11.5px; color:var(--text-dim); line-height:1.6; }
+  .quick-info-body .qi-title{ font-size:12.5px; font-weight:700; color:var(--text); margin-bottom:4px; }
+  .quick-info-body .qi-row{ display:flex; gap:6px; justify-content:space-between; margin-bottom:2px; }
+  .quick-info-body .qi-row .qi-key{ color:var(--text-faint); flex-shrink:0; }
+  .quick-info-body .qi-row .qi-val{ color:var(--text); text-align:right; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .uo-details .drow{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; font-size:11.5px; color:var(--text-dim); }
   .uo-details input[type="text"]{
     flex:1; margin-left:8px; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
@@ -1127,6 +1146,13 @@
           <div class="mon-sec-body" id="monitorMarksList"></div>
         </div>
       </div>
+    </div>
+    <div id="quickInfoPanel">
+      <div class="quick-info-head">
+        <span>Инфо</span>
+        <button id="quickInfoClose" title="Скрыть">×</button>
+      </div>
+      <div class="quick-info-body" id="quickInfoBody">Кликните по объекту в списке слева — здесь появится краткая карточка.</div>
     </div>
   </div>
 </div>
@@ -2028,6 +2054,9 @@ const dom = {
   monitorEquipList: document.getElementById("monitorEquipList"),
   monitorMarksCount: document.getElementById("monitorMarksCount"),
   monitorMarksList: document.getElementById("monitorMarksList"),
+  quickInfoPanel: document.getElementById("quickInfoPanel"),
+  quickInfoBody: document.getElementById("quickInfoBody"),
+  quickInfoClose: document.getElementById("quickInfoClose"),
   btnAddLink: document.getElementById("btnAddLink"),
   linkHint: document.getElementById("linkHint"),
   btnCancelLink: document.getElementById("btnCancelLink"),
@@ -3759,6 +3788,7 @@ function buildCableList() {
     for (const c of groupItems) {
       const row = document.createElement("div");
       row.className = "uo-row" + (selectedCable === c ? " selected" : "");
+      row.addEventListener("click", () => showQuickInfoCable(c));
       const rowChk = document.createElement("input");
       rowChk.type = "checkbox";
       rowChk.checked = c.visible;
@@ -4249,6 +4279,7 @@ function buildEquipList() {
     for (const eq of groupItems) {
       const row = document.createElement("div");
       row.className = "uo-row" + (selectedEquip === eq ? " selected" : "");
+      row.addEventListener("click", () => { showQuickInfoEquip(eq); refreshQuickInfoMetrics(); });
       const rowChk = document.createElement("input");
       rowChk.type = "checkbox";
       rowChk.checked = eq.visible;
@@ -4563,6 +4594,7 @@ function buildMarkList() {
   for (const m of [...marks.values()].sort(byLabel)) {
     const row = document.createElement("div");
     row.className = "uo-row" + (selectedMark === m ? " selected" : "");
+    row.addEventListener("click", () => showQuickInfoMark(m));
     const swatch = document.createElement("span");
     swatch.className = "swatch"; swatch.style.background = "#" + m.color.toString(16).padStart(6, "0");
     const lname = document.createElement("span");
@@ -5865,6 +5897,7 @@ function renderMonitorCables() {
     for (const c of groupItems) {
       const row = document.createElement("div");
       row.className = "uo-row";
+      row.addEventListener("click", () => showQuickInfoCable(c));
       const rowChk = document.createElement("input");
       rowChk.type = "checkbox";
       rowChk.checked = c.visible;
@@ -5952,6 +5985,7 @@ function renderMonitorEquip() {
     for (const eq of groupItems) {
       const row = document.createElement("div");
       row.className = "uo-row";
+      row.addEventListener("click", () => { showQuickInfoEquip(eq); refreshQuickInfoMetrics(); });
       const rowChk = document.createElement("input");
       rowChk.type = "checkbox";
       rowChk.checked = eq.visible;
@@ -5989,6 +6023,7 @@ function renderMonitorMarks() {
     total++;
     const row = document.createElement("div");
     row.className = "uo-row";
+    row.addEventListener("click", () => showQuickInfoMark(m));
     const rowChk = document.createElement("input");
     rowChk.type = "checkbox";
     rowChk.checked = m.visible;
@@ -6080,6 +6115,90 @@ function renderMonitorActiveList(rows) {
 }
 
 const MONITOR_METHOD_LABELS = { ping: "Пинг", snmp: "SNMP", sppd: "SPPD", fs: "FieldSense" };
+
+// Компактная сводка по объекту в нижней панели "Инфо" — по клику на строку
+// в списке (и в редакторе, и в мониторинге), без открытия полной формы
+// редактирования. Показываем только заполненные поля.
+function qiRow(key, val) {
+  return `<div class="qi-row"><span class="qi-key">${esc(key)}</span><span class="qi-val" title="${esc(val)}">${esc(val)}</span></div>`;
+}
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function showQuickInfoCable(c) {
+  currentQuickInfoEquip = null;
+  const rows = [];
+  rows.push(qiRow("Тип", CABLE_TYPES[c.cableType] ? CABLE_TYPES[c.cableType].label : "Другое"));
+  rows.push(qiRow("Длина", Math.round(c.length) + " м"));
+  rows.push(qiRow("Узлов", c.nodes.length));
+  dom.quickInfoBody.innerHTML = `<div class="qi-title">${esc(c.label)}</div>${rows.join("")}`;
+}
+// Живые метрики SPPD (напряжение/RSSI/Tx-Rx/прошивка, см. server/monitor/sppd-worker.js)
+// показываются только для оборудования с monitorMethod:"sppd" (по факту — IILB/ISIB,
+// см. canSppd в updateEquipMonitorRows). На странице Мониторинга берём из WS-кэша
+// monitorStatusById, в Редакторе — опрашиваем REST раз в 10 сек, пока эта карточка
+// открыта в панели "Инфо" (тот же источник, что и у equipDetails, см. fetchEquipMetrics).
+let currentQuickInfoEquip = null;
+const quickInfoMetricsCache = new Map(); // equipmentId -> metrics|null
+function metricsRowsHtml(metrics) {
+  const m = metrics || {};
+  return [
+    qiRow("Напряжение", typeof m.voltage === "number" ? `U=${m.voltage.toFixed(2)} В` : "—"),
+    qiRow("RSSI", typeof m.rssi === "number" ? String(m.rssi) : "—"),
+    qiRow("Tx/Rx", m.txRx ? `Rx: ${m.txRx.Rx ?? "—"} / Tx: ${m.txRx.Tx ?? "—"}` : "—"),
+    qiRow("Прошивка", m.firmware && m.firmware.Firmware ? m.firmware.Firmware : "—"),
+  ].join("");
+}
+function showQuickInfoEquip(eq) {
+  currentQuickInfoEquip = eq;
+  const rows = [];
+  rows.push(qiRow("Форма", EQUIP_SHAPE_LABELS[eq.shape] || "Другое"));
+  if (eq.location) rows.push(qiRow("Расположение", eq.location));
+  if (eq.ip) rows.push(qiRow("IP-адрес", eq.ip));
+  if (eq.idNumber) rows.push(qiRow("ID номер", eq.idNumber));
+  rows.push(qiRow("Мониторинг", eq.monitorMethod && eq.monitorMethod !== "none" ? (MONITOR_METHOD_LABELS[eq.monitorMethod] || eq.monitorMethod) : "Не мониторится"));
+  if (eq.monitorMethod === "snmp" && eq.snmpCommunity) rows.push(qiRow("SNMP community", eq.snmpCommunity));
+  if (eq.monitorMethod === "snmp" && eq.snmpProfile) rows.push(qiRow("SNMP профиль", eq.snmpProfile));
+  if (eq.monitorMethod === "sppd" && eq.sppdAddress) rows.push(qiRow("SPPD адрес", eq.sppdAddress));
+  if (eq.monitorMethod === "fs" && eq.fsAddress) rows.push(qiRow("FieldSense адрес", eq.fsAddress));
+  const metricsHtml = eq.monitorMethod === "sppd" ? metricsRowsHtml(quickInfoMetricsCache.get(eq.id)) : "";
+  dom.quickInfoBody.innerHTML = `<div class="qi-title">${esc(eq.label)}</div>${rows.join("")}${metricsHtml}`;
+}
+async function fetchEquipMetrics(eq) {
+  let row = null;
+  if (IS_MONITORING_PAGE) {
+    row = monitorStatusById.get(eq.id) || null;
+  } else {
+    try {
+      const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/status`);
+      const data = await resp.json();
+      row = (data.status || []).find((r) => r.equipment_id === eq.id) || null;
+    } catch (e) { row = null; }
+  }
+  if (!row || !row.raw_metrics_json) return null;
+  try { return JSON.parse(row.raw_metrics_json); } catch (e) { return null; }
+}
+async function refreshQuickInfoMetrics() {
+  const eq = currentQuickInfoEquip;
+  if (!eq || eq.monitorMethod !== "sppd") return;
+  const metrics = await fetchEquipMetrics(eq);
+  quickInfoMetricsCache.set(eq.id, metrics);
+  if (currentQuickInfoEquip === eq) showQuickInfoEquip(eq);
+}
+setInterval(refreshQuickInfoMetrics, 10000);
+function showQuickInfoMark(m) {
+  currentQuickInfoEquip = null;
+  const rows = [];
+  rows.push(qiRow("Тип", MARK_TYPE_LABELS[m.markType] || m.markType));
+  if (m.text) rows.push(qiRow("Текст", m.text));
+  dom.quickInfoBody.innerHTML = `<div class="qi-title">${esc(m.label)}</div>${rows.join("")}`;
+}
+if (dom.quickInfoClose) {
+  dom.quickInfoClose.addEventListener("click", () => {
+    currentQuickInfoEquip = null;
+    dom.quickInfoBody.textContent = "Кликните по объекту в списке слева — здесь появится краткая карточка.";
+  });
+}
 
 async function createTicketFromActiveRow(row, eq) {
   // Оборудование составное (несколько систем на одной единице) — уже
