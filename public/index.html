@@ -1016,6 +1016,9 @@
           <div class="drow" id="equipDSnmpProfileRow" style="display:none;"><span>SNMP профиль</span><input type="text" id="equipDSnmpProfile" placeholder="по умолчанию"></div>
           <div class="drow" id="equipDSppdAddressRow" style="display:none;"><span>Адрес SPPD</span><input type="text" id="equipDSppdAddress" placeholder="напр. 3934"></div>
           <div class="drow" id="equipDVoltageRow" style="display:none;"><span>Напряжение (SPPD)</span><span id="equipDVoltage" class="mono" style="color:var(--text-dim);">—</span></div>
+          <div class="drow" id="equipDRssiRow" style="display:none;"><span>RSSI (SPPD)</span><span id="equipDRssi" class="mono" style="color:var(--text-dim);">—</span></div>
+          <div class="drow" id="equipDTxRxRow" style="display:none;"><span>Tx/Rx (SPPD)</span><span id="equipDTxRx" class="mono" style="color:var(--text-dim);">—</span></div>
+          <div class="drow" id="equipDFirmwareRow" style="display:none;"><span>Прошивка (SPPD)</span><span id="equipDFirmware" class="mono" style="color:var(--text-dim);">—</span></div>
           <div class="drow" id="equipDFsAddressRow" style="display:none;"><span>Номер датчика FS</span><input type="text" id="equipDFsAddress" placeholder="напр. 3 (колонка # на странице fieldsense)"></div>
           <button id="equipDDelete" class="danger-btn">Удалить объект</button>
         </div>
@@ -1958,6 +1961,12 @@ const dom = {
   equipDSppdAddressRow: document.getElementById("equipDSppdAddressRow"),
   equipDSppdAddress: document.getElementById("equipDSppdAddress"),
   equipDVoltageRow: document.getElementById("equipDVoltageRow"),
+  equipDRssiRow: document.getElementById("equipDRssiRow"),
+  equipDRssi: document.getElementById("equipDRssi"),
+  equipDTxRxRow: document.getElementById("equipDTxRxRow"),
+  equipDTxRx: document.getElementById("equipDTxRx"),
+  equipDFirmwareRow: document.getElementById("equipDFirmwareRow"),
+  equipDFirmware: document.getElementById("equipDFirmware"),
   equipDVoltage: document.getElementById("equipDVoltage"),
   equipDFsAddressRow: document.getElementById("equipDFsAddressRow"),
   equipDFsAddress: document.getElementById("equipDFsAddress"),
@@ -4311,6 +4320,9 @@ function updateEquipMonitorRows(eq) {
   dom.equipDSppdAddressRow.style.display = method === "sppd" ? "" : "none";
   dom.equipDFsAddressRow.style.display = method === "fs" ? "" : "none";
   dom.equipDVoltageRow.style.display = method === "sppd" ? "" : "none";
+  dom.equipDRssiRow.style.display = method === "sppd" ? "" : "none";
+  dom.equipDTxRxRow.style.display = method === "sppd" ? "" : "none";
+  dom.equipDFirmwareRow.style.display = method === "sppd" ? "" : "none";
   refreshEquipDetailVoltage();
 }
 // Живое значение — обновляется и при выборе объекта, и на каждом тике
@@ -4321,25 +4333,33 @@ function updateEquipMonitorRows(eq) {
 // вызывается только для IS_MONITORING_PAGE) — там просто раз в 10 сек
 // опрашиваем REST-эндпоинт напрямую, только пока карточка sppd-оборудования
 // открыта.
+function renderEquipDetailMetrics(metrics) {
+  const m = metrics || {};
+  dom.equipDVoltage.textContent = typeof m.voltage === "number" ? `U=${m.voltage.toFixed(2)} В` : "—";
+  dom.equipDRssi.textContent = typeof m.rssi === "number" ? String(m.rssi) : "—";
+  dom.equipDTxRx.textContent = m.txRx ? `Rx: ${m.txRx.Rx ?? "—"} / Tx: ${m.txRx.Tx ?? "—"}` : "—";
+  dom.equipDFirmware.textContent = m.firmware && m.firmware.Firmware ? m.firmware.Firmware : "—";
+}
 async function refreshEquipDetailVoltage() {
   if (!selectedEquip || selectedEquip.monitorMethod !== "sppd" || !dom.equipDetails.classList.contains("open")) return;
   if (IS_MONITORING_PAGE) {
-    const v = equipVoltage(selectedEquip.id);
-    dom.equipDVoltage.textContent = v !== null ? `U=${v} В` : "—";
+    const row = monitorStatusById.get(selectedEquip.id);
+    let metrics = null;
+    if (row && row.raw_metrics_json) {
+      try { metrics = JSON.parse(row.raw_metrics_json); } catch (e) {}
+    }
+    renderEquipDetailMetrics(metrics);
     return;
   }
   try {
     const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/status`);
     const data = await resp.json();
     const row = (data.status || []).find((r) => r.equipment_id === selectedEquip.id);
-    let v = null;
+    let metrics = null;
     if (row && row.raw_metrics_json) {
-      try {
-        const metrics = JSON.parse(row.raw_metrics_json);
-        if (typeof metrics.voltage === "number") v = metrics.voltage.toFixed(2);
-      } catch (e) {}
+      try { metrics = JSON.parse(row.raw_metrics_json); } catch (e) {}
     }
-    dom.equipDVoltage.textContent = v !== null ? `U=${v} В` : "—";
+    renderEquipDetailMetrics(metrics);
   } catch (e) {}
 }
 setInterval(refreshEquipDetailVoltage, 10000);
