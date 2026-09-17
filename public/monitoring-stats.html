@@ -906,9 +906,12 @@ const INV_EQUIP_LABELS = {
   mla: "MLA", map: "MAP", odf: "Муфта ODF", iilb: "IILB", isib: "ISIB", cam: "CAM",
   mps: "MPS", mpc: "MPC", mtu: "MTU", mvsa: "MVSA", wifi: "WiFi", mbu: "MBU",
   fs: "FS", tel: "TEL", stativ_lfc: "Статив LFC", stativ_ao: "Статив АО", poe: "PoE", go: "ГО",
-  stativ: "Статив (устар.)",
+  stativ: "Статив (устар.)", custom: "Другое",
 };
-const INV_EQUIP_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "go", "stativ"];
+const INV_EQUIP_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "go", "stativ", "custom"];
+// Формы, для которых физически возможен опрос (см. MONITORABLE_SHAPES в index.html) —
+// только для них в плитке показываются две цифры (мониторится/всего).
+const INV_MONITORABLE_SHAPES = new Set(["map", "iilb", "isib", "wifi", "cam", "fs", "tel", "stativ_lfc", "stativ_ao", "go", "custom"]);
 function cablePathLen(nodes) {
   let len = 0;
   for (let i = 1; i < (nodes || []).length; i++) {
@@ -948,16 +951,16 @@ async function loadInventorySummary() {
     }
     const equipRows = INV_EQUIP_ORDER
       .filter((k) => equipStats.has(k))
-      .map((k) => ({ label: INV_EQUIP_LABELS[k], value: equipStats.get(k).total, monitored: equipStats.get(k).monitored }));
-    if (equipStats.has("custom")) {
-      const c = equipStats.get("custom");
-      equipRows.push({ label: "Другое", value: c.total, monitored: c.monitored });
-    }
+      .map((k) => ({
+        label: INV_EQUIP_LABELS[k],
+        value: equipStats.get(k).total,
+        monitored: INV_MONITORABLE_SHAPES.has(k) ? equipStats.get(k).monitored : undefined,
+      }));
 
     renderInventoryList("cablesSummaryList", cableRows, "м");
     renderInventoryList("equipSummaryList", equipRows, "шт.");
     const totalCableLen = Math.round([...cableLenByType.values()].reduce((s, v) => s + v, 0));
-    const totalMonitored = [...equipStats.values()].reduce((s, e) => s + e.monitored, 0);
+    const totalMonitored = [...equipStats.entries()].reduce((s, [k, e]) => s + (INV_MONITORABLE_SHAPES.has(k) ? e.monitored : 0), 0);
     document.getElementById("invTotalCableLen").textContent = totalCableLen.toLocaleString("ru-RU");
     document.getElementById("invTotalEquip").textContent = equipRaw.length.toLocaleString("ru-RU");
     document.getElementById("invMonitoredEquip").textContent = totalMonitored.toLocaleString("ru-RU");
