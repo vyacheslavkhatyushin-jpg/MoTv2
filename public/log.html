@@ -195,6 +195,7 @@
   table.log-table td{ padding:9px 14px; border-bottom:1px solid var(--border-soft); color:var(--text-dim); font-size:12px; vertical-align:middle; }
   table.log-table tr:last-child td{ border-bottom:none; }
   table.log-table tr:hover td{ background:rgba(255,255,255,.02); }
+  table.log-table tr.log-row{ cursor:pointer; }
   td.actor{ color:var(--text); font-weight:600; }
   td.details{ max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .action-pill{ display:inline-flex; align-items:center; font-size:11px; font-weight:600; padding:3px 9px; border-radius:99px; white-space:nowrap; }
@@ -207,6 +208,43 @@
 
   #logError, #logEmpty{ text-align:center; color:var(--text-faint); padding:60px 20px; line-height:1.6; }
   #logError{ color:var(--danger); }
+
+  /* ---- модалка деталей события ---- */
+  .overlay{
+    position:fixed; inset:0; z-index:900; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.55);
+  }
+  .overlay.hidden{ display:none; }
+  .modal-card{
+    width:420px; max-width:92vw; max-height:86vh; overflow-y:auto; background:var(--panel);
+    border:1px solid var(--border); border-radius:10px; padding:18px 20px; box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  .modal-card h3{ margin:0 0 6px; font-size:14px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .modal-card h3 button{ flex-shrink:0; background:none; border:none; color:var(--text-dim); cursor:pointer; line-height:1; padding:2px 6px; }
+  .modal-card h3 button:hover{ color:var(--text); }
+  .log-detail-card{ width:640px; }
+  .log-detail-meta{ font-size:11.5px; color:var(--text-faint); margin-bottom:14px; line-height:1.6; }
+  .log-detail-meta b{ color:var(--text-dim); font-weight:600; }
+  .log-diff{ display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .log-diff-col{ min-width:0; }
+  .log-diff-col + .log-diff-col{ border-left:1px solid var(--border); }
+  .log-diff-head{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color:var(--text-faint);
+    padding:8px 12px; background:var(--panel-alt); border-bottom:1px solid var(--border);
+  }
+  .log-diff-row{ display:flex; gap:8px; padding:7px 12px; border-bottom:1px solid var(--border-soft); font-size:12px; }
+  .log-diff-col > .log-diff-row:last-child{ border-bottom:none; }
+  .log-diff-row .k{ color:var(--text-faint); flex-shrink:0; min-width:88px; }
+  .log-diff-row .v{ color:var(--text-dim); word-break:break-word; }
+  .log-diff-row.changed{ background:rgba(255,159,28,.08); }
+  .log-diff-row.changed .v{ color:var(--text); font-weight:600; }
+  .log-diff-row.added{ background:rgba(46,204,113,.08); }
+  .log-diff-row.added .v{ color:var(--ok); font-weight:600; }
+  .log-diff-row.removed{ background:rgba(230,85,61,.08); }
+  .log-diff-row.removed .v{ color:var(--danger); font-weight:600; }
+  .log-flat{ border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .log-flat .log-diff-row:last-child{ border-bottom:none; }
+  .log-flat .k{ min-width:110px; }
 </style>
 </head>
 <body>
@@ -387,6 +425,15 @@
   </div>
 </div>
 
+<!-- ================= Модалка: детали события лога ================= -->
+<div id="logDetailOverlay" class="overlay hidden">
+  <div class="modal-card log-detail-card">
+    <h3><span id="logDetailTitle">Детали события</span><button id="btnLogDetailClose"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
+    <div id="logDetailMeta" class="log-detail-meta"></div>
+    <div id="logDetailBody"></div>
+  </div>
+</div>
+
 <script type="module">
 const CURRENT_PROJECT_ID = (location.pathname.split("/").filter(Boolean)[0] || "default").toLowerCase();
 
@@ -485,6 +532,83 @@ function formatDetails(d) {
   return summarizeKV(d) || "—";
 }
 
+/* ---- модалка "детали события", открывается кликом по строке лога ---- */
+function fmtDetailVal(v) {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "да" : "нет";
+  return String(v);
+}
+function unionDetailKeys(a, b) {
+  const keys = new Set();
+  if (a) Object.keys(a).forEach((k) => keys.add(k));
+  if (b) Object.keys(b).forEach((k) => keys.add(k));
+  keys.delete("id");
+  return [...keys];
+}
+// Было/Стало в два столбца — изменённые поля подсвечены оранжевым, поля,
+// появившиеся только в "после" — зелёным, пропавшие только в "до" — красным.
+function renderDiffBody(before, after) {
+  const keys = unionDetailKeys(before, after);
+  if (!keys.length) return `<div class="log-empty" style="padding:16px;">Нет изменённых полей.</div>`;
+  const leftRows = [], rightRows = [];
+  for (const k of keys) {
+    const hasB = before && Object.prototype.hasOwnProperty.call(before, k);
+    const hasA = after && Object.prototype.hasOwnProperty.call(after, k);
+    const vb = hasB ? before[k] : undefined;
+    const va = hasA ? after[k] : undefined;
+    const same = hasB && hasA && JSON.stringify(vb) === JSON.stringify(va);
+    let leftCls = "", rightCls = "";
+    if (!same) {
+      if (!hasB && hasA) rightCls = "added";
+      else if (hasB && !hasA) leftCls = "removed";
+      else { leftCls = "changed"; rightCls = "changed"; }
+    }
+    leftRows.push(`<div class="log-diff-row ${leftCls}"><span class="k">${esc(k)}</span><span class="v">${esc(fmtDetailVal(vb))}</span></div>`);
+    rightRows.push(`<div class="log-diff-row ${rightCls}"><span class="k">${esc(k)}</span><span class="v">${esc(fmtDetailVal(va))}</span></div>`);
+  }
+  return `<div class="log-diff">
+    <div class="log-diff-col"><div class="log-diff-head">Было</div>${leftRows.join("")}</div>
+    <div class="log-diff-col"><div class="log-diff-head">Стало</div>${rightRows.join("")}</div>
+  </div>`;
+}
+function renderFlatBody(details) {
+  if (!details || typeof details !== "object") return `<div class="log-empty" style="padding:16px;">Нет дополнительных данных.</div>`;
+  const entries = Object.entries(details).filter(([k]) => k !== "id");
+  if (!entries.length) return `<div class="log-empty" style="padding:16px;">Нет дополнительных данных.</div>`;
+  const rows = entries.map(([k, v]) => `<div class="log-diff-row"><span class="k">${esc(k)}</span><span class="v">${esc(fmtDetailVal(v))}</span></div>`).join("");
+  return `<div class="log-flat">${rows}</div>`;
+}
+function openLogDetail(entry) {
+  document.getElementById("logDetailTitle").textContent = actionLabel(entry.action);
+  document.getElementById("logDetailMeta").innerHTML = `
+    <div><b>Время:</b> ${esc(fmtWhen(entry.createdAt))}</div>
+    <div><b>Пользователь:</b> ${esc(entry.actor)}</div>
+    <div><b>Проект:</b> ${esc(entry.projectId || "—")}</div>
+    <div><b>Объект:</b> ${esc(entry.entityLabel || entry.entityId || "—")}</div>
+    <div><b>IP:</b> ${esc(entry.ip || "—")}</div>
+  `;
+  const d = entry.details;
+  const isDiff = d && typeof d === "object" && (Object.prototype.hasOwnProperty.call(d, "before") || Object.prototype.hasOwnProperty.call(d, "after"));
+  document.getElementById("logDetailBody").innerHTML = isDiff ? renderDiffBody(d.before, d.after) : renderFlatBody(d);
+  document.getElementById("logDetailOverlay").classList.remove("hidden");
+}
+function closeLogDetail() {
+  document.getElementById("logDetailOverlay").classList.add("hidden");
+}
+document.getElementById("logTableWrap").addEventListener("click", (e) => {
+  const row = e.target.closest("tr.log-row");
+  if (!row) return;
+  const entry = lastEntries[Number(row.dataset.idx)];
+  if (entry) openLogDetail(entry);
+});
+document.getElementById("btnLogDetailClose").addEventListener("click", closeLogDetail);
+document.getElementById("logDetailOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "logDetailOverlay") closeLogDetail();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeLogDetail();
+});
+
 let currentRange = "7d";
 let filters = { actor: "", action: "", projectId: "", q: "" };
 let pageOffset = 0;
@@ -577,14 +701,14 @@ function renderLogTable(entries) {
   if (!entries.length) {
     return `<div class="log-empty">Записей не найдено.</div>`;
   }
-  const rows = entries.map((e) => `
-    <tr>
+  const rows = entries.map((e, i) => `
+    <tr class="log-row" data-idx="${i}" title="Кликните, чтобы посмотреть детали события">
       <td class="mono">${esc(fmtWhen(e.createdAt))}</td>
       <td class="actor">${esc(e.actor)}</td>
       <td>${esc(e.projectId || "—")}</td>
       <td>${actionCellHtml(e.action)}</td>
       <td>${esc(e.entityLabel || e.entityId || "—")}</td>
-      <td class="details" title="${esc(formatDetails(e.details))}">${esc(formatDetails(e.details))}</td>
+      <td class="details">${esc(formatDetails(e.details))}</td>
       <td class="mono">${esc(e.ip || "—")}</td>
     </tr>`).join("");
   return `<table class="log-table"><thead><tr>
