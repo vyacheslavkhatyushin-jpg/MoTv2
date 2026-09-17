@@ -138,6 +138,9 @@
     text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:700;
     color:var(--text-faint); padding:10px 12px; background:var(--panel-alt); border-bottom:1px solid var(--border);
   }
+  table.reg-table th.sortable{ cursor:pointer; user-select:none; white-space:nowrap; }
+  table.reg-table th.sortable:hover{ color:var(--text); }
+  table.reg-table th.sortable .sort-arrow{ display:inline-block; width:9px; margin-left:2px; color:var(--accent); }
   table.reg-table td{ padding:9px 12px; border-bottom:1px solid var(--border-soft); color:var(--text-dim); font-size:12.5px; vertical-align:middle; }
   table.reg-table tr:last-child td{ border-bottom:none; }
   table.reg-table tr:hover td{ background:rgba(255,255,255,.02); }
@@ -571,24 +574,56 @@ function exportMovementsCsv() {
 }
 
 /* ---------------- Каталог ---------------- */
+// Сортировка по клику на заголовок столбца — строковые столбцы сравниваются
+// как "от А до Я", числовые как "от мин. к макс."; повторный клик по тому же
+// столбцу разворачивает направление.
+let catalogSort = { key: "name", dir: 1 };
+const CATALOG_SORT_COLUMNS = {
+  name: { label: "Название", type: "string" },
+  category: { label: "Категория", type: "string" },
+  location: { label: "Место хранения", type: "string" },
+  qtyOnHand: { label: "На складе", type: "number", align: "right" },
+  qtyReserved: { label: "Резерв", type: "number", align: "right" },
+  qtyAvailable: { label: "Доступно", type: "number", align: "right" },
+  minQty: { label: "Мин.", type: "number", align: "right" },
+};
+function sortCatalogRows(rows) {
+  const { key, dir } = catalogSort;
+  const col = CATALOG_SORT_COLUMNS[key];
+  if (!col) return rows;
+  const sorted = rows.slice();
+  sorted.sort((a, b) => {
+    if (col.type === "number") return ((a[key] ?? 0) - (b[key] ?? 0)) * dir;
+    return (a[key] || "").localeCompare(b[key] || "", "ru", { numeric: true, sensitivity: "base" }) * dir;
+  });
+  return sorted;
+}
+function catalogSortHeaderHtml(key) {
+  const col = CATALOG_SORT_COLUMNS[key];
+  const active = catalogSort.key === key;
+  const arrow = active ? (catalogSort.dir === 1 ? "▲" : "▼") : "";
+  const style = col.align === "right" ? ' style="text-align:right;"' : "";
+  return `<th class="sortable" data-sort-key="${key}"${style}>${esc(col.label)}<span class="sort-arrow">${arrow}</span></th>`;
+}
 function renderCatalog() {
   const role = (window.__auth && window.__auth.role) || "viewer";
   const isAdmin = role === "admin";
   const canRequest = role === "editor" || role === "admin";
   const q = (document.getElementById("catalogSearch").value || "").trim().toLowerCase();
   const wrap = document.getElementById("catalogTableWrap");
-  const rows = itemsCache.filter((it) => {
+  const filtered = itemsCache.filter((it) => {
     if (!q) return true;
     return [it.name, it.category, it.manufacturer, it.partNumber, it.location].some((f) => (f || "").toLowerCase().includes(q));
   });
-  if (!rows.length) {
+  if (!filtered.length) {
     wrap.innerHTML = `<div class="empty-hint">${itemsCache.length ? "Ничего не найдено по запросу." : "<b>Каталог пуст.</b><br>" + (isAdmin ? "Добавьте первую позицию кнопкой выше." : "Позиции ещё не добавлены администратором.")}</div>`;
     return;
   }
+  const rows = sortCatalogRows(filtered);
   wrap.innerHTML = `<table class="reg-table"><thead><tr>
-    <th>Название</th><th>Категория</th><th>Место хранения</th>
-    <th style="text-align:right;">На складе</th><th style="text-align:right;">Резерв</th><th style="text-align:right;">Доступно</th>
-    <th style="text-align:right;">Мин.</th><th></th>
+    ${catalogSortHeaderHtml("name")}${catalogSortHeaderHtml("category")}${catalogSortHeaderHtml("location")}
+    ${catalogSortHeaderHtml("qtyOnHand")}${catalogSortHeaderHtml("qtyReserved")}${catalogSortHeaderHtml("qtyAvailable")}
+    ${catalogSortHeaderHtml("minQty")}<th></th>
   </tr></thead><tbody>
   ${rows.map((it) => `
     <tr class="${it.lowStock ? "row-low" : ""}" data-id="${esc(it.id)}">
@@ -893,6 +928,13 @@ document.getElementById("btnDecisionModalConfirm").addEventListener("click", asy
 
 /* ---------------- Делегирование кликов по таблицам ---------------- */
 document.getElementById("catalogTableWrap").addEventListener("click", (e) => {
+  const th = e.target.closest("th.sortable");
+  if (th) {
+    const key = th.dataset.sortKey;
+    catalogSort = { key, dir: catalogSort.key === key ? -catalogSort.dir : 1 };
+    renderCatalog();
+    return;
+  }
   const btn = e.target.closest("button");
   if (!btn) return;
   const item = itemsCache.find((it) => it.id === btn.dataset.id);
