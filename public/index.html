@@ -965,7 +965,6 @@
         <div class="placeholder" id="cablePlaceholder">Кабельных трасс пока нет.<br>Нажмите «Добавить» и кликайте по тоннелям на модели.</div>
         <div class="uo-details" id="cableDetails">
           <div class="dtitle"><span id="cableDTitle">—</span><button class="dclose" id="btnCableDClose" title="Закрыть">Готово</button></div>
-          <div class="drow"><span>Видимость</span><input type="checkbox" id="cableDVisible" checked></div>
           <div class="drow"><span>Цвет</span><input type="color" id="cableDColor" value="#ffcc00"></div>
           <div class="drow"><span>Подпись</span><input type="text" id="cableDLabel" placeholder="Название трассы"></div>
           <div class="drow">
@@ -983,6 +982,10 @@
           <div class="drow" style="align-items:flex-start;">
             <span>Толщина</span>
             <input type="range" id="cableDThickness" min="1" max="20" value="5" style="flex:1;margin-left:8px;accent-color:var(--accent);">
+          </div>
+          <div class="drow" style="align-items:flex-start;">
+            <span>Размер узлов</span>
+            <input type="range" id="cableDNodeScale" min="0.3" max="3" step="0.1" value="1" style="flex:1;margin-left:8px;accent-color:var(--accent);">
           </div>
           <div class="stats" id="cableDStats"></div>
           <div class="node-list" id="cableNodeList"></div>
@@ -1977,7 +1980,7 @@ const dom = {
   cablePlaceholder: document.getElementById("cablePlaceholder"),
   cableDetails: document.getElementById("cableDetails"),
   cableDTitle: document.getElementById("cableDTitle"),
-  cableDVisible: document.getElementById("cableDVisible"),
+  cableDNodeScale: document.getElementById("cableDNodeScale"),
   cableDColor: document.getElementById("cableDColor"),
   cableDLabel: document.getElementById("cableDLabel"),
   cableDType: document.getElementById("cableDType"),
@@ -3640,10 +3643,10 @@ function buildCableGeometry(nodes, radius, lineType) {
   if (!dashGeoms.length) return buildSolidTubeGeometry(nodes, radius);
   return BufferGeometryUtils.mergeGeometries(dashGeoms);
 }
-function buildCableNodeMarkers(nodes, radius, color) {
+function buildCableNodeMarkers(nodes, radius, color, nodeScale) {
   const group = new THREE.Group();
   const markers = nodes.map((p) => {
-    const geo = new THREE.SphereGeometry(radius * 1.7, 8, 8);
+    const geo = new THREE.SphereGeometry(radius * 1.7 * (nodeScale ?? 1), 8, 8);
     const mat = new THREE.MeshBasicMaterial({ color });
     const s = new THREE.Mesh(geo, mat);
     s.position.copy(p);
@@ -3716,12 +3719,13 @@ function createCable(nodes, overrides, select = true) {
   const thickness = overrides?.thickness ?? typeDef?.thickness ?? 5;
   const lineType = overrides?.lineType ?? typeDef?.lineType ?? "solid";
   const radius = thickness * 0.08;
+  const nodeScale = overrides?.nodeScale ?? 1;
   const geo = buildCableGeometry(nodes, radius, lineType);
   const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.2 });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.visible = overrides?.visible ?? true;
   scene.add(mesh);
-  const { group: nodeGroup, markers: nodeMarkers } = buildCableNodeMarkers(nodes, radius, color);
+  const { group: nodeGroup, markers: nodeMarkers } = buildCableNodeMarkers(nodes, radius, color, nodeScale);
   nodeGroup.visible = mesh.visible;
   scene.add(nodeGroup);
   const label = overrides?.label ?? ((typeDef?.label || "Кабель") + " " + objSeq);
@@ -3731,7 +3735,7 @@ function createCable(nodes, overrides, select = true) {
   labelObj.visible = labelGroup.on;
   scene.add(labelObj);
   const cableData = {
-    id, type: "cable", nodes: nodes.map((p) => p.clone()), color, thickness, radius,
+    id, type: "cable", nodes: nodes.map((p) => p.clone()), color, thickness, radius, nodeScale,
     cableType, lineType,
     label, visible: mesh.visible, mesh, nodeGroup, nodeMarkers, labelObj,
     length: cablePathLength(nodes),
@@ -3752,7 +3756,7 @@ function rebuildCableMesh(c) {
     const m = c.nodeGroup.children.pop();
     m.geometry.dispose(); m.material.dispose();
   }
-  const { markers } = buildCableNodeMarkers(c.nodes, c.radius, c.color);
+  const { markers } = buildCableNodeMarkers(c.nodes, c.radius, c.color, c.nodeScale);
   markers.forEach((m) => c.nodeGroup.add(m));
   c.nodeMarkers = markers;
   if (c.labelObj) c.labelObj.position.copy(cableMidpoint(c.nodes));
@@ -3883,7 +3887,6 @@ function buildCableList() {
     groupChk.addEventListener("change", () => {
       groupItems.forEach((c) => setCableVisible(c, groupChk.checked));
       buildCableList();
-      if (selectedCable && groupItems.includes(selectedCable)) dom.cableDVisible.checked = selectedCable.visible;
     });
     const headerLabel = document.createElement("span");
     headerLabel.className = "uo-group-header-label";
@@ -3921,7 +3924,6 @@ function buildCableList() {
       rowChk.addEventListener("change", () => {
         setCableVisible(c, rowChk.checked);
         buildCableList();
-        if (selectedCable === c) dom.cableDVisible.checked = c.visible;
       });
       const swatch = document.createElement("span");
       swatch.className = "swatch";
@@ -3970,12 +3972,12 @@ function selectCable(c) {
   buildCableList();
   dom.cableDetails.classList.add("open");
   dom.cableDTitle.textContent = c.label;
-  dom.cableDVisible.checked = c.visible;
   dom.cableDColor.value = "#" + c.color.toString(16).padStart(6, "0");
   syncColorSwatch(dom.cableDColor);
   dom.cableDLabel.value = c.label;
   dom.cableDType.value = CABLE_TYPES[c.cableType] ? c.cableType : "custom";
   dom.cableDThickness.value = c.thickness;
+  dom.cableDNodeScale.value = c.nodeScale ?? 1;
   dom.cableDStats.textContent = `Узлов: ${c.nodes.length} · длина: ${Math.round(c.length)} м`;
   renderCableNodeList(c);
 }
@@ -4028,11 +4030,6 @@ dom.cableDExtend.addEventListener("click", () => {
   renderer.domElement.style.cursor = "crosshair";
   updateCableLiveLength();
 });
-dom.cableDVisible.addEventListener("change", () => {
-  if (!selectedCable) return;
-  setCableVisible(selectedCable, dom.cableDVisible.checked);
-  buildCableList();
-});
 dom.cableDColor.addEventListener("input", () => {
   if (!selectedCable) return;
   const hex = parseInt(dom.cableDColor.value.slice(1), 16);
@@ -4054,6 +4051,11 @@ dom.cableDThickness.addEventListener("input", () => {
   selectedCable.radius = selectedCable.thickness * 0.08;
   rebuildCableMesh(selectedCable);
   selectCable(selectedCable);
+});
+dom.cableDNodeScale.addEventListener("input", () => {
+  if (!selectedCable) return;
+  selectedCable.nodeScale = parseFloat(dom.cableDNodeScale.value);
+  rebuildCableMesh(selectedCable);
 });
 dom.cableDType.addEventListener("change", () => {
   if (!selectedCable) return;
@@ -5569,7 +5571,7 @@ function serializeCable(c) {
   return {
     id: c.id,
     nodes: c.nodes.map((p) => [p.x, p.y, p.z]),
-    color: c.color, thickness: c.thickness, label: c.label, visible: c.visible,
+    color: c.color, thickness: c.thickness, label: c.label, visible: c.visible, nodeScale: c.nodeScale,
     cableType: c.cableType, lineType: c.lineType,
     createdBy: c.createdBy, createdAt: c.createdAt,
   };
