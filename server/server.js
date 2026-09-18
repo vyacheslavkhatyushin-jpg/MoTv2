@@ -11,6 +11,7 @@ const zipRoutes = require("./routes/zip");
 const lampsRoutes = require("./routes/lamps");
 const auditRoutes = require("./routes/audit");
 const ticketsRoutes = require("./routes/tickets");
+const parsingRoutes = require("./routes/parsing");
 const { verifyToken } = require("./auth");
 const db = require("./db");
 
@@ -28,6 +29,7 @@ app.use("/api/projects", lampsRoutes);
 app.use("/api/projects", ticketsRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/audit-log", auditRoutes);
+app.use("/api/parsing", parsingRoutes.router);
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
@@ -56,6 +58,12 @@ app.get(/^\/[^/]+\/log\/?$/, (req, res) => {
 // Тикеты — устранение аварий/находок, поверх /api/projects/:id/tickets.
 app.get(/^\/[^/]+\/tickets\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "tickets.html"));
+});
+
+// Конструктор/тестер парсера потоков — не привязан к проекту, только admin.
+// См. server/routes/parsing.js и docs.
+app.get(/^\/parsing\/?$/, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "parsing.html"));
 });
 
 // SPA: any other GET (e.g. /:projectId) serves the app; the frontend reads
@@ -125,6 +133,26 @@ server.on("upgrade", (req, socket, head) => {
     socket.destroy();
     return;
   }
+  if (url.pathname === "/api/parsing/ws") {
+    const connectionId = url.searchParams.get("connectionId") || "";
+    const token = url.searchParams.get("token") || "";
+    let payload;
+    try {
+      payload = verifyToken(token);
+    } catch (e) {
+      socket.destroy();
+      return;
+    }
+    if (payload.role !== "admin" || !connectionId) {
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      if (!parsingRoutes.subscribe(connectionId, ws)) ws.close();
+    });
+    return;
+  }
+
   if (url.pathname !== "/api/monitor/ws") {
     socket.destroy();
     return;

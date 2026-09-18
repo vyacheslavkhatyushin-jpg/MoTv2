@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Тестер парсера потоков — Mine Operations Tool</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgODgiPjxwYXRoIGQ9Ik0xMCw3NiBMMTAsMTQgTDUwLDU0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZjlmMWMiIHN0cm9rZS13aWR0aD0iMTUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik01MCw1NCBMOTAsMTQgTDkwLDc2IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZjlmMWMiIHN0cm9rZS13aWR0aD0iMTUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgb3BhY2l0eT0iMC41NSIvPjwvc3ZnPg==">
+<style>
+  :root{
+    --bg:#14171a; --panel:#1b1f23; --panel-alt:#22272b; --panel-alt2:#262c31;
+    --border:#31373d; --border-soft:#282e33;
+    --text:#e4e8eb; --text-dim:#8d979f; --text-faint:#5f6a71;
+    --accent:#ff9f1c; --accent-dim:#8a5713; --accent-2:#39b8b0;
+    --danger:#e6553d; --ok:#2ecc71;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    color-scheme:dark;
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size:13px;
+  }
+  .mono{ font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  ::selection{ background:var(--accent); color:#14171a; }
+
+  /* ---- shell / top bar (переиспользовано из lamps.html) ---- */
+  #shell{ display:flex; flex-direction:column; width:100vw; height:100vh; }
+  #topBar{
+    flex:0 0 auto; height:56px; display:flex; align-items:center; gap:14px;
+    padding:0 18px; background:linear-gradient(180deg,#1c2126,#14171a);
+    border-bottom:1px solid var(--border); user-select:none;
+  }
+  #topBar .brand-mark{ width:26px; height:auto; flex-shrink:0; }
+  #topBar .brand-titles{ display:flex; flex-direction:column; line-height:1.25; }
+  #topBar .brand-titles .t1{ font-size:15px; font-weight:700; color:var(--text); letter-spacing:.2px; }
+  #topBar .brand-titles .t2{ font-size:11px; color:var(--text-dim); }
+  #topBar .brand-spacer{ flex:1 1 auto; }
+  #topBar .brand-copyright{ font-size:10.5px; color:var(--text-faint); text-align:right; line-height:1.4; }
+  #topBar a, #topBar button{
+    text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;
+    white-space:nowrap; flex-shrink:0; display:inline-flex; align-items:center; gap:5px;
+  }
+  #topBar a:hover, #topBar button:hover{ border-color:var(--accent); color:var(--accent); }
+  #topBar .nav-ic{ width:14px; height:14px; flex-shrink:0; }
+  #app{ flex:1 1 auto; min-height:0; overflow-y:auto; }
+
+  /* ---- экран входа (переиспользовано из lamps.html) ---- */
+  #authGate{
+    position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(1200px 800px at 50% 20%, #1c2126 0%, #0d0f11 70%);
+  }
+  #authGate.hidden{ display:none; }
+  #authCard{
+    width:360px; max-width:90vw; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:28px 26px 22px; box-shadow:0 20px 60px rgba(0,0,0,.45); text-align:center;
+  }
+  #authCard .auth-mark{ width:64px; height:auto; display:block; margin:0 auto 12px; }
+  #authCard h1{ margin:0 0 2px; font-size:22px; font-weight:700; color:var(--text); text-align:center; letter-spacing:.3px; }
+  #authCard .auth-tagline{ font-size:11px; color:var(--text-dim); text-align:center; letter-spacing:.06em; text-transform:uppercase; margin:0 0 16px; }
+  #authCard h2{ margin:0 0 18px; font-size:12px; font-weight:500; color:var(--text-dim); text-align:center; }
+  #authCard label{ display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:6px; text-align:left; }
+  #authCard input[type="password"], #authCard input[type="text"]{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:9px 10px; font-size:13px; font-family:inherit; letter-spacing:1px;
+  }
+  #authCard input[type="password"]:focus, #authCard input[type="text"]:focus{ outline:none; border-color:var(--accent); }
+  #authCard #authError{ min-height:16px; font-size:11.5px; color:var(--danger); margin-top:8px; text-align:left; }
+  #authCard #btnAuthSubmit{
+    width:100%; margin-top:10px; padding:9px; border-radius:5px; border:1px solid var(--accent);
+    background:var(--accent); color:#14171a; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;
+  }
+  #authCard #btnAuthSubmit:hover{ filter:brightness(1.08); }
+  #authCard .authHint{ margin-top:14px; font-size:10.5px; color:var(--text-faint); text-align:center; line-height:1.5; }
+
+  /* ---- страница ---- */
+  .wrap{ max-width:1240px; margin:0 auto; padding:20px 28px 60px; }
+  .top{display:flex; align-items:flex-start; justify-content:space-between; gap:24px; flex-wrap:wrap; margin-bottom:8px;}
+  .top h1{font-size:22px; margin:2px 0 0;}
+  .top .sub{color:var(--text-dim); font-size:13px; margin-top:6px; max-width:640px; line-height:1.5;}
+  .crumb{ font-size:11.5px; color:var(--text-faint); }
+  .badge{
+    display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
+    color:var(--accent); background:rgba(255,159,28,0.1); border:1px solid rgba(255,159,28,0.35);
+    padding:5px 10px 5px 8px; border-radius:999px; white-space:nowrap; flex-shrink:0;
+  }
+  .badge svg{width:13px;height:13px;}
+
+  .tabs{display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:20px; flex-wrap:wrap;}
+  .tab-btn{
+    appearance:none; background:none; border:none; color:var(--text-dim); font-family:inherit;
+    font-size:13.5px; font-weight:600; padding:11px 16px; cursor:pointer; border-bottom:2px solid transparent;
+    margin-bottom:-1px; transition:color .15s;
+  }
+  .tab-btn:hover{color:var(--text);}
+  .tab-btn.active{color:var(--text); border-bottom-color:var(--accent-2);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:22px;}
+  .card + .card{margin-top:16px;}
+  .card-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;}
+  .card-head h3{font-size:15px; margin:0;}
+  .card-head .hint{font-size:12px; color:var(--text-dim);}
+
+  .field-row{display:grid; grid-template-columns:200px 1fr; gap:16px; align-items:center; margin-bottom:14px;}
+  .field-row:last-child{margin-bottom:0;}
+  .field-row label{font-size:13px; color:var(--text-dim); font-weight:500;}
+  input[type=text], input[type=password], select, textarea{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    font-family:inherit; font-size:13px; padding:9px 11px; border-radius:6px; outline:none;
+  }
+  input.mono, textarea.mono{font-size:12.5px;}
+  input:focus, select:focus, textarea:focus{border-color:var(--accent-2);}
+  select{cursor:pointer;}
+
+  .two-col{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  @media (max-width:720px){ .two-col{grid-template-columns:1fr;} .field-row{grid-template-columns:1fr;} }
+
+  .btn{
+    appearance:none; border:1px solid var(--border); background:var(--panel-alt); color:var(--text);
+    font-family:inherit; font-size:12.5px; font-weight:600; padding:8px 14px; border-radius:6px;
+    cursor:pointer; display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#14171a;}
+  .btn.primary:hover{filter:brightness(1.06); border-color:var(--accent);}
+  .btn.ghost{background:transparent; border-color:transparent; color:var(--text-dim);}
+  .btn.ghost:hover{color:var(--danger); background:rgba(230,85,61,0.08); border-color:transparent;}
+  .btn.sm{padding:6px 10px; font-size:12px;}
+  .btn:disabled{opacity:.5; cursor:default;}
+  .btn svg{width:14px; height:14px;}
+
+  .endpoint-row, .mtype-card{border:1px solid var(--border); border-radius:8px; background:var(--panel-alt);}
+  .endpoint-row{display:grid; grid-template-columns:1fr 1fr auto; gap:10px; padding:10px 12px; align-items:center; margin-bottom:8px;}
+  .endpoint-row:last-of-type{margin-bottom:0;}
+
+  .mtype-card{padding:18px; margin-bottom:14px;}
+  .mtype-card:last-child{margin-bottom:0;}
+  .mtype-top{display:flex; gap:16px; align-items:flex-end; margin-bottom:16px; flex-wrap:wrap;}
+  .mtype-top .grp{flex:1; min-width:180px;}
+  .mtype-top .grp label{display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em;}
+
+  table.fields{width:100%; border-collapse:collapse;}
+  table.fields th{
+    text-align:left; font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;
+    font-weight:600; padding:0 10px 8px; border-bottom:1px solid var(--border);
+  }
+  table.fields td{padding:6px 10px 6px 0; vertical-align:middle;}
+  table.fields td:first-child{padding-left:0;}
+  table.fields tr + tr td{border-top:1px solid var(--border);}
+  table.fields tr td{padding-top:10px; padding-bottom:10px;}
+  .add-field-btn{margin-top:14px;}
+
+  .pill{display:inline-flex; align-items:center; padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:600;}
+  .pill.ok{background:rgba(46,204,113,0.12); color:var(--ok); border:1px solid rgba(46,204,113,0.35);}
+  .pill.bad{background:rgba(230,85,61,0.12); color:var(--danger); border:1px solid rgba(230,85,61,0.35);}
+  .pill.neutral{background:rgba(141,151,159,0.12); color:var(--text-dim); border:1px solid var(--border);}
+
+  .tester-layout{display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start;}
+  @media (max-width:900px){ .tester-layout{grid-template-columns:1fr;} }
+  .examples{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;}
+  textarea.json-in{min-height:220px; resize:vertical; line-height:1.5;}
+
+  .result-empty{color:var(--text-dim); font-size:13px; padding:30px 10px; text-align:center; border:1px dashed var(--border); border-radius:8px;}
+  .result-head{display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;}
+  .kv{display:grid; grid-template-columns:120px 1fr; gap:8px 12px; font-size:13px; margin-bottom:16px;}
+  .kv .k{color:var(--text-dim);}
+  .kv .v{font-family:ui-monospace,monospace; color:var(--text);}
+  table.attrs{width:100%; border-collapse:collapse; font-size:13px;}
+  table.attrs th{text-align:left; font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; padding:0 8px 8px 0; border-bottom:1px solid var(--border);}
+  table.attrs td{padding:8px 8px 8px 0; border-top:1px solid var(--border);}
+  table.attrs td.attr{font-weight:600;}
+  table.attrs td.raw{font-family:ui-monospace,monospace; color:var(--text-dim);}
+  table.attrs td.val{font-family:ui-monospace,monospace; color:var(--ok);}
+
+  .foot-note{margin-top:28px; display:flex; gap:10px; align-items:flex-start; color:var(--text-dim); font-size:12.5px; line-height:1.6;}
+  .foot-note svg{width:16px; height:16px; flex-shrink:0; margin-top:2px; color:var(--accent-2);}
+
+  textarea.catalog-in{min-height:160px; resize:vertical; line-height:1.5;}
+  table.catalog-preview{width:100%; border-collapse:collapse; font-size:12px; margin-top:14px;}
+  table.catalog-preview th{text-align:left; font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.03em; padding:0 8px 6px 0; border-bottom:1px solid var(--border);}
+  table.catalog-preview td{padding:6px 8px 6px 0; border-top:1px solid var(--border); font-family:ui-monospace,monospace; color:var(--text-dim);}
+  .scroll-y{max-height:220px; overflow-y:auto;}
+  .group-cfg-row{display:grid; grid-template-columns:70px 90px 1fr 1fr 1fr; gap:10px; align-items:center; padding:10px 0; border-top:1px solid var(--border);}
+  .group-cfg-row:first-child{border-top:none;}
+  .group-cfg-row .lbl{font-family:ui-monospace,monospace; font-size:12px; color:var(--accent-2);}
+  .group-cfg-row .cnt{font-size:11.5px; color:var(--text-dim);}
+  .profile-card{border:1px solid var(--border); border-radius:8px; background:var(--panel-alt); padding:18px; margin-bottom:14px;}
+  .profile-card:last-child{margin-bottom:0;}
+  .profile-name-row{display:flex; gap:12px; align-items:center; margin-bottom:14px;}
+  .profile-name-row input{flex:1;}
+  table.profile-ch{width:100%; border-collapse:collapse;}
+  table.profile-ch th{text-align:left; font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.03em; padding:0 8px 6px 0; border-bottom:1px solid var(--border);}
+  table.profile-ch td{padding:8px 8px 8px 0; border-top:1px solid var(--border);}
+
+  .live-row{display:flex; gap:10px; align-items:flex-start; padding:8px 10px; border-bottom:1px solid var(--border); font-family:ui-monospace,monospace; font-size:12px; line-height:1.6;}
+  .live-row:hover{background:var(--panel-alt);}
+  .live-row .t{color:var(--text-dim); flex-shrink:0; width:78px;}
+  .live-row .ep{color:var(--accent-2); flex-shrink:0; width:70px;}
+  .live-row .json{color:var(--text); flex:1; word-break:break-all;}
+  .live-row .copy-btn{flex-shrink:0; padding:2px 8px; font-size:11px;}
+  .live-row.err .json{color:var(--danger);}
+  .live-dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--ok); margin-right:8px; animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+  #forbidden{ text-align:center; color:var(--text-faint); padding:80px 20px; line-height:1.6; }
+</style>
+</head>
+<body>
+
+<!-- ================= Экран входа по паролю (тот же кэш сессии, что в index.html) ================= -->
+<div id="authGate">
+  <div id="authCard">
+    <svg class="auth-mark" viewBox="0 0 100 88" aria-hidden="true"><path d="M10,76 L10,14 L50,54" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><path d="M50,54 L90,14 L90,76" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/></svg>
+    <h1>MoT</h1>
+    <div class="auth-tagline">Mine Operations Tool</div>
+    <h2>Тестер парсера потоков — вход</h2>
+    <label for="authUsername">Логин</label>
+    <input type="text" id="authUsername" autocomplete="username" placeholder="Логин" style="margin-bottom:10px;" />
+    <label for="authPassword">Пароль</label>
+    <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
+    <div id="authError"></div>
+    <button id="btnAuthSubmit">Войти</button>
+    <div class="authHint">Доступ только для администраторов.<br>© 2026 MoT. Все права защищены.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var gate = document.getElementById("authGate");
+  var userInput = document.getElementById("authUsername");
+  var passInput = document.getElementById("authPassword");
+  var errorEl = document.getElementById("authError");
+  var btn = document.getElementById("btnAuthSubmit");
+
+  function unlock(session){
+    gate.classList.add("hidden");
+    window.__auth = session;
+    document.dispatchEvent(new CustomEvent("kzmAuthReady"));
+  }
+  function readStoredSession(){
+    try {
+      var raw = localStorage.getItem("kzmAuthSession");
+      if (!raw) return null;
+      var s = JSON.parse(raw);
+      if (s && s.token && s.username && s.role) return s;
+    } catch(e){}
+    return null;
+  }
+  async function tryLogin(){
+    var username = (userInput.value || "").trim();
+    var password = passInput.value || "";
+    if (!username || !password) {
+      errorEl.textContent = "Введите логин и пароль.";
+      return;
+    }
+    btn.disabled = true;
+    try {
+      var resp = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username, password: password }),
+      });
+      if (!resp.ok) {
+        errorEl.textContent = "Неверный логин или пароль.";
+        passInput.value = "";
+        passInput.focus();
+        return;
+      }
+      var data = await resp.json();
+      var session = { token: data.token, username: data.username, role: data.role };
+      try { localStorage.setItem("kzmAuthSession", JSON.stringify(session)); } catch(e){}
+      errorEl.textContent = "";
+      unlock(session);
+    } catch(e) {
+      errorEl.textContent = "Не удалось связаться с сервером.";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  var stored = readStoredSession();
+  if (stored) { unlock(stored); } else { userInput.focus(); }
+  btn.addEventListener("click", tryLogin);
+  passInput.addEventListener("keydown", function(e){ if (e.key === "Enter") tryLogin(); });
+  userInput.addEventListener("keydown", function(e){ if (e.key === "Enter") passInput.focus(); });
+  window.__kzmLogout = function(){
+    try { localStorage.removeItem("kzmAuthSession"); } catch(e){}
+    location.reload();
+  };
+})();
+</script>
+
+<div id="shell">
+  <header id="topBar">
+    <svg class="brand-mark" viewBox="0 0 100 88" aria-hidden="true"><path d="M10,76 L10,14 L50,54" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><path d="M50,54 L90,14 L90,76" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/></svg>
+    <div class="brand-titles">
+      <span class="t1">MoT</span>
+      <span class="t2">Тестер парсера потоков</span>
+    </div>
+    <div class="brand-spacer"></div>
+    <div style="display:flex; align-items:center; gap:10px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
+      <span id="sessionUser"></span>
+      <a id="navToEditor" title="Вернуться в редактор"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" /><path d="M13.5 6.5l4 4" /></svg> Редактор</a>
+      <button id="btnLogout" title="Выйти">Выйти</button>
+    </div>
+    <div class="brand-copyright">© 2026 MoT<br>Все права защищены</div>
+  </header>
+
+  <div id="app">
+    <div id="forbidden" style="display:none;"><b>Доступ только для администраторов.</b><br>Обратитесь к администратору системы.</div>
+
+    <div class="wrap" id="toolWrap" style="display:none;">
+      <div class="top">
+        <div>
+          <span class="crumb"><b>Тестер парсера потоков</b></span>
+          <h1>Конструктор источников данных</h1>
+          <div class="sub">Проверка подключения и разбора сообщений на реальном стороннем сервере — не привязано к оборудованию и не пишет в мониторинг проекта.</div>
+        </div>
+        <span class="badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/></svg>
+          Тестовый инструмент — только для admin
+        </span>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="conn">Подключение</button>
+        <button class="tab-btn" data-tab="live">Живой поток</button>
+        <button class="tab-btn" data-tab="types">Типы сообщений</button>
+        <button class="tab-btn" data-tab="catalog">Каталог и профили</button>
+        <button class="tab-btn" data-tab="test">Тестер</button>
+      </div>
+
+      <!-- TAB 1: CONNECTION -->
+      <div class="panel active" id="panel-conn">
+        <div class="card">
+          <div class="card-head">
+            <h3>Сервер и авторизация</h3>
+            <span class="hint">Реальное подключение — логин выполняется на сервере MoT, не в браузере</span>
+          </div>
+          <div class="field-row">
+            <label>Адрес сервера</label>
+            <input class="mono" type="text" id="conn-baseurl" value="http://10.22.18.194">
+          </div>
+          <div class="field-row">
+            <label>Тип авторизации</label>
+            <select id="conn-authtype">
+              <option value="django-session-form" selected>Django-сессия (форма логина + CSRF)</option>
+              <option value="none">Без авторизации</option>
+            </select>
+          </div>
+          <div class="two-col" style="margin-top:14px;">
+            <div>
+              <div class="field-row" style="grid-template-columns:1fr;">
+                <label>Логин</label>
+                <input type="text" id="conn-username" value="">
+              </div>
+            </div>
+            <div>
+              <div class="field-row" style="grid-template-columns:1fr;">
+                <label>Пароль</label>
+                <input type="password" id="conn-password" value="">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Потоки (эндпоинты)</h3>
+            <span class="hint">Один физический сервер может отдавать несколько WS-каналов</span>
+          </div>
+          <div id="endpoints-list"></div>
+          <button class="btn sm" style="margin-top:12px;" id="add-endpoint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Добавить поток
+          </button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Конверт сообщения</h3>
+            <span class="hint">Используется на вкладке «Типы сообщений» и в тестере</span>
+          </div>
+          <div class="field-row">
+            <label>Путь к типу сообщения</label>
+            <input class="mono" type="text" id="conn-typepath" value="$.WSM_TYPE">
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB LIVE: RAW STREAM VIEWER -->
+      <div class="panel" id="panel-live">
+        <div class="card">
+          <div class="card-head">
+            <h3>Сырой поток с сервера</h3>
+            <span class="hint">Реальное подключение — сервер MoT логинится и открывает WS, сюда транслируются сырые сообщения</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
+            <button class="btn primary sm" id="live-toggle">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 3 14 9-14 9V3Z"/></svg>
+              Начать прослушивание
+            </button>
+            <button class="btn ghost sm" id="live-clear">Очистить</button>
+            <span class="hint" id="live-status">Не запущено</span>
+          </div>
+          <div class="scroll-y" id="live-console" style="max-height:420px;">
+            <div class="result-empty">Заполни «Подключение» выше и нажми «Начать прослушивание» — сюда начнут падать сырые сообщения по мере поступления</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: MESSAGE TYPES -->
+      <div class="panel" id="panel-types">
+        <div class="card" style="margin-bottom:18px;">
+          <div class="card-head" style="margin-bottom:0;">
+            <div>
+              <h3>Типы сообщений и привязка полей</h3>
+              <div class="hint" style="margin-top:4px;">Для каждого типа — где адрес устройства и какие поля куда попадают</div>
+            </div>
+            <button class="btn primary sm" id="add-mtype">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Новый тип сообщения
+            </button>
+          </div>
+        </div>
+        <div id="mtypes-list"></div>
+      </div>
+
+      <!-- TAB 3: CATALOG + PROFILES -->
+      <div class="panel" id="panel-catalog">
+        <div class="card">
+          <div class="card-head">
+            <h3>Импорт каталога тегов</h3>
+            <span class="hint">Для источников, где адрес приходит не в сообщении, а только числовой id (например, listopctag у SCADA-систем)</span>
+          </div>
+          <textarea class="mono catalog-in" id="catalog-input" spellcheck="false"></textarea>
+          <div style="display:flex; gap:16px; align-items:center; margin-top:12px; flex-wrap:wrap;">
+            <button class="btn primary sm" id="parse-catalog">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              Разобрать каталог
+            </button>
+            <span class="hint" id="catalog-parse-status">Вставь ответ эндпоинта вида listopctag/ и нажми «Разобрать»</span>
+          </div>
+          <div class="scroll-y" id="catalog-preview-wrap" style="display:none;">
+            <table class="catalog-preview">
+              <thead><tr><th>id</th><th>группа</th><th>idjs</th><th>typedata</th><th>option</th></tr></thead>
+              <tbody id="catalog-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Группы устройств (idjs) — как получить адрес</h3>
+            <span class="hint">Разные idjs в одном каталоге могут требовать разного способа адресации</span>
+          </div>
+          <div id="group-cfg-list"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Профили каналов</h3>
+            <span class="hint">Переиспользуемая раскладка "номер канала → атрибут" — одна на модель прибора</span>
+          </div>
+          <div id="profiles-list"></div>
+          <button class="btn sm" style="margin-top:14px;" id="add-profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Новый профиль
+          </button>
+        </div>
+      </div>
+
+      <!-- TAB 4: TESTER -->
+      <div class="panel" id="panel-test">
+        <div class="card">
+          <div class="card-head">
+            <h3>Проверка сообщения</h3>
+            <span class="hint">Вставь JSON вручную или перенеси сюда сообщение из «Живого потока»</span>
+          </div>
+          <div class="tabs" style="margin-bottom:16px;">
+            <button class="tab-btn active" data-mode="bytype">По типу сообщения</button>
+            <button class="tab-btn" data-mode="bypoint">Поток точек (через каталог)</button>
+          </div>
+          <div class="tester-layout">
+            <div>
+              <textarea class="mono json-in" id="test-input" spellcheck="false" placeholder="Вставь сырое сообщение или перенеси его из «Живого потока»"></textarea>
+              <button class="btn primary" style="margin-top:12px;" id="run-test">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 3 14 9-14 9V3Z"/></svg>
+                Проверить сообщение
+              </button>
+            </div>
+            <div id="test-result">
+              <div class="result-empty">Результат разбора появится здесь</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16v-4M12 8h.01M22 12c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2s10 4.477 10 10Z"/></svg>
+        <div>Это изолированный тестовый инструмент — он не пишет в <b style="color:var(--text)">monitor_status</b> и не связан с оборудованием проекта. Когда парсер проверен на реальных потоках, интеграция с конкретными объектами настраивается отдельно.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+function apiHeaders(extra) {
+  const auth = window.__auth;
+  const headers = Object.assign({}, extra || {});
+  if (auth && auth.token) headers["Authorization"] = "Bearer " + auth.token;
+  return headers;
+}
+async function apiFetch(url, options) {
+  const resp = await fetch(url, Object.assign({}, options, { headers: apiHeaders((options && options.headers) || {}) }));
+  if (resp.status === 401) {
+    if (window.__kzmLogout) window.__kzmLogout();
+    throw new Error("Сессия истекла, требуется повторный вход.");
+  }
+  return resp;
+}
+
+document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
+document.getElementById("navToEditor").href = "/";
+
+function boot(){
+  const auth = window.__auth;
+  document.getElementById("sessionUser").textContent = auth ? auth.username + " (" + auth.role + ")" : "";
+  if (!auth || auth.role !== "admin") {
+    document.getElementById("forbidden").style.display = "block";
+    return;
+  }
+  document.getElementById("toolWrap").style.display = "block";
+  initTool(apiFetch);
+}
+if (window.__auth) boot();
+else document.addEventListener("kzmAuthReady", boot, { once: true });
+
+function initTool(apiFetch){
+  var TARGET_ATTRS = [
+    { v: "online", label: "Статус: онлайн/офлайн" },
+    { v: "personCount", label: "Счётчик людей" },
+    { v: "vehicleCount", label: "Счётчик техники" },
+    { v: "batteryLvl", label: "Заряд батареи" },
+    { v: "voltage", label: "Напряжение" },
+    { v: "rssi", label: "Уровень сигнала (RSSI)" },
+    { v: "firmware", label: "Версия прошивки" },
+    { v: "tagPulseEvent", label: "Событие: метка зарегистрирована" },
+    { v: "temperature", label: "Температура" },
+    { v: "custom", label: "Своя метрика (укажите имя) →" }
+  ];
+  var TRANSFORMS = [
+    { v: "none", label: "Как есть" },
+    { v: "boolean", label: "В логическое (truthy)" },
+    { v: "equals", label: "Равно значению →" },
+    { v: "multiply", label: "Умножить на коэффициент →" },
+    { v: "round2", label: "Округлить до 2 знаков" }
+  ];
+
+  var state = {
+    endpoints: [
+      { name: "sppd", path: "/sppd/v1/ws/stream" },
+      { name: "sbeacon", path: "/sbeacon/v1/ws/stream" }
+    ],
+    mtypes: [
+      {
+        id: "mt1", match: "SB_EVENT", addressPath: "$.Addr",
+        fields: [
+          { id:"f1", source:"$.State.OnLine", target:"online", transform:"boolean", tval:"" },
+          { id:"f2", source:"$.TxRx", target:"rssi", transform:"none", tval:"" },
+          { id:"f3", source:"$.VLine.VLine", target:"voltage", transform:"round2", tval:"" }
+        ]
+      },
+      {
+        id: "mt2", match: "NOFTAG", addressPath: "$.Addr",
+        fields: [
+          { id:"f4", source:"$.NOfMan", target:"personCount", transform:"none", tval:"" },
+          { id:"f5", source:"$.NofVehicle", target:"vehicleCount", transform:"none", tval:"" }
+        ]
+      }
+    ],
+    catalogRows: [],
+    groupConfigs: {},
+    profiles: [
+      {
+        id: "ags5", name: "АГС — газоанализатор (5 каналов)",
+        channels: [
+          { td:1, target:"custom", customName:"no2", unit:"мг/м³", transform:"none", tval:"" },
+          { td:2, target:"custom", customName:"so2", unit:"мг/м³", transform:"none", tval:"" },
+          { td:3, target:"custom", customName:"co", unit:"мг/м³", transform:"none", tval:"" },
+          { td:4, target:"custom", customName:"co2", unit:"%", transform:"none", tval:"" },
+          { td:5, target:"temperature", customName:"", unit:"°C", transform:"none", tval:"" }
+        ]
+      }
+    ]
+  };
+  var CATALOG_DEFAULT = JSON.stringify({ opctag: {} }, null, 2);
+  var uidN = 10;
+  function uid(p){ return p + (uidN++); }
+
+  /* ---------- tabs ---------- */
+  document.querySelectorAll(".tab-btn[data-tab]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".tab-btn[data-tab]").forEach(function(b){ b.classList.remove("active"); });
+      document.querySelectorAll(".panel").forEach(function(p){ p.classList.remove("active"); });
+      btn.classList.add("active");
+      document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+    });
+  });
+
+  /* ---------- endpoints ---------- */
+  function renderEndpoints(){
+    var el = document.getElementById("endpoints-list");
+    el.innerHTML = "";
+    state.endpoints.forEach(function(ep, i){
+      var row = document.createElement("div");
+      row.className = "endpoint-row";
+      row.innerHTML =
+        '<input type="text" class="mono" data-ep="' + i + '" data-f="name" value="' + ep.name.replace(/"/g,'&quot;') + '" placeholder="имя потока">' +
+        '<input type="text" class="mono" data-ep="' + i + '" data-f="path" value="' + ep.path.replace(/"/g,'&quot;') + '" placeholder="/ws/путь">' +
+        '<button class="btn ghost sm" data-del-ep="' + i + '" title="Удалить">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></svg>' +
+        '</button>';
+      el.appendChild(row);
+    });
+    el.querySelectorAll("input[data-ep]").forEach(function(inp){
+      inp.addEventListener("input", function(){
+        state.endpoints[+inp.dataset.ep][inp.dataset.f] = inp.value;
+      });
+    });
+    el.querySelectorAll("[data-del-ep]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        state.endpoints.splice(+btn.dataset.delEp, 1);
+        renderEndpoints();
+      });
+    });
+  }
+  document.getElementById("add-endpoint").addEventListener("click", function(){
+    state.endpoints.push({ name: "", path: "" });
+    renderEndpoints();
+  });
+
+  /* ---------- message types ---------- */
+  function optionsHtml(list, current){
+    return list.map(function(o){
+      return '<option value="' + o.v + '"' + (o.v === current ? " selected" : "") + '>' + o.label + '</option>';
+    }).join("");
+  }
+
+  function renderMtypes(){
+    var el = document.getElementById("mtypes-list");
+    el.innerHTML = "";
+    state.mtypes.forEach(function(mt){
+      var card = document.createElement("div");
+      card.className = "mtype-card";
+      var rowsHtml = mt.fields.map(function(f){
+        var extraHtml = "";
+        if (f.target === "custom") {
+          extraHtml = '<input class="mono" type="text" data-ff="customName" value="' + (f.customName||"").replace(/"/g,'&quot;') + '" placeholder="имя метрики" style="width:120px;">';
+        } else if (f.transform === "equals" || f.transform === "multiply") {
+          extraHtml = '<input class="mono" type="text" data-ff="tval" value="' + (f.tval||"").replace(/"/g,'&quot;') + '" placeholder="значение" style="width:90px;">';
+        }
+        return '<tr data-field="' + f.id + '">' +
+          '<td><input class="mono" type="text" data-ff="source" value="' + f.source.replace(/"/g,'&quot;') + '" placeholder="$.Path.To.Value" style="min-width:200px;"></td>' +
+          '<td><select data-ff="target">' + optionsHtml(TARGET_ATTRS, f.target) + '</select></td>' +
+          '<td><select data-ff="transform">' + optionsHtml(TRANSFORMS, f.transform) + '</select></td>' +
+          '<td>' + extraHtml + '</td>' +
+          '<td><button class="btn ghost sm" data-del-field="' + f.id + '">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>' +
+          '</button></td>' +
+        '</tr>';
+      }).join("");
+
+      card.innerHTML =
+        '<div class="mtype-top">' +
+          '<div class="grp"><label>Значение-дискриминатор</label><input class="mono" type="text" data-mt="match" value="' + mt.match.replace(/"/g,'&quot;') + '" placeholder="SB_EVENT"></div>' +
+          '<div class="grp"><label>Путь к адресу устройства</label><input class="mono" type="text" data-mt="addressPath" value="' + mt.addressPath.replace(/"/g,'&quot;') + '" placeholder="$.Addr"></div>' +
+          '<button class="btn ghost sm" data-del-mtype="' + mt.id + '">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></svg>' +
+            ' Удалить тип' +
+          '</button>' +
+        '</div>' +
+        '<table class="fields">' +
+          '<thead><tr><th style="width:32%;">Путь к полю</th><th style="width:24%;">Атрибут в системе</th><th style="width:20%;">Преобразование</th><th style="width:14%;">Параметр</th><th></th></tr></thead>' +
+          '<tbody>' + rowsHtml + '</tbody>' +
+        '</table>' +
+        '<button class="btn sm add-field-btn" data-add-field="' + mt.id + '">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>' +
+          ' Добавить поле' +
+        '</button>';
+      el.appendChild(card);
+    });
+
+    el.querySelectorAll("[data-mt]").forEach(function(inp){
+      inp.addEventListener("input", function(){
+        var card = inp.closest(".mtype-card");
+        var idx = state.mtypes.findIndex(function(m){ return m.id === card.querySelector("[data-del-mtype]").dataset.delMtype; });
+        state.mtypes[idx][inp.dataset.mt] = inp.value;
+      });
+    });
+    el.querySelectorAll("[data-del-mtype]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        state.mtypes = state.mtypes.filter(function(m){ return m.id !== btn.dataset.delMtype; });
+        renderMtypes();
+      });
+    });
+    el.querySelectorAll("[data-add-field]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var mt = state.mtypes.find(function(m){ return m.id === btn.dataset.addField; });
+        mt.fields.push({ id: uid("f"), source: "", target: "online", transform: "none", tval: "" });
+        renderMtypes();
+      });
+    });
+    el.querySelectorAll("[data-del-field]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var card = btn.closest(".mtype-card");
+        var mtId = card.querySelector("[data-del-mtype]").dataset.delMtype;
+        var mt = state.mtypes.find(function(m){ return m.id === mtId; });
+        mt.fields = mt.fields.filter(function(f){ return f.id !== btn.dataset.delField; });
+        renderMtypes();
+      });
+    });
+    el.querySelectorAll("tr[data-field] [data-ff]").forEach(function(inp){
+      inp.addEventListener("input", function(){
+        var tr = inp.closest("tr");
+        var card = inp.closest(".mtype-card");
+        var mtId = card.querySelector("[data-del-mtype]").dataset.delMtype;
+        var mt = state.mtypes.find(function(m){ return m.id === mtId; });
+        var f = mt.fields.find(function(x){ return x.id === tr.dataset.field; });
+        f[inp.dataset.ff] = inp.value;
+        if (inp.dataset.ff === "transform" || inp.dataset.ff === "target") renderMtypes();
+      });
+    });
+  }
+  document.getElementById("add-mtype").addEventListener("click", function(){
+    state.mtypes.push({ id: uid("mt"), match: "", addressPath: "$.Addr", fields: [] });
+    renderMtypes();
+  });
+
+  /* ---------- catalog import ---------- */
+  function parseCatalogText(text){
+    var parsed = JSON.parse(text);
+    var groups = parsed && parsed.opctag ? parsed.opctag : parsed;
+    var rows = [];
+    Object.keys(groups || {}).forEach(function(groupKey){
+      (groups[groupKey] || []).forEach(function(item){
+        rows.push({
+          id: item.id, opctag: item.opctag, idjs: item.idjs,
+          typedata: item.typedata, option: item.option || {}, groupKey: groupKey
+        });
+      });
+    });
+    return rows;
+  }
+  function renderCatalogPreview(){
+    var body = document.getElementById("catalog-preview-body");
+    var wrap = document.getElementById("catalog-preview-wrap");
+    if (!state.catalogRows.length){ wrap.style.display = "none"; return; }
+    wrap.style.display = "block";
+    body.innerHTML = state.catalogRows.slice(0, 30).map(function(r){
+      return "<tr><td>" + r.id + "</td><td>" + r.groupKey + "</td><td>" + r.idjs + "</td><td>" + r.typedata + "</td><td>" +
+        (Object.keys(r.option).length ? JSON.stringify(r.option) : "—") + "</td></tr>";
+    }).join("") + (state.catalogRows.length > 30 ? '<tr><td colspan="5" style="color:var(--text-dim);">… ещё ' + (state.catalogRows.length - 30) + ' строк</td></tr>' : "");
+  }
+  function renderGroupConfigs(){
+    var el = document.getElementById("group-cfg-list");
+    var idjsList = Array.from(new Set(state.catalogRows.map(function(r){ return r.idjs; })));
+    if (!idjsList.length){
+      el.innerHTML = '<div class="hint">Разбери каталог выше, чтобы увидеть найденные группы устройств</div>';
+      return;
+    }
+    idjsList.forEach(function(idjs){
+      if (!state.groupConfigs[idjs]){
+        var hasOption = state.catalogRows.some(function(r){ return r.idjs === idjs && Object.keys(r.option).length; });
+        state.groupConfigs[idjs] = hasOption
+          ? { mode: "direct", addressRegex: "", profileId: state.profiles[0].id }
+          : { mode: "profile", addressRegex: "ags_(\\d+)_\\d+", profileId: state.profiles[0].id };
+      }
+    });
+    el.innerHTML = idjsList.map(function(idjs){
+      var count = state.catalogRows.filter(function(r){ return r.idjs === idjs; }).length;
+      var cfg = state.groupConfigs[idjs];
+      return '<div class="group-cfg-row" data-idjs="' + idjs + '">' +
+        '<div class="lbl">idjs ' + idjs + '</div>' +
+        '<div class="cnt">' + count + ' тег.</div>' +
+        '<select data-gcf="mode">' +
+          '<option value="direct"' + (cfg.mode === "direct" ? " selected" : "") + '>Прямые метаданные (option.addr/type)</option>' +
+          '<option value="profile"' + (cfg.mode === "profile" ? " selected" : "") + '>Через профиль каналов</option>' +
+        '</select>' +
+        (cfg.mode === "profile"
+          ? '<input class="mono" type="text" data-gcf="addressRegex" value="' + cfg.addressRegex.replace(/"/g,"&quot;") + '" placeholder="regex, группа 1 = адрес">' +
+            '<select data-gcf="profileId">' + state.profiles.map(function(p){ return '<option value="' + p.id + '"' + (p.id === cfg.profileId ? " selected" : "") + '>' + p.name + '</option>'; }).join("") + '</select>'
+          : '<div class="hint">Адрес — из option.addr, тип — из option.type</div><div></div>') +
+        '</div>';
+    }).join("");
+    el.querySelectorAll("[data-gcf]").forEach(function(inp){
+      inp.addEventListener("input", function(){
+        var idjs = inp.closest("[data-idjs]").dataset.idjs;
+        state.groupConfigs[idjs][inp.dataset.gcf] = inp.value;
+        if (inp.dataset.gcf === "mode") renderGroupConfigs();
+      });
+    });
+  }
+  document.getElementById("parse-catalog").addEventListener("click", function(){
+    var statusEl = document.getElementById("catalog-parse-status");
+    try {
+      state.catalogRows = parseCatalogText(document.getElementById("catalog-input").value);
+      statusEl.textContent = "Разобрано тегов: " + state.catalogRows.length;
+      statusEl.style.color = "var(--ok)";
+      renderCatalogPreview();
+      renderGroupConfigs();
+    } catch(e){
+      statusEl.textContent = "Ошибка разбора JSON: " + e.message;
+      statusEl.style.color = "var(--danger)";
+    }
+  });
+
+  /* ---------- channel profiles ---------- */
+  function renderProfiles(){
+    var el = document.getElementById("profiles-list");
+    el.innerHTML = state.profiles.map(function(p){
+      var rows = p.channels.map(function(c){
+        var extra = c.target === "custom"
+          ? '<input class="mono" type="text" data-pf="customName" value="' + (c.customName||"").replace(/"/g,"&quot;") + '" placeholder="имя" style="width:100px;">'
+          : "";
+        return '<tr data-ch="' + c.td + '">' +
+          '<td class="mono">' + c.td + '</td>' +
+          '<td><select data-pf="target">' + optionsHtml(TARGET_ATTRS, c.target) + '</select></td>' +
+          '<td>' + extra + '</td>' +
+          '<td><input class="mono" type="text" data-pf="unit" value="' + (c.unit||"").replace(/"/g,"&quot;") + '" placeholder="ед." style="width:80px;"></td>' +
+          '<td><button class="btn ghost sm" data-del-ch="' + c.td + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></td>' +
+        '</tr>';
+      }).join("");
+      return '<div class="profile-card" data-profile="' + p.id + '">' +
+        '<div class="profile-name-row"><input class="mono" type="text" data-pfname value="' + p.name.replace(/"/g,"&quot;") + '"></div>' +
+        '<table class="profile-ch"><thead><tr><th style="width:12%;">Канал</th><th style="width:34%;">Атрибут</th><th style="width:22%;">Имя</th><th style="width:20%;">Ед. изм.</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
+        '<button class="btn sm" style="margin-top:12px;" data-add-ch="' + p.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Добавить канал</button>' +
+      '</div>';
+    }).join("");
+
+    el.querySelectorAll("[data-pfname]").forEach(function(inp){
+      inp.addEventListener("input", function(){
+        state.profiles.find(function(p){ return p.id === inp.closest("[data-profile]").dataset.profile; }).name = inp.value;
+      });
+    });
+    el.querySelectorAll("tr[data-ch] [data-pf]").forEach(function(inp){
+      inp.addEventListener("input", function(){
+        var p = state.profiles.find(function(p){ return p.id === inp.closest("[data-profile]").dataset.profile; });
+        var ch = p.channels.find(function(c){ return String(c.td) === inp.closest("tr").dataset.ch; });
+        ch[inp.dataset.pf] = inp.value;
+        if (inp.dataset.pf === "target") renderProfiles();
+      });
+    });
+    el.querySelectorAll("[data-del-ch]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var p = state.profiles.find(function(p){ return p.id === btn.closest("[data-profile]").dataset.profile; });
+        p.channels = p.channels.filter(function(c){ return String(c.td) !== btn.dataset.delCh; });
+        renderProfiles();
+      });
+    });
+    el.querySelectorAll("[data-add-ch]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var p = state.profiles.find(function(p){ return p.id === btn.dataset.addCh; });
+        var nextTd = (Math.max.apply(null, p.channels.map(function(c){ return c.td; }).concat([0])) + 1);
+        p.channels.push({ td: nextTd, target: "custom", customName: "", unit: "", transform: "none", tval: "" });
+        renderProfiles();
+      });
+    });
+  }
+  document.getElementById("add-profile").addEventListener("click", function(){
+    var id = uid("profile");
+    state.profiles.push({ id: id, name: "Новый профиль", channels: [{ td:1, target:"custom", customName:"", unit:"", transform:"none", tval:"" }] });
+    renderProfiles();
+    renderGroupConfigs();
+  });
+
+  /* ---------- tester engine ---------- */
+  function resolvePath(obj, path){
+    if (!path) return undefined;
+    var parts = path.replace(/^\$\.?/, "").split(".").filter(Boolean);
+    var cur = obj;
+    for (var i = 0; i < parts.length; i++){
+      if (cur == null) return undefined;
+      cur = cur[parts[i]];
+    }
+    return cur;
+  }
+  function applyTransform(raw, transform, tval){
+    if (raw === undefined) return undefined;
+    if (transform === "boolean") return Boolean(raw);
+    if (transform === "equals") return String(raw) === String(tval);
+    if (transform === "multiply") {
+      var factor = parseFloat(tval);
+      return typeof raw === "number" && !isNaN(factor) ? Math.round(raw * factor * 100) / 100 : raw;
+    }
+    if (transform === "round2") return typeof raw === "number" ? Math.round(raw * 100) / 100 : raw;
+    return raw;
+  }
+  function attrLabel(f){
+    if (f.target === "custom") return (f.customName || "(имя не задано)") + " · своя метрика";
+    var def = TARGET_ATTRS.find(function(a){ return a.v === f.target; });
+    return def ? def.label : f.target;
+  }
+
+  var testerMode = "bytype";
+  document.querySelectorAll("[data-mode]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      testerMode = btn.dataset.mode;
+      document.querySelectorAll("[data-mode]").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      runTest();
+    });
+  });
+
+  function resolveCatalogRow(id){
+    return state.catalogRows.find(function(r){ return String(r.id) === String(id); });
+  }
+  function runPointTest(){
+    var resEl = document.getElementById("test-result");
+    var raw = document.getElementById("test-input").value.trim();
+    if (!raw) { resEl.innerHTML = '<div class="result-empty">Вставь сообщение для разбора</div>'; return; }
+    var msg;
+    try { msg = JSON.parse(raw); }
+    catch (e){
+      resEl.innerHTML = '<div class="result-empty" style="border-color:rgba(230,85,61,0.4); color:var(--danger);">Невалидный JSON: ' + e.message + '</div>';
+      return;
+    }
+    var rowsHtml = (msg.data || []).map(function(item){
+      var row = resolveCatalogRow(item.id);
+      if (!row){
+        return '<tr><td class="attr">id ' + item.id + '</td><td class="raw">—</td><td><span class="pill bad">нет в каталоге</span></td></tr>';
+      }
+      var cfg = state.groupConfigs[row.idjs] || { mode: "direct" };
+      if (cfg.mode === "direct"){
+        var addr = row.option && row.option.addr ? row.option.addr : row.groupKey;
+        var label = row.option && row.option.type ? row.option.type : "(тип не указан)";
+        return '<tr><td class="attr">' + label + '</td><td class="raw">адрес ' + addr + ', группа ' + row.groupKey + '</td><td class="val">' + JSON.stringify(item.v) + '</td></tr>';
+      }
+      var profile = state.profiles.find(function(p){ return p.id === cfg.profileId; });
+      var ch = profile ? profile.channels.find(function(c){ return c.td === row.typedata; }) : null;
+      var addrMatch = null;
+      try { addrMatch = new RegExp(cfg.addressRegex).exec(row.groupKey); } catch(e){}
+      var address = addrMatch ? addrMatch[1] : row.groupKey;
+      if (!ch){
+        return '<tr><td class="attr">канал ' + row.typedata + '</td><td class="raw">адрес ' + address + ' · профиль не описывает этот канал</td><td><span class="pill neutral">нет в профиле</span></td></tr>';
+      }
+      var val = applyTransform(item.v, ch.transform, ch.tval);
+      var label = ch.target === "custom" ? ch.customName : (TARGET_ATTRS.find(function(a){ return a.v === ch.target; }) || {}).label;
+      return '<tr><td class="attr">' + label + (ch.unit ? ' <span style="color:var(--text-dim);">(' + ch.unit + ')</span>' : '') + '</td><td class="raw">адрес ' + address + ', канал ' + row.typedata + '</td><td class="val">' + JSON.stringify(val) + '</td></tr>';
+    }).join("");
+    resEl.innerHTML =
+      '<div class="result-head"><span class="pill ok">Разобрано через каталог тегов</span></div>' +
+      '<table class="attrs"><thead><tr><th>Атрибут</th><th>Адрес / группа</th><th>Значение</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>';
+  }
+
+  function runTest(){
+    if (testerMode === "bypoint") return runPointTest();
+    return runTestByType();
+  }
+  function runTestByType(){
+    var resEl = document.getElementById("test-result");
+    var raw = document.getElementById("test-input").value.trim();
+    if (!raw) { resEl.innerHTML = '<div class="result-empty">Вставь сообщение для разбора</div>'; return; }
+    var msg;
+    try { msg = JSON.parse(raw); }
+    catch (e){
+      resEl.innerHTML = '<div class="result-empty" style="border-color:rgba(230,85,61,0.4); color:var(--danger);">Невалидный JSON: ' + e.message + '</div>';
+      return;
+    }
+    if (typeof msg.WSM_DATA === "string"){
+      try { msg.WSM_DATA = JSON.parse(msg.WSM_DATA); } catch(e){}
+    }
+    var typeVal = resolvePath(msg, document.getElementById("conn-typepath").value);
+    if (typeof typeVal === "string") typeVal = typeVal.trim();
+
+    var mt = state.mtypes.find(function(m){ return m.match === typeVal; });
+    if (!mt){
+      resEl.innerHTML =
+        '<div class="result-head"><span class="pill bad">Тип не распознан</span><span class="mono" style="color:var(--text-dim); font-size:13px;">WSM_TYPE = ' + JSON.stringify(typeVal) + '</span></div>' +
+        '<div class="result-empty">Сообщение будет молча проигнорировано движком — для него нет настроенного типа. Если это ожидаемый тип, добавьте его на вкладке «Типы сообщений».</div>';
+      return;
+    }
+    var addr = resolvePath(msg.WSM_DATA, mt.addressPath);
+    var rowsHtml = mt.fields.map(function(f){
+      var rawVal = resolvePath(msg.WSM_DATA, f.source);
+      var val = applyTransform(rawVal, f.transform, f.tval);
+      return '<tr><td class="attr">' + attrLabel(f) + '</td><td class="raw">' + f.source + '</td>' +
+        '<td class="val">' + (val === undefined ? '<span class="pill neutral">нет в сообщении</span>' : JSON.stringify(val)) + '</td></tr>';
+    }).join("");
+
+    resEl.innerHTML =
+      '<div class="result-head">' +
+        '<span class="pill ok">Тип распознан: ' + mt.match + '</span>' +
+      '</div>' +
+      '<div class="kv">' +
+        '<div class="k">Адрес устройства</div><div class="v">' + (addr === undefined ? "не найден по " + mt.addressPath : addr) + '</div>' +
+        '<div class="k">Привязка</div><div class="v">оборудование, где sppdAddress = "' + addr + '"</div>' +
+      '</div>' +
+      '<table class="attrs"><thead><tr><th>Атрибут</th><th>Путь</th><th>Значение</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>';
+  }
+  document.getElementById("run-test").addEventListener("click", runTest);
+
+  /* ---------- live raw stream (real backend) ---------- */
+  var liveSocket = null;
+  var liveConnectionId = null;
+
+  function pushLiveRow(entry){
+    var consoleEl = document.getElementById("live-console");
+    if (consoleEl.querySelector(".result-empty")) consoleEl.innerHTML = "";
+    var row = document.createElement("div");
+    row.className = "live-row" + (entry.error ? " err" : "");
+    var now = new Date();
+    var ts = String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0")+":"+String(now.getSeconds()).padStart(2,"0");
+    var body = entry.error ? ("ошибка: " + entry.error) : entry.closed ? "соединение закрыто" : JSON.stringify(entry.raw);
+    row.innerHTML =
+      '<div class="t">' + ts + '</div>' +
+      '<div class="ep">' + (entry.ep || "") + '/</div>' +
+      '<div class="json">' + String(body).replace(/</g,"&lt;") + '</div>' +
+      (entry.raw !== undefined ? '<button class="btn ghost sm copy-btn" data-copy-raw>В тестер</button>' : '');
+    if (entry.raw !== undefined) {
+      row.querySelector("[data-copy-raw]").addEventListener("click", function(){
+        var wantMode = entry.raw && entry.raw.data ? "bypoint" : "bytype";
+        document.querySelector('[data-mode="' + wantMode + '"]').click();
+        document.querySelector('.tab-btn[data-tab="test"]').click();
+        document.getElementById("test-input").value = JSON.stringify(entry.raw, null, 2);
+        runTest();
+      });
+    }
+    consoleEl.appendChild(row);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+    while (consoleEl.children.length > 300) consoleEl.removeChild(consoleEl.firstChild);
+  }
+
+  async function startLive(){
+    var baseUrl = document.getElementById("conn-baseurl").value.trim();
+    var authType = document.getElementById("conn-authtype").value;
+    var username = document.getElementById("conn-username").value;
+    var password = document.getElementById("conn-password").value;
+    var endpoints = state.endpoints.filter(function(e){ return e.path; });
+    if (!baseUrl || !endpoints.length){
+      document.getElementById("live-status").textContent = "Заполни адрес сервера и хотя бы один поток на вкладке «Подключение»";
+      return;
+    }
+    document.getElementById("live-toggle").disabled = true;
+    document.getElementById("live-status").textContent = "Подключение…";
+    try {
+      var resp = await apiFetch("/api/parsing/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseUrl: baseUrl, authType: authType, username: username, password: password, endpoints: endpoints }),
+      });
+      var data = await resp.json();
+      if (!resp.ok){
+        document.getElementById("live-status").textContent = "Ошибка: " + (data.message || data.error || resp.status);
+        document.getElementById("live-toggle").disabled = false;
+        return;
+      }
+      liveConnectionId = data.connectionId;
+      var wsProto = location.protocol === "https:" ? "wss:" : "ws:";
+      var token = (window.__auth && window.__auth.token) || "";
+      liveSocket = new WebSocket(wsProto + "//" + location.host + "/api/parsing/ws?connectionId=" + encodeURIComponent(liveConnectionId) + "&token=" + encodeURIComponent(token));
+      liveSocket.onopen = function(){
+        document.getElementById("live-status").innerHTML = '<span class="live-dot"></span>приём сообщений…';
+        document.getElementById("live-toggle").disabled = false;
+      };
+      liveSocket.onmessage = function(ev){
+        try { pushLiveRow(JSON.parse(ev.data)); } catch(e){}
+      };
+      liveSocket.onclose = function(){
+        if (liveRunning) stopLive();
+      };
+      liveRunning = true;
+      document.getElementById("live-toggle").innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Остановить';
+    } catch(e){
+      document.getElementById("live-status").textContent = "Не удалось подключиться: " + e.message;
+      document.getElementById("live-toggle").disabled = false;
+    }
+  }
+  async function stopLive(){
+    liveRunning = false;
+    if (liveSocket) { try { liveSocket.close(); } catch(e){} liveSocket = null; }
+    if (liveConnectionId) {
+      try {
+        await apiFetch("/api/parsing/disconnect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ connectionId: liveConnectionId }),
+        });
+      } catch(e){}
+      liveConnectionId = null;
+    }
+    document.getElementById("live-status").textContent = "Остановлено";
+    document.getElementById("live-toggle").innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 3 14 9-14 9V3Z"/></svg> Начать прослушивание';
+  }
+  var liveRunning = false;
+  document.getElementById("live-toggle").addEventListener("click", function(){
+    if (liveRunning) stopLive(); else startLive();
+  });
+  document.getElementById("live-clear").addEventListener("click", function(){
+    document.getElementById("live-console").innerHTML = '<div class="result-empty">Заполни «Подключение» выше и нажми «Начать прослушивание» — сюда начнут падать сырые сообщения по мере поступления</div>';
+  });
+  window.addEventListener("beforeunload", function(){
+    if (liveRunning) stopLive();
+  });
+
+  document.getElementById("catalog-input").value = CATALOG_DEFAULT;
+  renderEndpoints();
+  renderMtypes();
+  renderGroupConfigs();
+  renderProfiles();
+}
+</script>
+</body>
+</html>
