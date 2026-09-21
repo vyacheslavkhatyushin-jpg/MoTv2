@@ -83,9 +83,27 @@ const LINE_TYPES = new Set(["solid", "dashed", "dotted"]);
 const GEOMETRY_TYPES = new Set(["sphere", "box", "cylinder", "cone", "capsule", "disc"]);
 const KEY_RE = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
 
-function countEquipmentUsingProfile(profileId) {
+// Раньше countEquipmentUsingProfile/Shape/countCablesUsingType каждая сама
+// по себе делала полный SELECT snapshot_json + JSON.parse по ВСЕМ проектам
+// — а список справочника вызывает такую функцию на каждую свою строку
+// (usage-колонка), то есть на 20 форм оборудования — 20 полных сканирований
+// всех снапшотов всех проектов на один GET. На реальных снапшотах
+// (не тестовых, в пару килобайт) это и давало по минуте зависания страницы
+// /references. Теперь один проход по project_state считает счётчики сразу
+// для всех ключей всех трёх справочников — list-эндпоинты передают эти
+// заранее посчитанные карты, а не пересканируют per-item; функции с
+// единичным ключом (нужны только DELETE-обработчикам, где по-другому
+// нельзя — проверяем один конкретный ключ) остаются по одному скану, как
+// раньше, но это уже не на каждую строку списка, а один раз на запрос.
+function scanSnapshotUsage() {
   const rows = db.prepare("SELECT snapshot_json FROM project_state").all();
-  let count = 0;
+  const profileCounts = new Map();
+  const shapeCounts = new Map();
+  const cableTypeCounts = new Map();
+  const bump = (map, key) => {
+    if (key == null) return;
+    map.set(key, (map.get(key) || 0) + 1);
+  };
   for (const row of rows) {
     let snap;
     try {
@@ -94,44 +112,26 @@ function countEquipmentUsingProfile(profileId) {
       continue;
     }
     for (const eq of snap.equipment || []) {
-      if (eq.profileId === profileId) count++;
+      bump(profileCounts, eq.profileId);
+      bump(shapeCounts, eq.shape);
+    }
+    for (const c of snap.cables || []) {
+      bump(cableTypeCounts, c.cableType);
     }
   }
-  return count;
+  return { profileCounts, shapeCounts, cableTypeCounts };
+}
+
+function countEquipmentUsingProfile(profileId) {
+  return scanSnapshotUsage().profileCounts.get(profileId) || 0;
 }
 
 function countEquipmentUsingShape(shapeKey) {
-  const rows = db.prepare("SELECT snapshot_json FROM project_state").all();
-  let count = 0;
-  for (const row of rows) {
-    let snap;
-    try {
-      snap = JSON.parse(row.snapshot_json);
-    } catch (e) {
-      continue;
-    }
-    for (const eq of snap.equipment || []) {
-      if (eq.shape === shapeKey) count++;
-    }
-  }
-  return count;
+  return scanSnapshotUsage().shapeCounts.get(shapeKey) || 0;
 }
 
 function countCablesUsingType(cableTypeKey) {
-  const rows = db.prepare("SELECT snapshot_json FROM project_state").all();
-  let count = 0;
-  for (const row of rows) {
-    let snap;
-    try {
-      snap = JSON.parse(row.snapshot_json);
-    } catch (e) {
-      continue;
-    }
-    for (const c of snap.cables || []) {
-      if (c.cableType === cableTypeKey) count++;
-    }
-  }
-  return count;
+  return scanSnapshotUsage().cableTypeCounts.get(cableTypeKey) || 0;
 }
 
 /* ================= Атрибуты ================= */
@@ -201,10 +201,11 @@ function loadProfiles() {
        FROM equipment_profile_attributes epa ORDER BY epa.profile_id, epa.sort_order`
     )
     .all();
+  const { profileCounts } = scanSnapshotUsage();
   return profiles.map((p) => ({
     ...p,
     attributes: attrRows.filter((a) => a.profileId === p.id).map((a) => a.attributeKey),
-    usage: countEquipmentUsingProfile(p.id),
+    usage: profileCounts.get(p.id) || 0,
   }));
 }
 
@@ -281,12 +282,13 @@ function getSystemsFor(table, column, key) {
 }
 
 router.get("/cable-types", (req, res) => {
+  const { cableTypeCounts } = scanSnapshotUsage();
   const types = db
     .prepare(
       "SELECT key, label, color, thickness, line_type AS lineType, sort_order AS sortOrder FROM cable_types ORDER BY sort_order"
     )
     .all()
-    .map((t) => ({ ...t, usage: countCablesUsingType(t.key), systems: getSystemsFor("cable_type_systems", "cable_type_key", t.key) }));
+    .map((t) => ({ ...t, usage: cableTypeCounts.get(t.key) || 0, systems: getSystemsFor("cable_type_systems", "cable_type_key", t.key) }));
   res.json({ cableTypes: types });
 });
 
@@ -344,6 +346,7 @@ router.delete("/cable-types/:key", (req, res) => {
 /* ================= Формы оборудования ================= */
 
 router.get("/equipment-shapes", (req, res) => {
+  const { shapeCounts } = scanSnapshotUsage();
   const shapes = db
     .prepare(
       "SELECT key, label, default_color AS defaultColor, geometry, monitorable, selectable, sort_order AS sortOrder FROM equipment_shapes ORDER BY sort_order"
@@ -353,7 +356,7 @@ router.get("/equipment-shapes", (req, res) => {
       ...s,
       monitorable: !!s.monitorable,
       selectable: !!s.selectable,
-      usage: countEquipmentUsingShape(s.key),
+      usage: shapeCounts.get(s.key) || 0,
       systems: getSystemsFor("equipment_shape_systems", "shape_key", s.key),
     }));
   res.json({ shapes });
