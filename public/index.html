@@ -6372,7 +6372,9 @@ function metricsRowsHtml(metrics) {
   return [
     qiRow("Напряжение", typeof m.voltage === "number" ? `U=${m.voltage.toFixed(2)} В` : "—"),
     qiRow("RSSI", typeof m.rssi === "number" ? String(m.rssi) : "—"),
-    qiRow("Tx/Rx", m.txRx ? `Rx: ${m.txRx.Rx ?? "—"} / Tx: ${m.txRx.Tx ?? "—"}` : "—"),
+    qiRow("Tx/Rx", (m.rx !== undefined || m.tx !== undefined)
+      ? `Rx: ${m.rx ?? "—"} / Tx: ${m.tx ?? "—"}` // плоские rx/tx — так их обычно заводят на кастомных источниках (см. /parsing)
+      : (m.txRx ? `Rx: ${m.txRx.Rx ?? "—"} / Tx: ${m.txRx.Tx ?? "—"}` : "—")), // вложенный объект — так пишет sppd-worker.js
     qiRow("Прошивка", m.firmware && m.firmware.Firmware ? m.firmware.Firmware : "—"),
   ].join("");
 }
