@@ -25,6 +25,10 @@
   ::selection{ background:var(--accent); color:#14171a; }
 
   #shell{ display:flex; flex-direction:column; width:100vw; height:100vh; }
+  /* Встроено в iframe модуля "Настройки" (?embed=1, см. settings.html) —
+     у Настроек уже есть свой топбар снаружи, второй здесь только дублирует
+     его и делает страницу похожей на "вложенную". */
+  body.embedded #topBar{ display:none; }
   #topBar{
     flex:0 0 auto; height:56px; display:flex; align-items:center; gap:14px;
     padding:0 18px; background:linear-gradient(180deg,#1c2126,#14171a);
@@ -463,6 +467,10 @@ async function apiFetch(url, options) {
 document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
 document.getElementById("navToEditor").href = "/";
 document.getElementById("navToParsing").href = "/parsing";
+
+if (new URLSearchParams(location.search).get("embed") === "1") {
+  document.body.classList.add("embedded");
+}
 
 function boot(){
   const auth = window.__auth;
