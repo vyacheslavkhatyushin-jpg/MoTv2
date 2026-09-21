@@ -223,7 +223,7 @@
     <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
     <div id="authError"></div>
     <button id="btnAuthSubmit">Войти</button>
-    <div class="authHint">Доступ только для администраторов.<br>© 2026 MoT. Все права защищены.</div>
+    <div class="authHint">Доступ только для администраторов и supervisor.<br>© 2026 MoT. Все права защищены.</div>
   </div>
 </div>
 <script>
@@ -308,7 +308,7 @@
   </header>
 
   <div id="app">
-    <div id="forbidden" style="display:none;"><b>Доступ только для администраторов.</b><br>Обратитесь к администратору системы.</div>
+    <div id="forbidden" style="display:none;"><b>Доступ только для администраторов и supervisor.</b><br>Обратитесь к администратору системы.</div>
 
     <div class="wrap" id="toolWrap" style="display:none;">
       <div class="top">
@@ -584,7 +584,7 @@ document.getElementById("navToEditor").href = "/";
 function boot(){
   const auth = window.__auth;
   document.getElementById("sessionUser").textContent = auth ? auth.username + " (" + auth.role + ")" : "";
-  if (!auth || auth.role !== "admin") {
+  if (!auth || (auth.role !== "admin" && auth.role !== "supervisor")) {
     document.getElementById("forbidden").style.display = "block";
     return;
   }

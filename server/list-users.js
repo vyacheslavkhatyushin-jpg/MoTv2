@@ -5,7 +5,7 @@
 просмотр; чтобы задать/сбросить пароль или роль напрямую, используйте
 seed.js (он уже это умеет):
 
-  node seed.js user <username> <newPassword> <viewer|editor|admin>
+  node seed.js user <username> <newPassword> <viewer|engineer|supervisor|admin>
 
 Usage:
   node list-users.js

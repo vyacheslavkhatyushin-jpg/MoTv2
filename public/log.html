@@ -870,10 +870,10 @@ function applyRoleUI() {
   document.getElementById("navToLamps").href = `/${CURRENT_PROJECT_ID}/lamps`;
   document.getElementById("navToTickets").href = `/${CURRENT_PROJECT_ID}/tickets`;
   document.getElementById("navToLog").href = `/${CURRENT_PROJECT_ID}/log`;
-  const isAdmin = auth && auth.role === "admin";
+  const isAdminLevel = auth && (auth.role === "admin" || auth.role === "supervisor");
   document.getElementById("navToSettings").href = `/${CURRENT_PROJECT_ID}/settings`;
-  document.getElementById("navToSettings").style.display = isAdmin ? "inline-flex" : "none";
-  if (!isAdmin) { showForbidden(); return false; }
+  document.getElementById("navToSettings").style.display = isAdminLevel ? "inline-flex" : "none";
+  if (!isAdminLevel) { showForbidden(); return false; }
   document.getElementById("logContent").style.display = "block";
   return true;
 }
@@ -882,7 +882,7 @@ async function updateTicketsBadge() {
   const auth = window.__auth;
   const badge = document.getElementById("ticketsBadge");
   if (!badge) return;
-  if (!auth || !(auth.role === "editor" || auth.role === "admin")) { badge.style.display = "none"; return; }
+  if (!auth || !(auth.role === "engineer" || auth.role === "admin" || auth.role === "supervisor")) { badge.style.display = "none"; return; }
   try {
     const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/tickets?assignee=${encodeURIComponent(auth.username)}`);
     const data = await resp.json();

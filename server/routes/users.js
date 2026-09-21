@@ -5,7 +5,19 @@ const { requireAuth, requireRole } = require("../auth");
 const { logAudit } = require("../lib/audit");
 
 const router = express.Router();
-const ROLES = new Set(["viewer", "editor", "admin"]);
+const ROLES = new Set(["viewer", "engineer", "supervisor", "admin"]);
+
+// Лёгкий список для выпадающего списка "исполнитель" в тикетах — доступен
+// admin/supervisor (они назначают исполнителей), но НЕ идёт через общий
+// router.use(requireRole("admin")) ниже: раздел "Пользователи" (создание/
+// смена роли/удаление, полный /api/users) остаётся строго admin-only, а
+// назначение тикетов — отдельная функция, которую supervisor обязан иметь.
+router.get("/assignable", requireAuth, requireRole("admin", "supervisor"), (req, res) => {
+  const users = db
+    .prepare("SELECT username, role FROM users WHERE role != 'viewer' ORDER BY username")
+    .all();
+  res.json({ users });
+});
 
 router.use(requireAuth, requireRole("admin"));
 

@@ -721,7 +721,7 @@ async function refreshTicketDetail() {
   if (!currentTicketId) return;
   revokeAttachmentBlobs();
   const auth = window.__auth;
-  const isAdmin = auth && auth.role === "admin";
+  const isAdmin = auth && (auth.role === "admin" || auth.role === "supervisor");
   let data;
   try {
     data = await apiJson(`${API}/${currentTicketId}`);
@@ -812,7 +812,7 @@ async function refreshTicketDetail() {
       `).join("")
     : `<div class="empty-hint" style="padding:16px;">Комментариев пока нет.</div>`;
 
-  const canComment = !closedLike && (auth.role === "editor" || auth.role === "admin");
+  const canComment = !closedLike && (auth.role === "engineer" || auth.role === "admin" || auth.role === "supervisor");
   document.getElementById("tdCommentForm").style.display = canComment ? "flex" : "none";
 
   if (data.attachments.length) loadAttachmentBlobs(data.attachments);
@@ -937,10 +937,10 @@ document.getElementById("projectSelect").addEventListener("change", (e) => {
   location.pathname = location.pathname.replace(/^\/[^/]+/, "/" + newId);
 });
 
-async function loadProjectUsers(isAdmin) {
-  if (!isAdmin) { window.__projectUsers = []; return; }
+async function loadProjectUsers(canAssign) {
+  if (!canAssign) { window.__projectUsers = []; return; }
   try {
-    const data = await apiJson("/api/users");
+    const data = await apiJson("/api/users/assignable");
     window.__projectUsers = data.users || [];
   } catch (e) {
     window.__projectUsers = [];
@@ -950,7 +950,7 @@ async function loadProjectUsers(isAdmin) {
 function applyRoleUI() {
   const auth = window.__auth;
   const role = (auth && auth.role) || "viewer";
-  const isAdmin = role === "admin";
+  const isAdminLevel = role === "admin" || role === "supervisor";
   document.getElementById("sessionProject").textContent = "Проект:";
   document.getElementById("sessionUser").textContent = auth ? `${auth.username} (${role})` : "";
   document.getElementById("navToEditor").href = `/${CURRENT_PROJECT_ID}`;
@@ -960,10 +960,10 @@ function applyRoleUI() {
   document.getElementById("navToLamps").href = `/${CURRENT_PROJECT_ID}/lamps`;
   document.getElementById("navToTickets").href = `/${CURRENT_PROJECT_ID}/tickets`;
   document.getElementById("navToLog").href = `/${CURRENT_PROJECT_ID}/log`;
-  document.getElementById("navToLog").style.display = isAdmin ? "inline-flex" : "none";
+  document.getElementById("navToLog").style.display = isAdminLevel ? "inline-flex" : "none";
   document.getElementById("navToSettings").href = `/${CURRENT_PROJECT_ID}/settings`;
-  document.getElementById("navToSettings").style.display = isAdmin ? "inline-flex" : "none";
-  document.getElementById("btnNewTicket").style.display = (role === "editor" || role === "admin") ? "" : "none";
+  document.getElementById("navToSettings").style.display = isAdminLevel ? "inline-flex" : "none";
+  document.getElementById("btnNewTicket").style.display = (role === "engineer" || isAdminLevel) ? "" : "none";
   document.getElementById("ticketsContent").style.display = "flex";
 }
 
@@ -983,7 +983,7 @@ async function updateTicketsBadge() {
   const auth = window.__auth;
   const badge = document.getElementById("ticketsBadge");
   if (!badge) return;
-  if (!auth || !(auth.role === "editor" || auth.role === "admin")) { badge.style.display = "none"; return; }
+  if (!auth || !(auth.role === "engineer" || auth.role === "admin" || auth.role === "supervisor")) { badge.style.display = "none"; return; }
   try {
     const resp = await apiFetch(`${API}?assignee=${encodeURIComponent(auth.username)}`);
     const data = await resp.json();
@@ -1002,11 +1002,11 @@ async function boot() {
   updateTicketsBadge();
   setInterval(updateTicketsBadge, 30000);
   loadProjectSwitcher();
-  await loadProjectUsers(window.__auth && window.__auth.role === "admin");
-  loadTickets();
   const role = window.__auth && window.__auth.role;
+  await loadProjectUsers(role === "admin" || role === "supervisor");
+  loadTickets();
   const prefill = consumeTicketPrefill();
-  if (prefill && (role === "editor" || role === "admin")) {
+  if (prefill && (role === "engineer" || role === "admin" || role === "supervisor")) {
     openNewTicketModal(prefill);
   }
 }

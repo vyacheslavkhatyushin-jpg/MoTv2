@@ -1,5 +1,5 @@
 /*
-Единый журнал действий — только для admin (см. audit_log в db.js). Два
+Единый журнал действий — admin и supervisor (см. audit_log в db.js). Два
 режима чтения: /summary для дашборда (счётчики + график по дням за период)
 и / для табличного вида с фильтрами и пагинацией — дашборд проваливается
 в таблицу с уже выставленными фильтрами по клику.
@@ -9,7 +9,7 @@ const db = require("../db");
 const { requireAuth, requireRole } = require("../auth");
 
 const router = express.Router();
-router.use(requireAuth, requireRole("admin"));
+router.use(requireAuth, requireRole("admin", "supervisor"));
 
 const RANGE_TO_SQL = {
   "24h": "-1 day",

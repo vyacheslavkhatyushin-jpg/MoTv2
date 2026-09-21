@@ -4,10 +4,10 @@ ticket_attachments в db.js). Тикет может быть общим (без 
 оборудованию) — equipment_id/equipment_label nullable.
 
 Роли: смотреть может любой авторизованный (viewer и выше); создавать тикет
-и комментировать/прикладывать фото — editor/admin; назначать
-исполнителя, менять приоритет, отменять тикет — только admin; менять
-статус (взял в работу → на проверке → закрыт, с resolution_note) может
-исполнитель (assignee) или admin.
+и комментировать/прикладывать фото — engineer/admin/supervisor; назначать
+исполнителя, менять приоритет, отменять тикет — только admin/supervisor;
+менять статус (взял в работу → на проверке → закрыт, с resolution_note)
+может исполнитель (assignee) или admin/supervisor.
 */
 const express = require("express");
 const db = require("../db");
@@ -140,7 +140,7 @@ router.get("/:id/tickets/:ticketId", (req, res) => {
   res.json({ ticket: serializeTicket(ticket), comments, attachments });
 });
 
-router.post("/:id/tickets", requireRole("editor", "admin"), (req, res) => {
+router.post("/:id/tickets", requireRole("engineer", "admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const { title, description, priority, equipmentId, equipmentLabel, monitorEventId } = req.body || {};
   if (typeof title !== "string" || !title.trim()) {
@@ -172,26 +172,29 @@ router.post("/:id/tickets", requireRole("editor", "admin"), (req, res) => {
   res.status(201).json({ ticket: serializeTicket(ticket) });
 });
 
-router.patch("/:id/tickets/:ticketId", requireRole("editor", "admin"), (req, res) => {
+router.patch("/:id/tickets/:ticketId", requireRole("engineer", "admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const ticket = requireTicket(req, res);
   if (!ticket) return;
-  const isAdmin = req.user.role === "admin";
+  // admin/supervisor — равноценный уровень доступа везде в тикетах, кроме
+  // Пользователей/Справочников (те сюда вообще не относятся); engineer —
+  // только исполнитель своих тикетов.
+  const isAdmin = req.user.role === "admin" || req.user.role === "supervisor";
   const isAssignee = ticket.assignee === req.user.username;
   const body = req.body || {};
 
   // Закрытый/отменённый тикет — терминальное состояние для исполнителя;
   // трогать его дальше (в т.ч. пытаться сменить статус обратно) может
-  // только admin, например чтобы поправить ошибочное закрытие.
+  // только admin/supervisor, например чтобы поправить ошибочное закрытие.
   if (["closed", "cancelled"].includes(ticket.status) && !isAdmin) {
-    return res.status(403).json({ error: "forbidden", message: "Тикет закрыт — изменения доступны только admin" });
+    return res.status(403).json({ error: "forbidden", message: "Тикет закрыт — изменения доступны только admin/supervisor" });
   }
 
   const updates = {};
   const auditEvents = [];
 
   if (Object.prototype.hasOwnProperty.call(body, "assignee")) {
-    if (!isAdmin) return res.status(403).json({ error: "forbidden", message: "Назначать исполнителя может только admin" });
+    if (!isAdmin) return res.status(403).json({ error: "forbidden", message: "Назначать исполнителя может только admin/supervisor" });
     const newAssignee = body.assignee || null;
     updates.assignee = newAssignee;
     if (newAssignee) {
@@ -210,7 +213,7 @@ router.patch("/:id/tickets/:ticketId", requireRole("editor", "admin"), (req, res
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "priority")) {
-    if (!isAdmin) return res.status(403).json({ error: "forbidden", message: "Менять приоритет может только admin" });
+    if (!isAdmin) return res.status(403).json({ error: "forbidden", message: "Менять приоритет может только admin/supervisor" });
     if (!PRIORITIES.includes(body.priority)) return res.status(400).json({ error: "invalid_priority" });
     updates.priority = body.priority;
   }
@@ -219,10 +222,10 @@ router.patch("/:id/tickets/:ticketId", requireRole("editor", "admin"), (req, res
     const newStatus = body.status;
     if (!STATUSES.includes(newStatus)) return res.status(400).json({ error: "invalid_status" });
     if (newStatus === "cancelled" && !isAdmin) {
-      return res.status(403).json({ error: "forbidden", message: "Отменить тикет может только admin" });
+      return res.status(403).json({ error: "forbidden", message: "Отменить тикет может только admin/supervisor" });
     }
     if (!isAdmin && !isAssignee) {
-      return res.status(403).json({ error: "forbidden", message: "Менять статус может исполнитель или admin" });
+      return res.status(403).json({ error: "forbidden", message: "Менять статус может исполнитель или admin/supervisor" });
     }
     updates.status = newStatus;
     if (newStatus === "closed" || newStatus === "cancelled") {
@@ -257,7 +260,7 @@ router.patch("/:id/tickets/:ticketId", requireRole("editor", "admin"), (req, res
   res.json({ ticket: serializeTicket(updated) });
 });
 
-router.post("/:id/tickets/:ticketId/comments", requireRole("editor", "admin"), (req, res) => {
+router.post("/:id/tickets/:ticketId/comments", requireRole("engineer", "admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const ticket = requireTicket(req, res);
   if (!ticket) return;
@@ -288,7 +291,7 @@ const attachmentParser = express.raw({ type: () => true, limit: ATTACHMENT_LIMIT
 // скриншот в PNG или GIF из мессенджера не прикрепить.
 const ALLOWED_ATTACHMENT_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
-router.post("/:id/tickets/:ticketId/attachments", requireRole("editor", "admin"), attachmentParser, (req, res) => {
+router.post("/:id/tickets/:ticketId/attachments", requireRole("engineer", "admin", "supervisor"), attachmentParser, (req, res) => {
   if (!requireProject(req, res)) return;
   const ticket = requireTicket(req, res);
   if (!ticket) return;

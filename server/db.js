@@ -9,11 +9,15 @@ const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 
 db.exec(`
+-- Роли: viewer (только чтение) < engineer (редактирование модели/тикетов/
+-- ЗИП-заявок — бывший "editor", переименован при добавлении supervisor,
+-- см. миграцию ниже) < supervisor (всё, что может admin, КРОМЕ разделов
+-- "Настройки" → Пользователи и Справочники) < admin (полные права).
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK(role IN ('viewer','editor','admin')),
+  role TEXT NOT NULL CHECK(role IN ('viewer','engineer','supervisor','admin')),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -660,6 +664,32 @@ if (monitorThresholdsCols.some((c) => c.name === "ping_fail_threshold")) {
   // дефолтом, а не пересоздание таблицы.
   if (!monitorThresholdsCols.some((c) => c.name === "lamp_fail_after_hours")) {
     db.exec("ALTER TABLE project_monitor_thresholds ADD COLUMN lamp_fail_after_hours INTEGER NOT NULL DEFAULT 24");
+  }
+}
+
+// Одноразовая миграция: добавление роли supervisor + переименование editor
+// в engineer. SQLite не даёт менять CHECK-constraint через ALTER TABLE,
+// поэтому пересоздаём таблицу — но только если она ещё не в новом виде
+// (проверяем по тексту CHECK в sqlite_master, а не гадаем по данным: строк
+// с ролью 'editor' может и не быть, если админ ещё не заводил ни одного
+// такого пользователя, но таблицу всё равно нужно пересоздать под новый
+// CHECK, иначе INSERT нового supervisor/engineer упадёт).
+{
+  const usersTableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get();
+  if (usersTableSql && !usersTableSql.sql.includes("'engineer'")) {
+    db.exec(`
+      CREATE TABLE users_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('viewer','engineer','supervisor','admin')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO users_new (id, username, password_hash, role, created_at)
+        SELECT id, username, password_hash, CASE WHEN role = 'editor' THEN 'engineer' ELSE role END, created_at FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+    `);
   }
 }
 
