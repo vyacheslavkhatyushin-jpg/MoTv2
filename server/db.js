@@ -320,7 +320,122 @@ CREATE TABLE IF NOT EXISTS ticket_attachments (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket ON ticket_attachments(ticket_id);
+
+-- Справочники объектов — общие на всю систему (не per-project), в отличие
+-- от project_sppd_config/project_monitor_thresholds выше. Сама модель шахты
+-- (project_state.snapshot_json) остаётся как есть — оборудование получает
+-- лишь ещё одно поле profileId, как уже есть shape/monitorMethod; ключ
+-- атрибута/тип кабеля используется как литеральное значение внутри JSON
+-- (raw_metrics_json, equipment.cableType и т.п.), поэтому key НЕЛЬЗЯ
+-- переименовывать после создания — это переименование сломало бы историю
+-- во всех уже сохранённых снапшотах и raw_metrics_json задним числом,
+-- без возможности откатить. Разрешено менять только описательные поля.
+CREATE TABLE IF NOT EXISTS attribute_definitions (
+  key TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  data_type TEXT NOT NULL CHECK(data_type IN ('number','boolean','string')),
+  unit TEXT,
+  group_name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS equipment_profiles (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS equipment_profile_attributes (
+  profile_id TEXT NOT NULL REFERENCES equipment_profiles(id) ON DELETE CASCADE,
+  attribute_key TEXT NOT NULL REFERENCES attribute_definitions(key),
+  sort_order INTEGER NOT NULL,
+  PRIMARY KEY (profile_id, attribute_key)
+);
+
+-- Соответствие устройства shape (см. EQUIP_SHAPE_ORDER в public/index.html)
+-- профилю по умолчанию — только для оборудования, у которого ещё не задан
+-- собственный equipment.profileId в снапшоте. Ничего не ломает для старых
+-- проектов: пока админ явно не выбрал профиль на объекте, это просто
+-- формализует то, что оборудование этой формы и так уже отдаёт в мониторинг.
+CREATE TABLE IF NOT EXISTS shape_default_profiles (
+  shape TEXT PRIMARY KEY,
+  profile_id TEXT NOT NULL REFERENCES equipment_profiles(id)
+);
+
+CREATE TABLE IF NOT EXISTS cable_types (
+  key TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  color TEXT NOT NULL,
+  thickness REAL NOT NULL,
+  line_type TEXT NOT NULL CHECK(line_type IN ('solid','dashed','dotted')),
+  sort_order INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
+
+// Одноразовый сид справочников — формализует то, что уже зашито в коде
+// (CABLE_TYPES/EQUIP_SHAPE_* в public/index.html, ключи, которые воркеры уже
+// пишут в raw_metrics_json) как редактируемые через UI данные, без изменения
+// поведения для уже существующих проектов в день выкатки. Выполняется один
+// раз — если строки уже есть (например, админ что-то удалил), сид не трогает
+// таблицу повторно.
+if (db.prepare("SELECT COUNT(*) AS n FROM attribute_definitions").get().n === 0) {
+  const insertAttr = db.prepare(
+    "INSERT INTO attribute_definitions (key, label, data_type, unit, group_name) VALUES (?, ?, ?, ?, ?)"
+  );
+  const seedAttrs = [
+    ["online", "Статус: онлайн/офлайн", "boolean", null, "Общее"],
+    ["firmware", "Версия прошивки", "string", null, "Общее"],
+    ["rssi", "Уровень сигнала (RSSI)", "number", "дБ", "Сеть"],
+    ["voltage", "Напряжение", "number", "В", "Электропитание"],
+    ["batteryLvl", "Заряд батареи", "number", "%", "Электропитание"],
+    ["personCount", "Счётчик людей", "number", "чел.", "Позиционирование"],
+    ["vehicleCount", "Счётчик техники", "number", "ед.", "Позиционирование"],
+    ["tagPulseEvent", "Событие: метка зарегистрирована", "boolean", null, "Позиционирование"],
+    ["no2", "Концентрация NO₂", "number", "мг/м³", "Газоанализ"],
+    ["so2", "Концентрация SO₂", "number", "мг/м³", "Газоанализ"],
+    ["co", "Концентрация CO", "number", "мг/м³", "Газоанализ"],
+    ["co2", "Концентрация CO₂", "number", "%", "Газоанализ"],
+    ["temperature", "Температура", "number", "°C", "Газоанализ"],
+  ];
+  for (const row of seedAttrs) insertAttr.run(...row);
+
+  const insertProfile = db.prepare("INSERT INTO equipment_profiles (id, name) VALUES (?, ?)");
+  const insertProfileAttr = db.prepare(
+    "INSERT INTO equipment_profile_attributes (profile_id, attribute_key, sort_order) VALUES (?, ?, ?)"
+  );
+  const seedProfiles = [
+    ["p-isib", "ISIB", ["online", "rssi", "voltage"]],
+    ["p-iilb", "IILB", ["online", "personCount", "vehicleCount", "rssi"]],
+    ["p-ags", "Газоанализатор АГС", ["no2", "so2", "co", "co2", "temperature"]],
+    ["p-beacon", "Маяк / сирена", ["online", "firmware"]],
+  ];
+  for (const [id, name, attrs] of seedProfiles) {
+    insertProfile.run(id, name);
+    attrs.forEach((key, i) => insertProfileAttr.run(id, key, i));
+  }
+
+  const insertShapeDefault = db.prepare(
+    "INSERT INTO shape_default_profiles (shape, profile_id) VALUES (?, ?)"
+  );
+  insertShapeDefault.run("isib", "p-isib");
+  insertShapeDefault.run("iilb", "p-iilb");
+}
+
+if (db.prepare("SELECT COUNT(*) AS n FROM cable_types").get().n === 0) {
+  const insertCableType = db.prepare(
+    "INSERT INTO cable_types (key, label, color, thickness, line_type, sort_order) VALUES (?, ?, ?, ?, ?, ?)"
+  );
+  const seedCableTypes = [
+    ["vols", "ВОЛС", "#ffcc00", 14, "solid"],
+    ["lfc", "LFC", "#2ecc71", 11, "solid"],
+    ["kao", "КАО", "#29b6f6", 8, "dashed"],
+    ["tk", "ТК", "#1abc9c", 6, "solid"],
+    ["power", "Силовой", "#e74c3c", 5, "solid"],
+    ["ftp", "FTP", "#9b59b6", 3, "dotted"],
+  ];
+  seedCableTypes.forEach((row, i) => insertCableType.run(...row, i));
+}
 
 // Добавочная миграция: SLA-сроки тикетов по приоритету (часы на устранение)
 // — те же 4 столбца, что и остальные пороги, поэтому просто ADD COLUMN,
