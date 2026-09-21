@@ -6367,16 +6367,74 @@ function showQuickInfoCable(c) {
 // открыта в панели "Инфо" (тот же источник, что и у equipDetails, см. fetchEquipMetrics).
 let currentQuickInfoEquip = null;
 const quickInfoMetricsCache = new Map(); // equipmentId -> metrics|null
+
+// Каталог атрибутов (attribute_definitions, см. server/routes/references.js)
+// — человекочитаемые названия/единицы для панели "Инфо" ниже. Грузится раз,
+// доступен любой авторизованной роли (эндпоинт /attributes/public — лёгкое
+// исключение из общего admin-гейта справочников).
+const attributeCatalogByKey = new Map(); // key -> {label, dataType, unit}
+let attributeCatalogLoaded = false;
+async function loadAttributeCatalogOnce() {
+  if (attributeCatalogLoaded) return;
+  attributeCatalogLoaded = true;
+  try {
+    const resp = await apiFetch("/api/references/attributes/public");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    for (const a of data.attributes || []) attributeCatalogByKey.set(a.key, a);
+  } catch (e) {
+    // офлайн/сбой сети — панель просто покажет сырые ключи вместо человекочитаемых названий
+  }
+}
+
+function formatMetricNumber(value, unit) {
+  const rounded = Math.round(value * 100) / 100;
+  return unit ? `${rounded} ${unit}` : String(rounded);
+}
+// Живые метрики оборудования (SPPD или настраиваемый источник, см.
+// server/monitor/sppd-worker.js и server/monitor/custom-monitor-worker.js) —
+// generic-список всех ключей raw_metrics_json, название/единицу берём из
+// attributeCatalogByKey, чтобы новый тип оборудования/источника (газоанализ,
+// Статив АО и т.п.) не требовал правок этой панели под каждый новый ключ.
+// Tx/Rx — особый случай: у sppd-worker.js это один вложенный объект
+// ({Rx,Tx,UTime}), у кастомных источников — два плоских ключа (rx/tx) без
+// UTime (см. обсуждение АГС/IILB) — оба варианта сводим к одной строке.
 function metricsRowsHtml(metrics) {
   const m = metrics || {};
-  return [
-    qiRow("Напряжение", typeof m.voltage === "number" ? `U=${m.voltage.toFixed(2)} В` : "—"),
-    qiRow("RSSI", typeof m.rssi === "number" ? String(m.rssi) : "—"),
-    qiRow("Tx/Rx", (m.rx !== undefined || m.tx !== undefined)
-      ? `Rx: ${m.rx ?? "—"} / Tx: ${m.tx ?? "—"}` // плоские rx/tx — так их обычно заводят на кастомных источниках (см. /parsing)
-      : (m.txRx ? `Rx: ${m.txRx.Rx ?? "—"} / Tx: ${m.txRx.Tx ?? "—"}` : "—")), // вложенный объект — так пишет sppd-worker.js
-    qiRow("Прошивка", m.firmware && m.firmware.Firmware ? m.firmware.Firmware : "—"),
-  ].join("");
+  const keys = Object.keys(m);
+  if (!keys.length) return qiRow("Метрики", "—");
+  const rows = [];
+  const handled = new Set();
+  if (m.rx !== undefined || m.tx !== undefined) {
+    rows.push(qiRow("Tx/Rx", `Rx: ${m.rx ?? "—"} / Tx: ${m.tx ?? "—"}`));
+    handled.add("rx"); handled.add("tx");
+  } else if (m.txRx) {
+    rows.push(qiRow("Tx/Rx", `Rx: ${m.txRx.Rx ?? "—"} / Tx: ${m.txRx.Tx ?? "—"}`));
+    handled.add("txRx");
+  }
+  for (const key of keys) {
+    if (handled.has(key)) continue;
+    const value = m[key];
+    const attr = attributeCatalogByKey.get(key);
+    const label = (attr && attr.label) || key;
+    let text;
+    if (value === null || value === undefined) {
+      text = "—";
+    } else if (typeof value === "object") {
+      // легаси-обёртка вида {Firmware:"...", UTime:...} — сервер шлёт значение
+      // завёрнутым в объект с самоимённым полем; достаём его, иначе — сырой JSON
+      const selfKey = Object.keys(value).find((k) => k.toLowerCase() === key.toLowerCase());
+      text = selfKey && value[selfKey] !== undefined ? String(value[selfKey]) : JSON.stringify(value);
+    } else if (typeof value === "number") {
+      text = formatMetricNumber(value, attr && attr.unit);
+    } else if (typeof value === "boolean") {
+      text = value ? "Да" : "Нет";
+    } else {
+      text = String(value);
+    }
+    rows.push(qiRow(label, text));
+  }
+  return rows.join("");
 }
 function showQuickInfoEquip(eq) {
   dom.quickInfoPanel.classList.remove("collapsed");
@@ -6627,6 +6685,7 @@ function applyRoleToUI() {
     sessionUserEl.textContent = auth.username + " (" + roleLabel + ")";
   }
   loadProjectSwitcher();
+  loadAttributeCatalogOnce();
   updateTicketsBadge();
   setInterval(updateTicketsBadge, 30000);
 }

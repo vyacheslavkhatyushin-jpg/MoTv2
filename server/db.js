@@ -459,6 +459,21 @@ if (db.prepare("SELECT COUNT(*) AS n FROM cable_types").get().n === 0) {
   seedCableTypes.forEach((row, i) => insertCableType.run(...row, i));
 }
 
+// Добавочная миграция: rx/tx (счётчики принятых/переданных пакетов
+// считывателя) — появились позже основного сида выше (см. настройку
+// кастомных источников для IILB/ISIB через /parsing), поэтому не могут
+// просто попасть в seedAttrs: тот блок сидирует только один раз при
+// пустой таблице, а на существующих инсталляциях она уже не пуста.
+// INSERT OR IGNORE — на случай если админ уже сам завёл ключ с таким же
+// именем через UI.
+{
+  const insertAttrIfMissing = db.prepare(
+    "INSERT OR IGNORE INTO attribute_definitions (key, label, data_type, unit, group_name) VALUES (?, ?, ?, ?, ?)"
+  );
+  insertAttrIfMissing.run("rx", "Rx (принято пакетов)", "number", null, "Сеть");
+  insertAttrIfMissing.run("tx", "Tx (передано пакетов)", "number", null, "Сеть");
+}
+
 // Добавочная миграция: SLA-сроки тикетов по приоритету (часы на устранение)
 // — те же 4 столбца, что и остальные пороги, поэтому просто ADD COLUMN,
 // без пересоздания таблицы (см. миграцию ping_fail_threshold выше).
