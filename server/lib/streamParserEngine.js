@@ -90,9 +90,51 @@ function parseByType(rawMessage, parserConfig) {
   return { address: String(address), attributes };
 }
 
-/* ---------- режим "поток точек через каталог" (газоанализаторы, сирены и т.п.) ---------- */
+/*
+---------- режим "поток точек через каталог" (газоанализаторы, сирены и т.п.) ----------
+catalogRows у крупных SCADA доходит до тысяч тегов, а сообщения потока точек
+летят часто — линейный .find() по всему каталогу на каждую точку каждого
+сообщения на постоянно работающем воркере уже заметен по CPU. Индекс и
+скомпилированные regex кешируем в WeakMap по ссылке на parserConfig — сам
+объект конфига воркер перечитывает из БД только раз в CONFIG_REFRESH_MS
+(см. custom-monitor-worker.js), так что кеш переживает все сообщения между
+перечитываниями и не протухает (новый parserConfig после перечитывания —
+новый объект, старая запись просто уходит в GC).
+*/
+const catalogIndexCache = new WeakMap();
+function getCatalogIndex(parserConfig) {
+  let index = catalogIndexCache.get(parserConfig);
+  if (!index) {
+    index = new Map();
+    for (const row of parserConfig.catalogRows || []) {
+      index.set(String(row.id), row);
+    }
+    catalogIndexCache.set(parserConfig, index);
+  }
+  return index;
+}
+
+const addressRegexCache = new WeakMap();
+function getAddressRegex(parserConfig, pattern) {
+  let byPattern = addressRegexCache.get(parserConfig);
+  if (!byPattern) {
+    byPattern = new Map();
+    addressRegexCache.set(parserConfig, byPattern);
+  }
+  if (!byPattern.has(pattern)) {
+    let compiled = null;
+    try {
+      compiled = new RegExp(pattern);
+    } catch (e) {
+      // некорректный regex в конфиге — кешируем null, используем groupKey как есть
+    }
+    byPattern.set(pattern, compiled);
+  }
+  return byPattern.get(pattern);
+}
+
 function resolveCatalogRow(parserConfig, id) {
-  return (parserConfig.catalogRows || []).find((r) => String(r.id) === String(id));
+  return getCatalogIndex(parserConfig).get(String(id));
 }
 
 function parseByPoint(rawMessage, parserConfig) {
@@ -119,11 +161,10 @@ function parseByPoint(rawMessage, parserConfig) {
     const channel = profile ? profile.channels.find((c) => c.td === row.typedata) : null;
     if (!channel) continue;
     let address = row.groupKey;
-    try {
-      const m = new RegExp(cfg.addressRegex).exec(row.groupKey);
+    const addressRegex = getAddressRegex(parserConfig, cfg.addressRegex);
+    if (addressRegex) {
+      const m = addressRegex.exec(row.groupKey);
       if (m) address = m[1];
-    } catch (e) {
-      // некорректный regex в конфиге — используем groupKey как есть
     }
     const value = applyTransform(item.v, channel.transform, channel.tval);
     if (value === undefined) continue;
