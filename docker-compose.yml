@@ -59,5 +59,20 @@ services:
     volumes:
       - mine-ops-data:/app/server/data
 
+  # Универсальный коллектор для настраиваемых источников (project_data_sources,
+  # см. /parsing и server/routes/parsing.js) — читает parser_json из БД, а не
+  # захардкоженный протокол, как ping/sppd/fieldsense-worker выше. Пока эта
+  # таблица пуста (никто не "опубликовал" источник через /parsing), сервис
+  # просто ничего не делает — включение нового источника не требует
+  # передеплоя, только запись в БД через API.
+  custom-monitor-worker:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["node", "monitor/custom-monitor-worker.js"]
+    restart: unless-stopped
+    volumes:
+      - mine-ops-data:/app/server/data
+
 volumes:
   mine-ops-data:

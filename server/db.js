@@ -371,6 +371,28 @@ CREATE TABLE IF NOT EXISTS cable_types (
   sort_order INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Источники данных мониторинга на проект (см. /parsing — этот же конфиг
+-- собирается и проверяется там как черновик, прежде чем стать реальным
+-- источником здесь). В отличие от project_sppd_config (один захардкоженный
+-- протокол на проект), тут произвольное число источников на проект и
+-- произвольная логика разбора — см. custom-monitor-worker.js.
+-- connection_json: { baseUrl, authType, username, password, endpoints:[{name,path}] }
+-- parser_json: { mode: "bytype"|"bypoint", typePath, mtypes:[...], catalogRows:[...], groupConfigs:{...}, profiles:[...] }
+--   — та же форма, что уже используется клиентским движком в public/parsing.html.
+CREATE TABLE IF NOT EXISTS project_data_sources (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  connection_json TEXT NOT NULL,
+  parser_json TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_by TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_project_data_sources_project ON project_data_sources(project_id);
 `);
 
 // Одноразовый сид справочников — формализует то, что уже зашито в коде
@@ -447,6 +469,12 @@ if (db.prepare("SELECT COUNT(*) AS n FROM cable_types").get().n === 0) {
     ticket_sla_high_hours: 8,
     ticket_sla_medium_hours: 24,
     ticket_sla_low_hours: 72,
+    // Пороги для custom-monitor-worker.js (project_data_sources) — та же
+    // логика stale-after/fail-duration, что у sppd_*/fs_* выше, но отдельные
+    // колонки: источники через конструктор парсера могут быть чем угодно,
+    // не только SPPD-подобным протоколом, поэтому не переиспользуем sppd_*.
+    custom_stale_after_sec: 120,
+    custom_fail_duration_sec: 300,
   };
   for (const [col, def] of Object.entries(slaDefaults)) {
     if (!cols.some((c) => c.name === col)) {
