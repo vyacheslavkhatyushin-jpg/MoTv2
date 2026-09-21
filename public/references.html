@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Справочники объектов — Mine Operations Tool</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgODgiPjxwYXRoIGQ9Ik0xMCw3NiBMMTAsMTQgTDUwLDU0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZjlmMWMiIHN0cm9rZS13aWR0aD0iMTUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik01MCw1NCBMOTAsMTQgTDkwLDc2IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZjlmMWMiIHN0cm9rZS13aWR0aD0iMTUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgb3BhY2l0eT0iMC41NSIvPjwvc3ZnPg==">
+<style>
+  :root{
+    --bg:#14171a; --panel:#1b1f23; --panel-alt:#22272b; --panel-alt2:#262c31;
+    --border:#31373d; --border-soft:#282e33;
+    --text:#e4e8eb; --text-dim:#8d979f; --text-faint:#5f6a71;
+    --accent:#ff9f1c; --accent-dim:#8a5713; --accent-2:#39b8b0;
+    --danger:#e6553d; --ok:#2ecc71;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    color-scheme:dark;
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size:13px;
+  }
+  .mono{ font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  ::selection{ background:var(--accent); color:#14171a; }
+
+  #shell{ display:flex; flex-direction:column; width:100vw; height:100vh; }
+  #topBar{
+    flex:0 0 auto; height:56px; display:flex; align-items:center; gap:14px;
+    padding:0 18px; background:linear-gradient(180deg,#1c2126,#14171a);
+    border-bottom:1px solid var(--border); user-select:none;
+  }
+  #topBar .brand-mark{ width:26px; height:auto; flex-shrink:0; }
+  #topBar .brand-titles{ display:flex; flex-direction:column; line-height:1.25; }
+  #topBar .brand-titles .t1{ font-size:15px; font-weight:700; color:var(--text); letter-spacing:.2px; }
+  #topBar .brand-titles .t2{ font-size:11px; color:var(--text-dim); }
+  #topBar .brand-spacer{ flex:1 1 auto; }
+  #topBar .brand-copyright{ font-size:10.5px; color:var(--text-faint); text-align:right; line-height:1.4; }
+  #topBar a, #topBar button{
+    text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;
+    white-space:nowrap; flex-shrink:0; display:inline-flex; align-items:center; gap:5px;
+  }
+  #topBar a:hover, #topBar button:hover{ border-color:var(--accent); color:var(--accent); }
+  #topBar .nav-ic{ width:14px; height:14px; flex-shrink:0; }
+  #app{ flex:1 1 auto; min-height:0; overflow-y:auto; }
+
+  #authGate{
+    position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(1200px 800px at 50% 20%, #1c2126 0%, #0d0f11 70%);
+  }
+  #authGate.hidden{ display:none; }
+  #authCard{
+    width:360px; max-width:90vw; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:28px 26px 22px; box-shadow:0 20px 60px rgba(0,0,0,.45); text-align:center;
+  }
+  #authCard .auth-mark{ width:64px; height:auto; display:block; margin:0 auto 12px; }
+  #authCard h1{ margin:0 0 2px; font-size:22px; font-weight:700; color:var(--text); text-align:center; letter-spacing:.3px; }
+  #authCard .auth-tagline{ font-size:11px; color:var(--text-dim); text-align:center; letter-spacing:.06em; text-transform:uppercase; margin:0 0 16px; }
+  #authCard h2{ margin:0 0 18px; font-size:12px; font-weight:500; color:var(--text-dim); text-align:center; }
+  #authCard label{ display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:6px; text-align:left; }
+  #authCard input[type="password"], #authCard input[type="text"]{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:9px 10px; font-size:13px; font-family:inherit; letter-spacing:1px;
+  }
+  #authCard input[type="password"]:focus, #authCard input[type="text"]:focus{ outline:none; border-color:var(--accent); }
+  #authCard #authError{ min-height:16px; font-size:11.5px; color:var(--danger); margin-top:8px; text-align:left; }
+  #authCard #btnAuthSubmit{
+    width:100%; margin-top:10px; padding:9px; border-radius:5px; border:1px solid var(--accent);
+    background:var(--accent); color:#14171a; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;
+  }
+  #authCard #btnAuthSubmit:hover{ filter:brightness(1.08); }
+  #authCard .authHint{ margin-top:14px; font-size:10.5px; color:var(--text-faint); text-align:center; line-height:1.5; }
+
+  .wrap{ max-width:1240px; margin:0 auto; padding:20px 28px 60px; }
+  .top{display:flex; align-items:flex-start; justify-content:space-between; gap:24px; flex-wrap:wrap; margin-bottom:8px;}
+  .top h1{font-size:22px; margin:2px 0 0;}
+  .top .sub{color:var(--text-dim); font-size:13px; margin-top:6px; max-width:680px; line-height:1.5;}
+  .crumb{ font-size:11.5px; color:var(--text-faint); }
+  .badge{
+    display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
+    color:var(--accent); background:rgba(255,159,28,0.1); border:1px solid rgba(255,159,28,0.35);
+    padding:5px 10px 5px 8px; border-radius:999px; white-space:nowrap; flex-shrink:0;
+  }
+  .badge svg{width:13px;height:13px;}
+
+  .tabs{display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:20px; flex-wrap:wrap;}
+  .tab-btn{
+    appearance:none; background:none; border:none; color:var(--text-dim); font-family:inherit;
+    font-size:13.5px; font-weight:600; padding:11px 16px; cursor:pointer; border-bottom:2px solid transparent;
+    margin-bottom:-1px; transition:color .15s;
+  }
+  .tab-btn:hover{color:var(--text);}
+  .tab-btn.active{color:var(--text); border-bottom-color:var(--accent-2);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:22px;}
+  .card + .card{margin-top:16px;}
+  .card-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;}
+  .card-head h3{font-size:15px; margin:0;}
+  .card-head .hint{font-size:12px; color:var(--text-dim);}
+
+  input[type=text], select{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    font-family:inherit; font-size:13px; padding:7px 9px; border-radius:6px; outline:none;
+  }
+  input:focus, select:focus{border-color:var(--accent-2);}
+  select{cursor:pointer;}
+
+  .btn{
+    appearance:none; border:1px solid var(--border); background:var(--panel-alt); color:var(--text);
+    font-family:inherit; font-size:12.5px; font-weight:600; padding:8px 14px; border-radius:6px;
+    cursor:pointer; display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#14171a;}
+  .btn.primary:hover{filter:brightness(1.06);}
+  .btn.ghost{background:transparent; border-color:transparent; color:var(--text-dim);}
+  .btn.ghost:hover{color:var(--danger); background:rgba(230,85,61,0.08); border-color:transparent;}
+  .btn.sm{padding:6px 10px; font-size:12px;}
+  .btn svg{width:14px; height:14px;}
+
+  table.data-table{width:100%; border-collapse:collapse;}
+  table.data-table th{
+    text-align:left; font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;
+    font-weight:600; padding:0 10px 8px; border-bottom:1px solid var(--border);
+  }
+  table.data-table td{padding:8px 10px 8px 0; vertical-align:middle;}
+  table.data-table td:first-child{padding-left:0;}
+  table.data-table tr + tr td{border-top:1px solid var(--border);}
+  table.data-table tr td{padding-top:10px; padding-bottom:10px;}
+  .key-cell{font-family:ui-monospace,monospace; color:var(--text-dim);}
+
+  .group-header{ display:flex; align-items:center; gap:10px; padding:14px 0 8px; margin-top:6px; }
+  .group-header:first-child{margin-top:0;}
+  .group-header .dot{width:8px; height:8px; border-radius:50%; background:var(--accent-2);}
+  .group-header .name{font-weight:700; font-size:12.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--text);}
+  .group-header .count{font-size:11.5px; color:var(--text-dim);}
+
+  .add-form{display:none; gap:10px; align-items:center; flex-wrap:wrap; padding:14px; margin-bottom:16px; background:var(--panel-alt); border:1px solid var(--border); border-radius:8px;}
+  .add-form.open{display:flex;}
+  .add-form input, .add-form select{min-width:110px;}
+
+  .profile-card{border:1px solid var(--border); border-radius:10px; background:var(--panel-alt); padding:20px; margin-bottom:14px;}
+  .profile-card:last-child{margin-bottom:0;}
+  .profile-head{display:flex; align-items:center; gap:14px; margin-bottom:14px; flex-wrap:wrap;}
+  .profile-head input{flex:1; min-width:200px; font-weight:700; font-size:15px; background:transparent; border:none; padding:2px 0;}
+  .profile-head input:focus{border:none; outline:none;}
+  .profile-chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
+  .attr-chip{
+    display:inline-flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--border);
+    border-radius:999px; padding:5px 6px 5px 12px; font-size:12.5px;
+  }
+  .attr-chip .k{font-family:ui-monospace,monospace; color:var(--text-dim);}
+  .attr-chip button{
+    appearance:none; border:none; background:var(--border); color:var(--text-dim); width:18px; height:18px;
+    border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:11px; line-height:1;
+  }
+  .attr-chip button:hover{background:var(--danger); color:#fff;}
+  .add-attr-row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .add-attr-row select{max-width:260px;}
+  .profile-usage{margin-top:12px; font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:8px;}
+
+  input[type=color]{width:36px; height:28px; padding:2px; border-radius:6px; border:1px solid var(--border); background:var(--panel-alt); cursor:pointer;}
+  .line-preview{width:50px; height:0; border-top-width:3px; border-top-style:solid; display:inline-block; vertical-align:middle;}
+
+  .toast{
+    position:fixed; bottom:20px; right:20px; z-index:2000; max-width:360px; padding:12px 16px;
+    border-radius:8px; font-size:13px; line-height:1.5; box-shadow:0 12px 30px rgba(0,0,0,.4);
+    display:none; border:1px solid var(--border);
+  }
+  .toast.ok{background:#173325; color:var(--ok); border-color:rgba(46,204,113,.4);}
+  .toast.err{background:#3a1f1a; color:#ff8a75; border-color:rgba(230,85,61,.5);}
+
+  #forbidden{ text-align:center; color:var(--text-faint); padding:80px 20px; line-height:1.6; }
+</style>
+</head>
+<body>
+
+<div id="authGate">
+  <div id="authCard">
+    <svg class="auth-mark" viewBox="0 0 100 88" aria-hidden="true"><path d="M10,76 L10,14 L50,54" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><path d="M50,54 L90,14 L90,76" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/></svg>
+    <h1>MoT</h1>
+    <div class="auth-tagline">Mine Operations Tool</div>
+    <h2>Справочники объектов — вход</h2>
+    <label for="authUsername">Логин</label>
+    <input type="text" id="authUsername" autocomplete="username" placeholder="Логин" style="margin-bottom:10px;" />
+    <label for="authPassword">Пароль</label>
+    <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
+    <div id="authError"></div>
+    <button id="btnAuthSubmit">Войти</button>
+    <div class="authHint">Доступ только для администраторов.<br>© 2026 MoT. Все права защищены.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var gate = document.getElementById("authGate");
+  var userInput = document.getElementById("authUsername");
+  var passInput = document.getElementById("authPassword");
+  var errorEl = document.getElementById("authError");
+  var btn = document.getElementById("btnAuthSubmit");
+  function unlock(session){
+    gate.classList.add("hidden");
+    window.__auth = session;
+    document.dispatchEvent(new CustomEvent("kzmAuthReady"));
+  }
+  function readStoredSession(){
+    try {
+      var raw = localStorage.getItem("kzmAuthSession");
+      if (!raw) return null;
+      var s = JSON.parse(raw);
+      if (s && s.token && s.username && s.role) return s;
+    } catch(e){}
+    return null;
+  }
+  async function tryLogin(){
+    var username = (userInput.value || "").trim();
+    var password = passInput.value || "";
+    if (!username || !password) { errorEl.textContent = "Введите логин и пароль."; return; }
+    btn.disabled = true;
+    try {
+      var resp = await fetch("/api/auth/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username, password: password }),
+      });
+      if (!resp.ok) { errorEl.textContent = "Неверный логин или пароль."; passInput.value = ""; passInput.focus(); return; }
+      var data = await resp.json();
+      var session = { token: data.token, username: data.username, role: data.role };
+      try { localStorage.setItem("kzmAuthSession", JSON.stringify(session)); } catch(e){}
+      errorEl.textContent = "";
+      unlock(session);
+    } catch(e) { errorEl.textContent = "Не удалось связаться с сервером."; }
+    finally { btn.disabled = false; }
+  }
+  var stored = readStoredSession();
+  if (stored) { unlock(stored); } else { userInput.focus(); }
+  btn.addEventListener("click", tryLogin);
+  passInput.addEventListener("keydown", function(e){ if (e.key === "Enter") tryLogin(); });
+  userInput.addEventListener("keydown", function(e){ if (e.key === "Enter") passInput.focus(); });
+  window.__kzmLogout = function(){
+    try { localStorage.removeItem("kzmAuthSession"); } catch(e){}
+    location.reload();
+  };
+})();
+</script>
+
+<div id="shell">
+  <header id="topBar">
+    <svg class="brand-mark" viewBox="0 0 100 88" aria-hidden="true"><path d="M10,76 L10,14 L50,54" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><path d="M50,54 L90,14 L90,76" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/></svg>
+    <div class="brand-titles">
+      <span class="t1">MoT</span>
+      <span class="t2">Справочники объектов</span>
+    </div>
+    <div class="brand-spacer"></div>
+    <div style="display:flex; align-items:center; gap:10px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
+      <span id="sessionUser"></span>
+      <a id="navToEditor" title="Вернуться в редактор"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" /><path d="M13.5 6.5l4 4" /></svg> Редактор</a>
+      <a id="navToParsing" title="Конструктор парсера потоков"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.785 6l8.215 8.215l-2.054 2.054a5.81 5.81 0 1 1 -8.215 -8.215l2.054 -2.054" /></svg> Парсер потоков</a>
+      <button id="btnLogout" title="Выйти">Выйти</button>
+    </div>
+    <div class="brand-copyright">© 2026 MoT<br>Все права защищены</div>
+  </header>
+
+  <div id="app">
+    <div id="forbidden" style="display:none;"><b>Доступ только для администраторов.</b><br>Обратитесь к администратору системы.</div>
+
+    <div class="wrap" id="toolWrap" style="display:none;">
+      <div class="top">
+        <div>
+          <span class="crumb"><b>Справочники объектов</b></span>
+          <h1>Атрибуты, профили оборудования и типы кабелей</h1>
+          <div class="sub">Общий каталог для редактора модели и конструктора парсера потоков. Пока используется только здесь — редактор ещё не переведён на эти справочники, поведение существующих проектов не меняется.</div>
+        </div>
+        <span class="badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/></svg>
+          Только для admin
+        </span>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="attrs">Атрибуты</button>
+        <button class="tab-btn" data-tab="profiles">Профили оборудования</button>
+        <button class="tab-btn" data-tab="cables">Типы кабелей</button>
+      </div>
+
+      <!-- TAB 1: ATTRIBUTES -->
+      <div class="panel active" id="panel-attrs">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>Каталог атрибутов</h3>
+              <div class="hint" style="margin-top:4px;">Ключ нельзя изменить после создания — он уже может использоваться в сохранённых данных мониторинга</div>
+            </div>
+            <button class="btn primary sm" id="toggle-add-attr">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Новый атрибут
+            </button>
+          </div>
+          <div class="add-form" id="add-attr-form">
+            <input type="text" class="mono" id="new-attr-key" placeholder="ключ (напр. humidity)">
+            <input type="text" id="new-attr-label" placeholder="название">
+            <select id="new-attr-type">
+              <option value="number">Число</option>
+              <option value="boolean">Логическое</option>
+              <option value="string">Строка</option>
+            </select>
+            <input type="text" id="new-attr-unit" placeholder="ед. изм. (необязательно)" style="max-width:140px;">
+            <input type="text" id="new-attr-group" placeholder="группа" style="max-width:140px;">
+            <button class="btn primary sm" id="submit-add-attr">Создать</button>
+          </div>
+          <div id="attrs-groups"></div>
+        </div>
+      </div>
+
+      <!-- TAB 2: EQUIPMENT PROFILES -->
+      <div class="panel" id="panel-profiles">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-head" style="margin-bottom:0;">
+            <div>
+              <h3>Профили оборудования</h3>
+              <div class="hint" style="margin-top:4px;">Набор атрибутов на класс устройства. У каждого объекта на модели будет ровно один профиль.</div>
+            </div>
+            <button class="btn primary sm" id="add-profile">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Новый профиль
+            </button>
+          </div>
+        </div>
+        <div id="profiles-list"></div>
+      </div>
+
+      <!-- TAB 3: CABLE TYPES -->
+      <div class="panel" id="panel-cables">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>Типы кабелей</h3>
+              <div class="hint" style="margin-top:4px;">Атрибуты кабелям не нужны — только вид на модели</div>
+            </div>
+            <button class="btn primary sm" id="toggle-add-cable">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Новый тип кабеля
+            </button>
+          </div>
+          <div class="add-form" id="add-cable-form">
+            <input type="text" class="mono" id="new-cable-key" placeholder="ключ (напр. optic2)">
+            <input type="text" id="new-cable-label" placeholder="название">
+            <input type="color" id="new-cable-color" value="#4fd6e0">
+            <input type="text" id="new-cable-thickness" placeholder="толщина" style="max-width:80px;">
+            <select id="new-cable-linetype">
+              <option value="solid">Сплошная</option>
+              <option value="dashed">Пунктир</option>
+              <option value="dotted">Точки</option>
+            </select>
+            <button class="btn primary sm" id="submit-add-cable">Создать</button>
+          </div>
+          <table class="data-table">
+            <thead><tr><th style="width:14%;">Ключ</th><th style="width:22%;">Название</th><th style="width:14%;">Цвет</th><th style="width:14%;">Толщина</th><th style="width:18%;">Стиль линии</th><th style="width:10%;">Исп.</th><th></th></tr></thead>
+            <tbody id="cabletypes-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+function apiHeaders(extra) {
+  const auth = window.__auth;
+  const headers = Object.assign({}, extra || {});
+  if (auth && auth.token) headers["Authorization"] = "Bearer " + auth.token;
+  return headers;
+}
+async function apiFetch(url, options) {
+  const resp = await fetch(url, Object.assign({}, options, { headers: apiHeaders(Object.assign({ "Content-Type": "application/json" }, (options && options.headers) || {})) }));
+  if (resp.status === 401) {
+    if (window.__kzmLogout) window.__kzmLogout();
+    throw new Error("Сессия истекла, требуется повторный вход.");
+  }
+  return resp;
+}
+
+document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
+document.getElementById("navToEditor").href = "/";
+document.getElementById("navToParsing").href = "/parsing";
+
+function boot(){
+  const auth = window.__auth;
+  document.getElementById("sessionUser").textContent = auth ? auth.username + " (" + auth.role + ")" : "";
+  if (!auth || auth.role !== "admin") {
+    document.getElementById("forbidden").style.display = "block";
+    return;
+  }
+  document.getElementById("toolWrap").style.display = "block";
+  initTool(apiFetch);
+}
+if (window.__auth) boot();
+else document.addEventListener("kzmAuthReady", boot, { once: true });
+
+function showToast(text, isError){
+  const el = document.getElementById("toast");
+  el.textContent = text;
+  el.className = "toast " + (isError ? "err" : "ok");
+  el.style.display = "block";
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = "none"; }, 4000);
+}
+async function friendlyError(resp){
+  let data = {};
+  try { data = await resp.json(); } catch(e){}
+  if (data.error === "in_use") {
+    const n = data.count !== undefined ? " (используется на " + data.count + " объект(ах))" : "";
+    return "Нельзя удалить — уже используется" + n + ".";
+  }
+  if (data.error === "already_exists") return "Такой ключ уже существует.";
+  if (data.error === "invalid_key") return "Ключ должен начинаться с буквы и содержать только латиницу/цифры/подчёркивание.";
+  return data.message || data.error || ("Ошибка " + resp.status);
+}
+
+function initTool(apiFetch){
+  var TYPE_LABELS = { number: "Число", boolean: "Логическое", string: "Строка" };
+  var attrs = [];
+  var profiles = [];
+  var cableTypes = [];
+
+  document.querySelectorAll(".tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.remove("active"); });
+      document.querySelectorAll(".panel").forEach(function(p){ p.classList.remove("active"); });
+      btn.classList.add("active");
+      document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+    });
+  });
+
+  /* ---------- attributes ---------- */
+  async function loadAttrs(){
+    const resp = await apiFetch("/api/references/attributes");
+    const data = await resp.json();
+    attrs = data.attributes || [];
+    renderAttrs();
+  }
+  function attrLabel(key){
+    var a = attrs.find(function(x){ return x.key === key; });
+    return a ? a.label : key;
+  }
+  function renderAttrs(){
+    var el = document.getElementById("attrs-groups");
+    var groups = [];
+    attrs.forEach(function(a){ if (groups.indexOf(a.groupName) === -1) groups.push(a.groupName); });
+    el.innerHTML = groups.map(function(g){
+      var rows = attrs.filter(function(a){ return a.groupName === g; }).map(function(a){
+        return '<tr data-key="' + a.key + '">' +
+          '<td class="key-cell">' + a.key + '</td>' +
+          '<td><input type="text" data-af="label" value="' + a.label.replace(/"/g,"&quot;") + '"></td>' +
+          '<td><select data-af="dataType">' + Object.keys(TYPE_LABELS).map(function(t){ return '<option value="' + t + '"' + (t === a.dataType ? " selected" : "") + '>' + TYPE_LABELS[t] + '</option>'; }).join("") + '</select></td>' +
+          '<td><input type="text" data-af="unit" value="' + (a.unit||"").replace(/"/g,"&quot;") + '" placeholder="—" style="max-width:80px;"></td>' +
+          '<td><input type="text" data-af="groupName" value="' + a.groupName.replace(/"/g,"&quot;") + '" style="max-width:140px;"></td>' +
+          '<td><button class="btn ghost sm" data-del-attr="' + a.key + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></td>' +
+        '</tr>';
+      }).join("");
+      return '<div class="group-header"><span class="dot"></span><span class="name">' + g + '</span><span class="count">' + attrs.filter(function(a){return a.groupName===g;}).length + '</span></div>' +
+        '<table class="data-table"><thead><tr><th style="width:16%;">Ключ</th><th style="width:32%;">Название</th><th style="width:14%;">Тип</th><th style="width:12%;">Ед. изм.</th><th style="width:16%;">Группа</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+    }).join("") || '<div class="hint">Атрибутов пока нет</div>';
+
+    el.querySelectorAll("[data-af]").forEach(function(inp){
+      inp.addEventListener("change", async function(){
+        var key = inp.closest("tr").dataset.key;
+        try {
+          const resp = await apiFetch("/api/references/attributes/" + encodeURIComponent(key), {
+            method: "PATCH", body: JSON.stringify({ [inp.dataset.af]: inp.value }),
+          });
+          if (!resp.ok) throw new Error(await friendlyError(resp));
+          showToast("Сохранено");
+          await loadAttrs();
+        } catch(e){ showToast(e.message, true); await loadAttrs(); }
+      });
+    });
+    el.querySelectorAll("[data-del-attr]").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        try {
+          const resp = await apiFetch("/api/references/attributes/" + encodeURIComponent(btn.dataset.delAttr), { method: "DELETE" });
+          if (!resp.ok) throw new Error(await friendlyError(resp));
+          showToast("Атрибут удалён");
+          await loadAttrs();
+          await loadProfiles();
+        } catch(e){ showToast(e.message, true); }
+      });
+    });
+  }
+  document.getElementById("toggle-add-attr").addEventListener("click", function(){
+    document.getElementById("add-attr-form").classList.toggle("open");
+  });
+  document.getElementById("submit-add-attr").addEventListener("click", async function(){
+    var body = {
+      key: document.getElementById("new-attr-key").value.trim(),
+      label: document.getElementById("new-attr-label").value.trim(),
+      dataType: document.getElementById("new-attr-type").value,
+      unit: document.getElementById("new-attr-unit").value.trim(),
+      groupName: document.getElementById("new-attr-group").value.trim(),
+    };
+    try {
+      const resp = await apiFetch("/api/references/attributes", { method: "POST", body: JSON.stringify(body) });
+      if (!resp.ok) throw new Error(await friendlyError(resp));
+      showToast("Атрибут создан");
+      document.getElementById("add-attr-form").classList.remove("open");
+      ["new-attr-key","new-attr-label","new-attr-unit","new-attr-group"].forEach(function(id){ document.getElementById(id).value = ""; });
+      await loadAttrs();
+    } catch(e){ showToast(e.message, true); }
+  });
+
+  /* ---------- equipment profiles ---------- */
+  async function loadProfiles(){
+    const resp = await apiFetch("/api/references/equipment-profiles");
+    const data = await resp.json();
+    profiles = data.profiles || [];
+    renderProfiles();
+  }
+  function renderProfiles(){
+    var el = document.getElementById("profiles-list");
+    el.innerHTML = profiles.map(function(p){
+      var chips = p.attributes.map(function(k){
+        return '<span class="attr-chip"><span class="k">' + k + '</span>' + attrLabel(k) +
+          '<button data-rm-attr="' + k + '">×</button></span>';
+      }).join("");
+      var available = attrs.filter(function(a){ return p.attributes.indexOf(a.key) === -1; });
+      var addSelect = available.length
+        ? '<select data-add-attr-select><option value="">Добавить атрибут…</option>' + available.map(function(a){ return '<option value="' + a.key + '">' + a.label + ' (' + a.key + ')</option>'; }).join("") + '</select>' +
+          '<button class="btn sm" data-add-attr-btn>Добавить</button>'
+        : '<span class="hint">Все атрибуты каталога уже добавлены</span>';
+      return '<div class="profile-card" data-profile="' + p.id + '">' +
+        '<div class="profile-head">' +
+          '<input type="text" data-pf-name value="' + p.name.replace(/"/g,"&quot;") + '">' +
+          '<button class="btn ghost sm" data-del-profile="' + p.id + '" style="margin-left:auto;">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></svg>' +
+            ' Удалить профиль' +
+          '</button>' +
+        '</div>' +
+        '<div class="profile-chips">' + (chips || '<span class="hint">Атрибуты не добавлены</span>') + '</div>' +
+        '<div class="add-attr-row">' + addSelect + '</div>' +
+        '<div class="profile-usage"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5"/></svg> Используется на ' + p.usage + ' объект(ах)</div>' +
+      '</div>';
+    }).join("") || '<div class="card"><div class="hint">Профилей пока нет</div></div>';
+
+    el.querySelectorAll("[data-pf-name]").forEach(function(inp){
+      inp.addEventListener("change", async function(){
+        var id = inp.closest("[data-profile]").dataset.profile;
+        try {
+          const resp = await apiFetch("/api/references/equipment-profiles/" + id, { method: "PATCH", body: JSON.stringify({ name: inp.value }) });
+          if (!resp.ok) throw new Error(await friendlyError(resp));
+          showToast("Сохранено");
+        } catch(e){ showToast(e.message, true); await loadProfiles(); }
+      });
+    });
+    el.querySelectorAll("[data-del-profile]").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        try {
+          const resp = await apiFetch("/api/references/equipment-profiles/" + btn.dataset.delProfile, { method: "DELETE" });
+          if (!resp.ok) throw new Error(await friendlyError(resp));
+          showToast("Профиль удалён");
+          await loadProfiles();
+        } catch(e){ showToast(e.message, true); }
+      });
+    });
+    el.querySelectorAll("[data-rm-attr]").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        var id = btn.closest("[data-profile]").dataset.profile;
+        try {
+          const resp = await apiFetch("/api/references/equipment-profiles/" + id + "/attributes/" + encodeURIComponent(btn.dataset.rmAttr), { method: "DELETE" });
+          if (!resp.ok) throw new Error(await friendlyError(resp));
+          await loadProfiles();
+        } catch(e){ showToast(e.message, true); }
+      });
+    });
+    el.querySelectorAll("[data-add-attr-btn]").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        var card = btn.closest("[data-profile]");
+        var sel = card.querySelector("[data-add-attr-select]");
+        if (!sel.value) return;
+        try {
+          const resp = await apiFetch("/api/references/equipment-profiles/" + card.dataset.profile + "/attributes", { method: "POST", body: JSON.stringify({ attributeKey: sel.value }) });
+          if (!resp.ok) throw new Error(await friendlyError(resp));
+          await loadProfiles();
+        } catch(e){ showToast(e.message, true); }
+      });
+    });
+  }
+  document.getElementById("add-profile").addEventListener("click", async function(){
+    try {
+      const resp = await apiFetch("/api/references/equipment-profiles", { method: "POST", body: JSON.stringify({ name: "Новый профиль" }) });
+      if (!resp.ok) throw new Error(await friendlyError(resp));
+      await loadProfiles();
+    } catch(e){ showToast(e.message, true); }
+  });
+
+  /* ---------- cable types ---------- */
+  async function loadCableTypes(){
+    const resp = await apiFetch("/api/references/cable-types");
+    const data = await resp.json();
+    cableTypes = data.cableTypes || [];
+    renderCableTypes();
+  }
+  function renderCableTypes(){
+    var body = document.getElementById("cabletypes-body");
+    body.innerHTML = cableTypes.map(function(c){
+      return '<tr data-ctkey="' + c.key + '">' +
+        '<td class="key-cell">' + c.key + '</td>' +
+        '<td><input type="text" data-ct="label" value="' + c.label.replace(/"/g,"&quot;") + '"></td>' +
+        '<td><input type="color" data-ct="color" value="' + c.color + '"></td>' +
+        '<td><input type="text" data-ct="thickness" value="' + c.thickness + '" style="max-width:70px;"></td>' +
+        '<td><select data-ct="lineType"><option value="solid"' + (c.lineType==="solid"?" selected":"") + '>Сплошная</option><option value="dashed"' + (c.lineType==="dashed"?" selected":"") + '>Пунктир</option><option value="dotted"' + (c.lineType==="dotted"?" selected":"") + '>Точки</option></select> <span class="line-preview" style="border-top-color:' + c.color + '; border-top-style:' + c.lineType + ';"></span></td>' +
+        '<td class="hint">' + c.usage + '</td>' +
+        '<td><button class="btn ghost sm" data-del-ct="' + c.key + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></td>' +
+      '</tr>';
+    }).join("");
+    body.querySelectorAll("[data-ct]").forEach(function(inp){
+      inp.addEventListener("change", async function(){
+        var key = inp.closest("tr").dataset.ctkey;
+        try {
+          const resp = await apiFetch("/api/references/cable-types/" + encodeURIComponent(key), { method: "PATCH", body: JSON.stringify({ [inp.dataset.ct]: inp.value }) });
+          if (!resp.ok) throw new Error(await friendlyError(resp));
+          showToast("Сохранено");
+          await loadCableTypes();
+        } catch(e){ showToast(e.message, true); await loadCableTypes(); }
+      });
+    });
+    body.querySelectorAll("[data-del-ct]").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        try {
+          const resp = await apiFetch("/api/references/cable-types/" + encodeURIComponent(btn.dataset.delCt), { method: "DELETE" });
+          if (!resp.ok) throw new Error(await friendlyError(resp));
+          showToast("Тип кабеля удалён");
+          await loadCableTypes();
+        } catch(e){ showToast(e.message, true); }
+      });
+    });
+  }
+  document.getElementById("toggle-add-cable").addEventListener("click", function(){
+    document.getElementById("add-cable-form").classList.toggle("open");
+  });
+  document.getElementById("submit-add-cable").addEventListener("click", async function(){
+    var body = {
+      key: document.getElementById("new-cable-key").value.trim(),
+      label: document.getElementById("new-cable-label").value.trim(),
+      color: document.getElementById("new-cable-color").value,
+      thickness: parseFloat(document.getElementById("new-cable-thickness").value),
+      lineType: document.getElementById("new-cable-linetype").value,
+    };
+    try {
+      const resp = await apiFetch("/api/references/cable-types", { method: "POST", body: JSON.stringify(body) });
+      if (!resp.ok) throw new Error(await friendlyError(resp));
+      showToast("Тип кабеля создан");
+      document.getElementById("add-cable-form").classList.remove("open");
+      ["new-cable-key","new-cable-label","new-cable-thickness"].forEach(function(id){ document.getElementById(id).value = ""; });
+      await loadCableTypes();
+    } catch(e){ showToast(e.message, true); }
+  });
+
+  loadAttrs().then(loadProfiles);
+  loadCableTypes();
+}
+</script>
+</body>
+</html>

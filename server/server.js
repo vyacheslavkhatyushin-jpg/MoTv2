@@ -12,6 +12,7 @@ const lampsRoutes = require("./routes/lamps");
 const auditRoutes = require("./routes/audit");
 const ticketsRoutes = require("./routes/tickets");
 const parsingRoutes = require("./routes/parsing");
+const referencesRoutes = require("./routes/references");
 const { verifyToken } = require("./auth");
 const db = require("./db");
 
@@ -30,6 +31,7 @@ app.use("/api/projects", ticketsRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/audit-log", auditRoutes);
 app.use("/api/parsing", parsingRoutes.router);
+app.use("/api/references", referencesRoutes);
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
@@ -64,6 +66,12 @@ app.get(/^\/[^/]+\/tickets\/?$/, (req, res) => {
 // См. server/routes/parsing.js и docs.
 app.get(/^\/parsing\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "parsing.html"));
+});
+
+// Справочники объектов (атрибуты/профили оборудования/типы кабелей) — не
+// привязано к проекту, только admin. См. server/routes/references.js.
+app.get(/^\/references\/?$/, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "references.html"));
 });
 
 // SPA: any other GET (e.g. /:projectId) serves the app; the frontend reads
