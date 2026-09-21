@@ -4310,6 +4310,26 @@ function buildEquipGeometry(shape, size) {
       return horn;
     }
     default:
+      // Форма без своей bespoke-модели (заведена только через /references)
+      // — строим общий примитив по её полю geometry (см. EQUIP_SHAPE_GEOMETRY
+      // ниже), а не всегда одну и ту же сферу.
+      return buildPrimitiveGeometry(EQUIP_SHAPE_GEOMETRY[shape] || "sphere", s);
+  }
+}
+function buildPrimitiveGeometry(family, s) {
+  switch (family) {
+    case "box":
+      return new THREE.BoxGeometry(s * 0.7, s * 0.5, s * 0.7);
+    case "cylinder":
+      return new THREE.CylinderGeometry(s * 0.35, s * 0.35, s * 0.7, 16);
+    case "cone":
+      return new THREE.ConeGeometry(s * 0.4, s * 0.7, 16);
+    case "capsule":
+      return new THREE.CapsuleGeometry(s * 0.25, s * 0.4, 4, 8);
+    case "disc":
+      return new THREE.CylinderGeometry(s * 0.4, s * 0.4, s * 0.12, 20);
+    case "sphere":
+    default:
       return new THREE.SphereGeometry(s * 0.5, 16, 12);
   }
 }
@@ -4347,6 +4367,10 @@ let EQUIP_SHAPE_DEFAULT_COLOR = {
 // остальные (MLA, ODF, MPS/MPC/MTU/MVSA, MBU, PoE, устаревший "Статив")
 // пассивные, у них нет интерфейса для связи с внешней системой мониторинга.
 let MONITORABLE_SHAPES = new Set(["map", "iilb", "isib", "wifi", "cam", "fs", "tel", "stativ_lfc", "stativ_ao", "go", "custom"]);
+// Fallback-примитив для формы без bespoke-модели в buildEquipGeometry (см.
+// его default-ветку) — используется только для форм, заведённых через
+// /references, "родным" 18 формам не нужен (их геометрия зашита явно).
+let EQUIP_SHAPE_GEOMETRY = { custom: "sphere" };
 let equipmentShapesLoaded = false;
 async function loadEquipmentShapesOnce() {
   if (equipmentShapesLoaded) return;
@@ -4361,18 +4385,21 @@ async function loadEquipmentShapesOnce() {
     const selectable = [];
     const colors = {};
     const monitorable = new Set();
+    const geometry = {};
     for (const s of data.shapes) {
       labels[s.key] = s.label;
       order.push(s.key);
       if (s.selectable) selectable.push(s.key);
       if (s.defaultColor) colors[s.key] = parseInt(s.defaultColor.replace(/^#/, ""), 16);
       if (s.monitorable) monitorable.add(s.key);
+      geometry[s.key] = s.geometry || "sphere";
     }
     EQUIP_SHAPE_LABELS = labels;
     EQUIP_SHAPE_ORDER = order;
     EQUIP_SHAPE_SELECTABLE = selectable;
     EQUIP_SHAPE_DEFAULT_COLOR = colors;
     MONITORABLE_SHAPES = monitorable;
+    EQUIP_SHAPE_GEOMETRY = geometry;
     renderEquipShapeOptions();
   } catch (e) {
     // сбой сети — остаёмся на дефолтных значениях выше, ничего не падает
