@@ -18,7 +18,9 @@ POST /connect логинится на указанный сервер и отк�
 const express = require("express");
 const crypto = require("crypto");
 const { WebSocket } = require("ws");
+const db = require("../db");
 const { requireAuth, requireRole } = require("../auth");
+const { logAudit } = require("../lib/audit");
 const sppd = require("../monitor/sppd-worker");
 
 const router = express.Router();
@@ -145,5 +147,91 @@ function subscribe(connectionId, ws) {
   ws.on("close", () => conn.subscribers.delete(ws));
   return true;
 }
+
+/* ================================================================
+   Источники данных на проект (project_data_sources) — "публикация"
+   конфигурации, проверенной выше через /connect, в постоянный источник,
+   который забирает custom-monitor-worker.js. Само сохранение конфига
+   никак не подключается к monitor_status — этим занимается воркер,
+   читающий эту таблицу отдельно от HTTP-запросов этой страницы.
+   ================================================================ */
+
+function rowToSource(row) {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    name: row.name,
+    connection: JSON.parse(row.connection_json),
+    parser: JSON.parse(row.parser_json),
+    enabled: !!row.enabled,
+    updatedAt: row.updated_at,
+  };
+}
+
+router.get("/sources", (req, res) => {
+  const { projectId } = req.query;
+  if (!projectId) return res.status(400).json({ error: "missing_project_id" });
+  const rows = db
+    .prepare("SELECT * FROM project_data_sources WHERE project_id = ? ORDER BY name")
+    .all(String(projectId).toLowerCase());
+  res.json({ sources: rows.map(rowToSource) });
+});
+
+router.post("/sources", (req, res) => {
+  const { projectId, name, connection, parser } = req.body || {};
+  if (!projectId) return res.status(400).json({ error: "missing_project_id" });
+  if (!name || !String(name).trim()) return res.status(400).json({ error: "missing_name" });
+  if (!connection || typeof connection !== "object") return res.status(400).json({ error: "missing_connection" });
+  if (!parser || typeof parser !== "object") return res.status(400).json({ error: "missing_parser" });
+  const pid = String(projectId).toLowerCase();
+  const project = db.prepare("SELECT 1 FROM projects WHERE id = ?").get(pid);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const id = crypto.randomUUID();
+  db.prepare(
+    `INSERT INTO project_data_sources (id, project_id, name, connection_json, parser_json, created_by, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, pid, name.trim(), JSON.stringify(connection), JSON.stringify(parser), req.user.username, req.user.username);
+  logAudit({
+    actor: req.user.username, projectId: pid, action: "data_source.create",
+    entityType: "data_source", entityId: id, entityLabel: name, ip: req.ip,
+  });
+  res.status(201).json({ id });
+});
+
+router.patch("/sources/:id", (req, res) => {
+  const { id } = req.params;
+  const existing = db.prepare("SELECT * FROM project_data_sources WHERE id = ?").get(id);
+  if (!existing) return res.status(404).json({ error: "not_found" });
+  const { name, connection, parser, enabled } = req.body || {};
+  const next = {
+    name: name !== undefined ? String(name).trim() : existing.name,
+    connection: connection !== undefined ? JSON.stringify(connection) : existing.connection_json,
+    parser: parser !== undefined ? JSON.stringify(parser) : existing.parser_json,
+    enabled: enabled !== undefined ? (enabled ? 1 : 0) : existing.enabled,
+  };
+  if (!next.name) return res.status(400).json({ error: "missing_name" });
+  db.prepare(
+    `UPDATE project_data_sources SET name = ?, connection_json = ?, parser_json = ?, enabled = ?, updated_by = ?, updated_at = datetime('now')
+     WHERE id = ?`
+  ).run(next.name, next.connection, next.parser, next.enabled, req.user.username, id);
+  logAudit({
+    actor: req.user.username, projectId: existing.project_id, action: "data_source.update",
+    entityType: "data_source", entityId: id, entityLabel: next.name, ip: req.ip,
+  });
+  res.json({ ok: true });
+});
+
+router.delete("/sources/:id", (req, res) => {
+  const { id } = req.params;
+  const existing = db.prepare("SELECT * FROM project_data_sources WHERE id = ?").get(id);
+  if (!existing) return res.status(404).json({ error: "not_found" });
+  db.prepare("DELETE FROM project_data_sources WHERE id = ?").run(id);
+  logAudit({
+    actor: req.user.username, projectId: existing.project_id, action: "data_source.delete",
+    entityType: "data_source", entityId: id, entityLabel: existing.name, ip: req.ip,
+  });
+  res.json({ ok: true });
+});
 
 module.exports = { router, subscribe };

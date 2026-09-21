@@ -23,6 +23,17 @@ router.get("/", (req, res) => {
   res.json({ projects });
 });
 
+// Список источников данных проекта для выпадающего списка на карточке
+// оборудования (monitorMethod:"custom") — только id/name, без connection_json
+// (там логин/пароль от промышленной системы шахты) и без parser_json.
+// Полный CRUD с этими деталями — /api/parsing/sources, только admin.
+router.get("/:id/data-sources", (req, res) => {
+  const sources = db
+    .prepare("SELECT id, name FROM project_data_sources WHERE project_id = ? AND enabled = 1 ORDER BY name")
+    .all(req.params.id);
+  res.json({ sources });
+});
+
 router.post("/", requireRole("admin"), (req, res) => {
   const { id, name } = req.body || {};
   if (!id || !SLUG_RE.test(id)) {
