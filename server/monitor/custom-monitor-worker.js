@@ -30,13 +30,20 @@ const DEBUG = process.env.CUSTOM_MONITOR_DEBUG === "1";
 const stmtGetThresholds = db.prepare(
   "SELECT custom_stale_after_sec, custom_fail_duration_sec FROM project_monitor_thresholds WHERE project_id = ?"
 );
-function getStaleAfterMs(projectId) {
+// shape — необязательный override (project_shape_thresholds, модуль
+// "Настройки" → Пороги, см. server/lib/monitorShared.js), например разный
+// stale-after для газоанализатора и для считывателя IILB в одном проекте.
+function getStaleAfterMs(projectId, shape) {
   const row = stmtGetThresholds.get(projectId);
-  return (row ? row.custom_stale_after_sec : 120) * 1000;
+  const projectDefault = row ? row.custom_stale_after_sec : 120;
+  const overrides = shared.loadShapeThresholds(projectId);
+  return shared.resolveStaleAfterSec(overrides, shape, projectDefault) * 1000;
 }
-function getFailDurationMs(projectId) {
+function getFailDurationMs(projectId, shape) {
   const row = stmtGetThresholds.get(projectId);
-  return (row ? row.custom_fail_duration_sec : 300) * 1000;
+  const projectDefault = row ? row.custom_fail_duration_sec : 300;
+  const overrides = shared.loadShapeThresholds(projectId);
+  return shared.resolveFailDurationSec(overrides, shape, projectDefault) * 1000;
 }
 
 const stmtGetLastChecked = db.prepare(
@@ -90,7 +97,7 @@ function collectCustomTargets(projectId, sourceId) {
     if (eq.monitorMethod !== "custom" || eq.dataSourceId !== sourceId || !eq.sourceAddress) continue;
     const addr = String(eq.sourceAddress);
     if (!byAddr.has(addr)) byAddr.set(addr, []);
-    byAddr.get(addr).push({ projectId, equipmentId: eq.id, label: eq.label });
+    byAddr.get(addr).push({ projectId, equipmentId: eq.id, label: eq.label, shape: eq.shape });
   }
   return byAddr;
 }
@@ -102,9 +109,9 @@ function markStaleAsDown(target) {
 
 function checkStaleness(projectId, targetsByAddr, siteStartedAtMs) {
   const nowMs = Date.now();
-  const staleAfterMs = getStaleAfterMs(projectId);
   for (const targets of targetsByAddr.values()) {
     for (const target of targets) {
+      const staleAfterMs = getStaleAfterMs(projectId, target.shape);
       const row = stmtGetLastChecked.get(target.projectId, target.equipmentId);
       const lastSeenMs = row && row.last_checked_at ? Date.parse(row.last_checked_at) : siteStartedAtMs;
       if (nowMs - lastSeenMs > staleAfterMs) {
@@ -143,7 +150,7 @@ function applyParsedResult(projectId, targetsByAddr, parsed) {
 
   for (const target of targets) {
     if (onlineAttr) {
-      shared.applyOnlineState(target, Boolean(onlineAttr.value), hasMetrics ? metricsPatch : null, getFailDurationMs(projectId));
+      shared.applyOnlineState(target, Boolean(onlineAttr.value), hasMetrics ? metricsPatch : null, getFailDurationMs(projectId, target.shape));
     } else if (hasMetrics) {
       shared.applyMetricsOnly(target, metricsPatch);
     }

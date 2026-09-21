@@ -633,4 +633,65 @@ router.delete("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   res.json(serializeThresholds(null));
 });
 
+// Пер-формные переопределения порогов (модуль "Настройки" → Пороги, см.
+// project_shape_thresholds в db.js) — необязательные overrides на (project,
+// shape), null-поле значит "использовать дефолт проекта". Ping-worker.js и
+// custom-monitor-worker.js читают эту таблицу напрямую (server/lib/
+// monitorShared.js), эти роуты — только для UI.
+router.get("/:id/monitor/shape-thresholds", requireRole("admin"), (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const rows = db
+    .prepare("SELECT shape, stale_after_sec, fail_duration_sec, updated_by, updated_at FROM project_shape_thresholds WHERE project_id = ? ORDER BY shape")
+    .all(req.params.id);
+  res.json({
+    overrides: rows.map((r) => ({
+      shape: r.shape,
+      staleAfterSec: r.stale_after_sec,
+      failDurationSec: r.fail_duration_sec,
+      updatedBy: r.updated_by,
+      updatedAt: r.updated_at,
+    })),
+  });
+});
+
+router.put("/:id/monitor/shape-thresholds/:shape", requireRole("admin"), (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const { staleAfterSec, failDurationSec } = req.body || {};
+  // Оба поля необязательны — null/undefined означает "не переопределять",
+  // используется дефолт проекта. Если оба пустые, проще удалить строку.
+  const staleVal = staleAfterSec === null || staleAfterSec === undefined || staleAfterSec === "" ? null : parseInt(staleAfterSec, 10);
+  const failVal = failDurationSec === null || failDurationSec === undefined || failDurationSec === "" ? null : parseInt(failDurationSec, 10);
+  if (staleVal !== null && (!Number.isInteger(staleVal) || staleVal < 30 || staleVal > 3600)) {
+    return res.status(400).json({ error: "invalid_stale_after_sec" });
+  }
+  if (failVal !== null && (!Number.isInteger(failVal) || failVal < 0 || failVal > 3600)) {
+    return res.status(400).json({ error: "invalid_fail_duration_sec" });
+  }
+  if (staleVal === null && failVal === null) {
+    db.prepare("DELETE FROM project_shape_thresholds WHERE project_id = ? AND shape = ?").run(req.params.id, req.params.shape);
+    logAudit({
+      actor: req.user.username, projectId: req.params.id, action: "shape_thresholds.reset",
+      entityType: "shape_thresholds", entityId: req.params.shape, ip: req.ip,
+    });
+    return res.json({ ok: true, cleared: true });
+  }
+
+  db.prepare(
+    `INSERT INTO project_shape_thresholds (project_id, shape, stale_after_sec, fail_duration_sec, updated_by, updated_at)
+     VALUES (@projectId, @shape, @staleVal, @failVal, @by, datetime('now'))
+     ON CONFLICT(project_id, shape) DO UPDATE SET
+       stale_after_sec = @staleVal, fail_duration_sec = @failVal, updated_by = @by, updated_at = datetime('now')`
+  ).run({ projectId: req.params.id, shape: req.params.shape, staleVal, failVal, by: req.user.username });
+  logAudit({
+    actor: req.user.username, projectId: req.params.id, action: "shape_thresholds.update",
+    entityType: "shape_thresholds", entityId: req.params.shape,
+    details: { staleAfterSec: staleVal, failDurationSec: failVal }, ip: req.ip,
+  });
+  res.json({ ok: true });
+});
+
 module.exports = router;

@@ -125,6 +125,24 @@ CREATE TABLE IF NOT EXISTS project_monitor_thresholds (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Пер-формные переопределения порогов (модуль "Настройки" → Пороги) —
+-- необязательные, per (project_id, shape). NULL в любой из колонок значит
+-- "использовать дефолт проекта" (project_monitor_thresholds.ping_fail_duration_sec
+-- для оборудования с monitorMethod:"ping", .custom_stale_after_sec/
+-- .custom_fail_duration_sec — для monitorMethod:"custom"). shape — не
+-- конкретный метод мониторинга: одна и та же форма (например, IILB) в
+-- разных проектах может быть настроена и как ping, и как custom, поэтому
+-- воркеры сами выбирают нужную колонку под свой метод, а не эта таблица.
+CREATE TABLE IF NOT EXISTS project_shape_thresholds (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  shape TEXT NOT NULL,
+  stale_after_sec INTEGER,
+  fail_duration_sec INTEGER,
+  updated_by TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (project_id, shape)
+);
+
 -- Реестр ЗИП (склад запчастей) + заявки на выдачу — отдельный от 3D-модели
 -- модуль (никакой привязки к cables/equipment шахты). ЗИП только
 -- расходуется, возвратов на склад не бывает.

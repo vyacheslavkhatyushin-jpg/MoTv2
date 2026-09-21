@@ -251,6 +251,29 @@ function connectStream(name, wsBase, path, sessionCookie, onMessage, getClosed) 
   };
 }
 
+/* ---------- пер-формные переопределения порогов ---------- */
+// См. project_shape_thresholds в db.js — необязательный override на
+// (project_id, shape), с фоллбэком на дефолт проекта, если строки для
+// формы нет или конкретная колонка в ней NULL.
+const stmtGetShapeThresholds = db.prepare(
+  "SELECT shape, stale_after_sec, fail_duration_sec FROM project_shape_thresholds WHERE project_id = ?"
+);
+function loadShapeThresholds(projectId) {
+  const map = new Map();
+  for (const row of stmtGetShapeThresholds.all(projectId)) {
+    map.set(row.shape, { staleAfterSec: row.stale_after_sec, failDurationSec: row.fail_duration_sec });
+  }
+  return map;
+}
+function resolveFailDurationSec(shapeOverrides, shape, projectDefaultSec) {
+  const o = shapeOverrides.get(shape);
+  return o && o.failDurationSec != null ? o.failDurationSec : projectDefaultSec;
+}
+function resolveStaleAfterSec(shapeOverrides, shape, projectDefaultSec) {
+  const o = shapeOverrides.get(shape);
+  return o && o.staleAfterSec != null ? o.staleAfterSec : projectDefaultSec;
+}
+
 module.exports = {
   parseSetCookiePairs,
   login,
@@ -260,4 +283,7 @@ module.exports = {
   applyMetricsOnly,
   applyCounts,
   emitTagPulse,
+  loadShapeThresholds,
+  resolveFailDurationSec,
+  resolveStaleAfterSec,
 };
