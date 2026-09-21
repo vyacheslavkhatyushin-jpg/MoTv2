@@ -174,18 +174,6 @@ const stmtUpsertCounts = db.prepare(`
     person_count = @personCount,
     vehicle_count = @vehicleCount
 `);
-// TxRx/Firmware/VLine прилетают отдельными сообщениями SB_EVENT, без
-// State рядом (State — редкое событие смены online/offline, не регулярный
-// хартбит) — раньше это означало, что такие сообщения целиком
-// отбрасывались (см. handleSbEvent), теперь пишутся тем же
-// upsert-без-состояния паттерном, что и счётчики SBeacon.
-const stmtUpsertMetricsOnly = db.prepare(`
-  INSERT INTO monitor_status (project_id, equipment_id, state, last_checked_at, raw_metrics_json)
-  VALUES (@projectId, @equipmentId, 'unknown', @checkedAt, @metrics)
-  ON CONFLICT(project_id, equipment_id) DO UPDATE SET
-    last_checked_at = @checkedAt,
-    raw_metrics_json = @metrics
-`);
 // Мёрдж патча метрик поверх уже сохранённых (а не перезапись) — иначе,
 // например, VLine-сообщение стирало бы TxRx, записанный предыдущим
 // сообщением на тот же Addr, и наоборот.
@@ -193,14 +181,17 @@ function mergeMetricsJson(currentRawJson, patch) {
   const current = currentRawJson ? JSON.parse(currentRawJson) : {};
   return JSON.stringify(Object.assign({}, current, patch));
 }
+// TxRx/Firmware/VLine у SPPD, показания каналов у точечных источников (АГС
+// и т.п.) прилетают без явного "online"-сигнала рядом — раньше это писалось
+// без изменения state (только raw_metrics_json), из-за чего оборудование,
+// у которого нет отдельного online-поля вообще (газоанализатор — только
+// показания каналов), один раз помеченное "down" по протуханию, никогда не
+// возвращалось в "up", хотя данные продолжали идти. Раз сообщение вообще
+// дошло и распарсилось — источник точно жив, поэтому применяем его как
+// applyOnlineState(..., true, ...): выставляем "up" и закрываем открытый
+// "down"-эвент, если он был.
 function applyMetricsOnly(target, metricsPatch) {
-  const current = stmtGetStatus.get(target.projectId, target.equipmentId);
-  stmtUpsertMetricsOnly.run({
-    projectId: target.projectId,
-    equipmentId: target.equipmentId,
-    checkedAt: new Date().toISOString(),
-    metrics: mergeMetricsJson(current && current.raw_metrics_json, metricsPatch),
-  });
+  applyOnlineState(target, true, metricsPatch);
 }
 const stmtOpenEvent = db.prepare(`
   INSERT INTO monitor_events (project_id, equipment_id, equipment_label, from_state, to_state, started_at)
