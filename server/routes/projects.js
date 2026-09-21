@@ -541,6 +541,8 @@ router.get("/:id/monitor/events", (req, res) => {
 const THRESHOLD_DEFAULTS = {
   pingTimeoutSec: 1,
   pingFailDurationSec: 300,
+  customStaleAfterSec: 120,
+  customFailDurationSec: 300,
   lampFailAfterHours: 24,
   ticketSlaCriticalHours: 2,
   ticketSlaHighHours: 8,
@@ -554,6 +556,8 @@ function serializeThresholds(row) {
     configured: true,
     pingTimeoutSec: row.ping_timeout_sec,
     pingFailDurationSec: row.ping_fail_duration_sec,
+    customStaleAfterSec: row.custom_stale_after_sec,
+    customFailDurationSec: row.custom_fail_duration_sec,
     lampFailAfterHours: row.lamp_fail_after_hours,
     ticketSlaCriticalHours: row.ticket_sla_critical_hours,
     ticketSlaHighHours: row.ticket_sla_high_hours,
@@ -577,7 +581,7 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
   const {
-    pingTimeoutSec, pingFailDurationSec, lampFailAfterHours,
+    pingTimeoutSec, pingFailDurationSec, customStaleAfterSec, customFailDurationSec, lampFailAfterHours,
     ticketSlaCriticalHours, ticketSlaHighHours, ticketSlaMediumHours, ticketSlaLowHours,
   } = req.body || {};
   if (!Number.isInteger(pingTimeoutSec) || pingTimeoutSec < 1 || pingTimeoutSec > 10) {
@@ -587,6 +591,12 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   // настройки, для тех, кому debounce не нужен.
   if (!Number.isInteger(pingFailDurationSec) || pingFailDurationSec < 0 || pingFailDurationSec > 3600) {
     return res.status(400).json({ error: "invalid_ping_fail_duration_sec" });
+  }
+  if (!Number.isInteger(customStaleAfterSec) || customStaleAfterSec < 30 || customStaleAfterSec > 3600) {
+    return res.status(400).json({ error: "invalid_custom_stale_after_sec" });
+  }
+  if (!Number.isInteger(customFailDurationSec) || customFailDurationSec < 0 || customFailDurationSec > 3600) {
+    return res.status(400).json({ error: "invalid_custom_fail_duration_sec" });
   }
   if (!Number.isInteger(lampFailAfterHours) || lampFailAfterHours < 1 || lampFailAfterHours > 336) {
     return res.status(400).json({ error: "invalid_lamp_fail_after_hours" });
@@ -599,19 +609,20 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
 
   db.prepare(
     `INSERT INTO project_monitor_thresholds
-       (project_id, ping_timeout_sec, ping_fail_duration_sec, lamp_fail_after_hours,
+       (project_id, ping_timeout_sec, ping_fail_duration_sec, custom_stale_after_sec, custom_fail_duration_sec, lamp_fail_after_hours,
         ticket_sla_critical_hours, ticket_sla_high_hours, ticket_sla_medium_hours, ticket_sla_low_hours, updated_by, updated_at)
-     VALUES (@id, @pingTimeoutSec, @pingFailDurationSec, @lampFailAfterHours,
+     VALUES (@id, @pingTimeoutSec, @pingFailDurationSec, @customStaleAfterSec, @customFailDurationSec, @lampFailAfterHours,
              @ticketSlaCriticalHours, @ticketSlaHighHours, @ticketSlaMediumHours, @ticketSlaLowHours, @by, datetime('now'))
      ON CONFLICT(project_id) DO UPDATE SET
        ping_timeout_sec = @pingTimeoutSec, ping_fail_duration_sec = @pingFailDurationSec,
+       custom_stale_after_sec = @customStaleAfterSec, custom_fail_duration_sec = @customFailDurationSec,
        lamp_fail_after_hours = @lampFailAfterHours,
        ticket_sla_critical_hours = @ticketSlaCriticalHours, ticket_sla_high_hours = @ticketSlaHighHours,
        ticket_sla_medium_hours = @ticketSlaMediumHours, ticket_sla_low_hours = @ticketSlaLowHours,
        updated_by = @by, updated_at = datetime('now')`
   ).run({
     id: req.params.id,
-    pingTimeoutSec, pingFailDurationSec, lampFailAfterHours,
+    pingTimeoutSec, pingFailDurationSec, customStaleAfterSec, customFailDurationSec, lampFailAfterHours,
     ticketSlaCriticalHours, ticketSlaHighHours, ticketSlaMediumHours, ticketSlaLowHours,
     by: req.user.username,
   });

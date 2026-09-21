@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Настройки — Mine Operations Tool</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgODgiPjxwYXRoIGQ9Ik0xMCw3NiBMMTAsMTQgTDUwLDU0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZjlmMWMiIHN0cm9rZS13aWR0aD0iMTUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik01MCw1NCBMOTAsMTQgTDkwLDc2IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZjlmMWMiIHN0cm9rZS13aWR0aD0iMTUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgb3BhY2l0eT0iMC41NSIvPjwvc3ZnPg==">
+<style>
+  :root{
+    --bg:#14171a;
+    --panel:#1b1f23;
+    --panel-alt:#22272b;
+    --panel-alt2:#262c31;
+    --border:#31373d;
+    --border-soft:#282e33;
+    --text:#e4e8eb;
+    --text-dim:#8d979f;
+    --text-faint:#5f6a71;
+    --accent:#ff9f1c;
+    --accent-dim:#8a5713;
+    --accent-2:#39b8b0;
+    --danger:#e6553d;
+    --ok:#2ecc71;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    color-scheme:dark;
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size:13px;
+  }
+  .mono{ font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  ::selection{ background:var(--accent); color:#14171a; }
+
+  /* ---- shell / top bar (переиспользовано из log.html/index.html) ---- */
+  #shell{ display:flex; flex-direction:column; width:100vw; height:100vh; }
+  #topBar{
+    flex:0 0 auto; height:56px; display:flex; align-items:center; gap:14px;
+    padding:0 18px; background:linear-gradient(180deg,#1c2126,#14171a);
+    border-bottom:1px solid var(--border); user-select:none;
+  }
+  #topBar .brand-mark{ width:26px; height:auto; flex-shrink:0; }
+  #topBar .brand-titles{ display:flex; flex-direction:column; line-height:1.25; flex-shrink:0; }
+  #topBar .brand-titles .t1{ font-size:15px; font-weight:700; color:var(--text); letter-spacing:.2px; white-space:nowrap; }
+  #topBar .brand-titles .t2{ font-size:11px; color:var(--text-dim); white-space:nowrap; }
+  #topBar .brand-spacer{ flex:1 1 auto; }
+  #topBar .brand-copyright{ font-size:10.5px; color:var(--text-faint); text-align:right; line-height:1.4; }
+  #topBar a, #topBar button{
+    text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;
+    white-space:nowrap; flex-shrink:0; display:inline-flex; align-items:center; gap:5px;
+  }
+  #topBar a:hover, #topBar button:hover{ border-color:var(--accent); color:var(--accent); }
+  #topBar .nav-ic{ width:14px; height:14px; flex-shrink:0; }
+  #topBar #sessionInfo a, #topBar #sessionInfo span{ white-space:nowrap; flex-shrink:0; }
+  #topBar #projectSelect{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text); border-radius:8px;
+    padding:3px 6px; font-family:inherit; font-size:11.5px; cursor:pointer;
+  }
+  #topBar #projectSelect:hover{ border-color:var(--accent); }
+  #topBar #projectSelect option{ background:var(--panel-alt); color:var(--text); }
+  #topBar a.nav-current{ border-color:var(--accent); color:var(--accent); background:rgba(255,159,28,.08); pointer-events:none; cursor:default; }
+  .nav-badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:15px; height:15px; padding:0 4px; margin-left:1px;
+    background:var(--accent); color:#14171a; border-radius:99px;
+    font-size:9.5px; font-weight:700; line-height:1;
+  }
+  .nav-badge.badge-danger{ background:var(--danger); color:#fff; }
+  #app{ flex:1 1 auto; min-height:0; overflow-y:auto; }
+
+  /* ---- экран входа ---- */
+  #authGate{
+    position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(1200px 800px at 50% 20%, #1c2126 0%, #0d0f11 70%);
+  }
+  #authGate.hidden{ display:none; }
+  #authCard{
+    width:360px; max-width:90vw; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:28px 26px 22px; box-shadow:0 20px 60px rgba(0,0,0,.45); text-align:center;
+  }
+  #authCard .auth-mark{ width:64px; height:auto; display:block; margin:0 auto 12px; }
+  #authCard h1{ margin:0 0 2px; font-size:22px; font-weight:700; color:var(--text); text-align:center; letter-spacing:.3px; }
+  #authCard .auth-tagline{ font-size:11px; color:var(--text-dim); text-align:center; letter-spacing:.06em; text-transform:uppercase; margin:0 0 16px; }
+  #authCard h2{ margin:0 0 18px; font-size:12px; font-weight:500; color:var(--text-dim); text-align:center; }
+  #authCard label{ display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:6px; text-align:left; }
+  #authCard input[type="password"], #authCard input[type="text"]{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:9px 10px; font-size:13px; font-family:inherit; letter-spacing:1px;
+  }
+  #authCard input[type="password"]:focus, #authCard input[type="text"]:focus{ outline:none; border-color:var(--accent); }
+  #authCard #authError{ min-height:16px; font-size:11.5px; color:var(--danger); margin-top:8px; text-align:left; }
+  #authCard #btnAuthSubmit{
+    width:100%; margin-top:10px; padding:9px; border-radius:5px; border:1px solid var(--accent);
+    background:var(--accent); color:#14171a; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;
+  }
+  #authCard #btnAuthSubmit:hover{ filter:brightness(1.08); }
+  #authCard .authHint{ margin-top:14px; font-size:10.5px; color:var(--text-faint); text-align:center; line-height:1.5; }
+
+  /* ---- страница: сайдбар + контент ---- */
+  .settings-shell{ display:flex; height:100%; align-items:stretch; }
+  .settings-sidebar{
+    flex:0 0 210px; border-right:1px solid var(--border); background:var(--panel);
+    padding:18px 10px; display:flex; flex-direction:column; gap:2px;
+  }
+  .settings-sidebar h1{ margin:2px 8px 14px; font-size:16px; font-weight:700; }
+  .settings-nav-btn{
+    display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:7px;
+    color:var(--text-dim); font-size:12.5px; font-weight:600; cursor:pointer; border:1px solid transparent;
+    background:none; text-align:left; font-family:inherit;
+  }
+  .settings-nav-btn:hover{ background:var(--panel-alt); color:var(--text); }
+  .settings-nav-btn.active{ background:rgba(255,159,28,.1); border-color:rgba(255,159,28,.3); color:var(--accent); }
+  .settings-nav-btn svg{ width:16px; height:16px; flex-shrink:0; }
+  .settings-content{ flex:1 1 auto; min-width:0; overflow-y:auto; padding:26px 32px 60px; }
+  .settings-panel{ display:none; max-width:900px; }
+  .settings-panel.active{ display:block; }
+  .settings-panel h2{ margin:0 0 4px; font-size:18px; font-weight:700; }
+  .settings-panel .subtitle{ margin:0 0 20px; font-size:12px; color:var(--text-faint); line-height:1.6; }
+
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px 20px; margin-bottom:18px; }
+  .card h3{ margin:0 0 14px; font-size:13.5px; font-weight:700; }
+  .card .hint{ font-size:11px; color:var(--text-faint); line-height:1.5; margin:-8px 0 14px; }
+
+  .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; margin-bottom:4px; }
+  @media (max-width:640px){ .field-row{ grid-template-columns:1fr; } }
+  .field{ margin-bottom:12px; }
+  .field label{ display:block; font-size:11px; color:var(--text-dim); margin-bottom:4px; }
+  .field input, .field select{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:7px 8px; font-size:12.5px; font-family:inherit;
+  }
+  .field .field-hint{ font-size:10.5px; color:var(--text-faint); margin-top:3px; }
+
+  .btn{
+    font-family:inherit; font-size:12px; font-weight:600; border-radius:6px; padding:8px 16px;
+    cursor:pointer; border:1px solid var(--border); background:var(--panel-alt); color:var(--text-dim);
+    display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+  }
+  .btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .btn.primary{ background:var(--accent); border-color:var(--accent); color:#14171a; }
+  .btn.primary:hover{ filter:brightness(1.06); color:#14171a; }
+  .btn.danger:hover{ border-color:var(--danger); color:var(--danger); }
+  .btn:disabled{ opacity:.5; cursor:default; pointer-events:none; }
+
+  .save-bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .save-status{ font-size:11px; color:var(--text-faint); }
+  .save-status.ok{ color:var(--ok); }
+  .save-status.err{ color:var(--danger); }
+
+  /* ---- превью изменений перед сохранением ---- */
+  .diff-preview{
+    border:1px solid var(--accent-dim); background:rgba(255,159,28,.06); border-radius:8px;
+    padding:12px 14px; margin:12px 0; display:none;
+  }
+  .diff-preview.open{ display:block; }
+  .diff-preview .diff-title{ font-size:11.5px; font-weight:700; color:var(--accent); margin-bottom:8px; }
+  .diff-row{ display:flex; align-items:baseline; gap:8px; font-size:12px; padding:3px 0; }
+  .diff-row .diff-k{ color:var(--text-dim); min-width:170px; flex-shrink:0; }
+  .diff-row .diff-old{ color:var(--text-faint); text-decoration:line-through; }
+  .diff-row .diff-arrow{ color:var(--text-faint); }
+  .diff-row .diff-new{ color:var(--text); font-weight:600; }
+  .diff-actions{ display:flex; gap:8px; margin-top:10px; }
+
+  /* ---- пользователи (переиспользовано из index.html) ---- */
+  .ua-add-row{ display:flex; gap:6px; margin-bottom:14px; }
+  .ua-add-row input[type="text"], .ua-add-row input[type="password"]{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:6px 8px; font-size:12px; font-family:inherit; width:0; flex:1 1 0;
+  }
+  .ua-add-row select{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:6px 4px; font-size:12px; font-family:inherit;
+  }
+  .ua-add-row button{
+    background:var(--accent); border:1px solid var(--accent); color:#14171a; border-radius:5px;
+    width:30px; flex-shrink:0; font-size:15px; font-weight:700; cursor:pointer;
+  }
+  .ua-add-row button:hover{ filter:brightness(1.08); }
+  #userAdminError{ min-height:14px; font-size:11px; color:var(--danger); margin:-8px 0 10px; }
+  .ua-row{
+    display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px solid var(--border-soft); font-size:12px; color:var(--text-dim);
+  }
+  .ua-row .ua-name{ flex:1 1 auto; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ua-row select{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:4px; padding:3px; font-size:11px; font-family:inherit;
+  }
+  .ua-row .ua-dots{ letter-spacing:2px; color:var(--text-faint); }
+  .ua-row button{
+    background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px;
+    width:26px; height:24px; cursor:pointer; font-size:12px; flex-shrink:0;
+  }
+  .ua-row button:hover{ border-color:var(--accent); color:var(--accent); }
+  .ua-row button.ua-delete:hover{ border-color:var(--danger); color:var(--danger); }
+  .ua-reset-row{ display:none; gap:6px; margin:4px 0 8px; }
+  .ua-reset-row.open{ display:flex; }
+  .ua-reset-row input{
+    flex:1; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:4px; padding:4px 6px; font-size:11.5px; font-family:inherit;
+  }
+  .ua-reset-row button{
+    background:var(--accent); border:1px solid var(--accent); color:#14171a; border-radius:4px;
+    padding:0 10px; font-size:11px; cursor:pointer; font-weight:600;
+  }
+
+  /* ---- таблица порогов по формам ---- */
+  table.shape-table{ width:100%; border-collapse:collapse; }
+  table.shape-table th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:700;
+    color:var(--text-faint); padding:8px 10px; border-bottom:1px solid var(--border);
+  }
+  table.shape-table td{ padding:6px 10px; border-bottom:1px solid var(--border-soft); vertical-align:middle; }
+  table.shape-table tr:last-child td{ border-bottom:none; }
+  table.shape-table input{
+    width:90px; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:4px; padding:5px 7px; font-size:12px; font-family:inherit;
+  }
+  table.shape-table .shape-label{ color:var(--text); font-weight:600; }
+  table.shape-table .shape-key{ color:var(--text-faint); font-size:10.5px; }
+
+  /* ---- источники данных ---- */
+  .ds-row{
+    display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border-soft);
+  }
+  .ds-row:last-child{ border-bottom:none; }
+  .ds-row .ds-name{ flex:1 1 auto; color:var(--text); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ds-row .ds-meta{ font-size:10.5px; color:var(--text-faint); }
+  .ds-row .ds-toggle{ display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-dim); cursor:pointer; }
+  .ds-empty, .card .empty{ text-align:center; color:var(--text-faint); padding:24px 10px; font-size:12px; }
+
+  /* ---- справочники: встроенная страница /references ---- */
+  #referencesFrame{ width:100%; height:calc(100vh - 140px); border:1px solid var(--border); border-radius:10px; background:var(--panel); }
+
+  #settingsError, #settingsForbidden{ text-align:center; color:var(--text-faint); padding:60px 20px; line-height:1.6; }
+  #settingsError{ color:var(--danger); }
+</style>
+</head>
+<body>
+
+<!-- ================= Экран входа по паролю ================= -->
+<div id="authGate">
+  <div id="authCard">
+    <svg class="auth-mark" viewBox="0 0 100 88" aria-hidden="true"><path d="M10,76 L10,14 L50,54" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><path d="M50,54 L90,14 L90,76" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/></svg>
+    <h1>MoT</h1>
+    <div class="auth-tagline">Mine Operations Tool</div>
+    <h2>Настройки — вход</h2>
+    <label for="authUsername">Логин</label>
+    <input type="text" id="authUsername" autocomplete="username" placeholder="Логин" style="margin-bottom:10px;" />
+    <label for="authPassword">Пароль</label>
+    <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
+    <div id="authError"></div>
+    <button id="btnAuthSubmit">Войти</button>
+    <div class="authHint">Доступ только для авторизованных пользователей.<br>© 2026 MoT. Все права защищены.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var gate = document.getElementById("authGate");
+  var userInput = document.getElementById("authUsername");
+  var passInput = document.getElementById("authPassword");
+  var errorEl = document.getElementById("authError");
+  var btn = document.getElementById("btnAuthSubmit");
+
+  function unlock(session){
+    gate.classList.add("hidden");
+    window.__auth = session;
+    document.dispatchEvent(new CustomEvent("kzmAuthReady"));
+  }
+  function readStoredSession(){
+    try {
+      var raw = localStorage.getItem("kzmAuthSession");
+      if (!raw) return null;
+      var s = JSON.parse(raw);
+      if (s && s.token && s.username && s.role) return s;
+    } catch(e){}
+    return null;
+  }
+  async function tryLogin(){
+    var username = (userInput.value || "").trim();
+    var password = passInput.value || "";
+    if (!username || !password) {
+      errorEl.textContent = "Введите логин и пароль.";
+      return;
+    }
+    btn.disabled = true;
+    try {
+      var resp = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username, password: password }),
+      });
+      if (!resp.ok) {
+        errorEl.textContent = "Неверный логин или пароль.";
+        passInput.value = "";
+        passInput.focus();
+        return;
+      }
+      var data = await resp.json();
+      var session = { token: data.token, username: data.username, role: data.role };
+      try { localStorage.setItem("kzmAuthSession", JSON.stringify(session)); } catch(e){}
+      errorEl.textContent = "";
+      unlock(session);
+    } catch(e) {
+      errorEl.textContent = "Не удалось связаться с сервером.";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  var stored = readStoredSession();
+  if (stored) { unlock(stored); } else { userInput.focus(); }
+  btn.addEventListener("click", tryLogin);
+  passInput.addEventListener("keydown", function(e){ if (e.key === "Enter") tryLogin(); });
+  userInput.addEventListener("keydown", function(e){ if (e.key === "Enter") passInput.focus(); });
+  window.__kzmLogout = function(){
+    try { localStorage.removeItem("kzmAuthSession"); } catch(e){}
+    location.reload();
+  };
+})();
+</script>
+
+<div id="shell">
+  <header id="topBar">
+<svg class="brand-mark" viewBox="0 0 100 88" aria-hidden="true"><path d="M10,76 L10,14 L50,54" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><path d="M50,54 L90,14 L90,76" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/></svg>
+    <div class="brand-titles">
+      <span class="t1">MoT</span>
+      <span class="t2">Настройки</span>
+    </div>
+    <div class="brand-spacer"></div>
+    <div id="sessionInfo" style="display:flex; align-items:center; gap:10px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
+      <span id="sessionProject"></span>
+      <select id="projectSelect" title="Переключить проект" style="display:none;"></select>
+      <span id="sessionUser"></span>
+      <a id="navToEditor" title="Редактор модели"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" /><path d="M13.5 6.5l4 4" /></svg> Редактор</a>
+      <a id="navToMonitoring" title="Мониторинг оборудования"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4v8" /><path d="M16 4.5v7" /><path d="M12 5v16" /><path d="M8 5.5v5" /><path d="M4 6v4" /><path d="M20 8h-16" /></svg> Мониторинг</a>
+      <a id="navToStats" title="История аварий"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14" /><path d="M4 20h14" /></svg> Статистика</a>
+      <a id="navToTickets" title="Тикеты"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l0 2" /><path d="M15 11l0 2" /><path d="M15 17l0 2" /><path d="M5 5a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h14a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2z" /></svg> Тикеты<span class="nav-badge" id="ticketsBadge" style="display:none;">0</span></a>
+      <a id="navToRegistry" title="Реестр ЗИП"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" /><path d="M12 12l8 -4.5" /><path d="M12 12l0 9" /><path d="M12 12l-8 -4.5" /><path d="M16 5.25l-8 4.5" /></svg> ЗИП</a>
+      <a id="navToLamps" title="Фонари"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3" /><path d="M9.7 17l4.6 0" /></svg> Фонари</a>
+      <a id="navToLog" title="Журнал действий"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8l0 4l2 2" /><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 -4l1.75 -4.5l3.22 2.5m-4.97 2l4.5 1.5" /></svg> Лог</a>
+      <a id="navToSettings" class="nav-current" title="Настройки"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" /><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /></svg> Настройки</a>
+      <button id="btnLogout" title="Выйти">Выйти</button>
+    </div>
+    <div class="brand-copyright">© 2026 MoT<br>Все права защищены</div>
+  </header>
+
+  <div id="app">
+    <div id="settingsError" style="display:none;"></div>
+    <div id="settingsForbidden" style="display:none;"><b>Недостаточно прав.</b><br>Раздел доступен только администраторам.</div>
+
+    <div class="settings-shell" id="settingsShell" style="display:none;">
+      <nav class="settings-sidebar">
+        <h1>Настройки</h1>
+        <button class="settings-nav-btn active" data-section="users">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M21 21v-2a4 4 0 0 0 -3 -3.85" /></svg>
+          Пользователи
+        </button>
+        <button class="settings-nav-btn" data-section="thresholds">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M13.41 10.59l2.59 -2.59" /><path d="M7 12a5 5 0 0 1 5 -5" /></svg>
+          Пороги
+        </button>
+        <button class="settings-nav-btn" data-section="references">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11a2 2 0 0 1 2 2v14l-7 -3l-7 3v-14a2 2 0 0 1 2 -2z" /></svg>
+          Справочники
+        </button>
+        <button class="settings-nav-btn" data-section="sources">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6a8 3 0 1 0 16 0a8 3 0 1 0 -16 0" /><path d="M4 6v6a8 3 0 0 0 16 0v-6" /><path d="M4 12v6a8 3 0 0 0 16 0v-6" /></svg>
+          Источники данных
+        </button>
+      </nav>
+
+      <div class="settings-content">
+        <!-- ============ Пользователи ============ -->
+        <section class="settings-panel active" id="panel-users">
+          <h2>Пользователи</h2>
+          <p class="subtitle">Доступ применяется сразу — роль и сброс пароля отдельного пользователя не требуют общего сохранения.</p>
+          <div class="card">
+            <div class="ua-add-row">
+              <input type="text" id="uaNewLogin" placeholder="Логин" autocomplete="off">
+              <input type="password" id="uaNewPassword" placeholder="Пароль" autocomplete="off">
+              <select id="uaNewRole">
+                <option value="viewer">viewer</option>
+                <option value="editor" selected>editor</option>
+                <option value="admin">admin</option>
+              </select>
+              <button id="btnUaAdd" title="Добавить пользователя">+</button>
+            </div>
+            <div id="userAdminError"></div>
+            <div id="userAdminList"></div>
+          </div>
+        </section>
+
+        <!-- ============ Пороги ============ -->
+        <section class="settings-panel" id="panel-thresholds">
+          <h2>Пороги фиксации аварии</h2>
+          <p class="subtitle">Статус на дашборде/3D-модели красится сразу по факту пинга/сигнала — эти пороги влияют только на то, когда простой запишется как авария в историю.</p>
+
+          <div class="card">
+            <h3>Общие пороги проекта</h3>
+            <div class="field-row">
+              <div class="field">
+                <label for="thPingTimeout">Таймаут пинга, сек</label>
+                <input type="number" id="thPingTimeout" min="1" max="10" step="1">
+              </div>
+              <div class="field">
+                <label for="thPingFails">Простой до аварии — ping, мин (0 — сразу)</label>
+                <input type="number" id="thPingFails" min="0" max="60" step="0.5">
+              </div>
+              <div class="field">
+                <label for="thCustomStale">Молчание источника до "Нет связи", сек</label>
+                <input type="number" id="thCustomStale" min="30" max="3600" step="10">
+              </div>
+              <div class="field">
+                <label for="thCustomFails">Простой до аварии — настраив. источник, мин (0 — сразу)</label>
+                <input type="number" id="thCustomFails" min="0" max="60" step="0.5">
+              </div>
+              <div class="field">
+                <label for="thLampFails">Фонарь неисправен после молчания, ч</label>
+                <input type="number" id="thLampFails" min="1" max="336" step="1">
+              </div>
+            </div>
+            <h3 style="margin-top:18px;">SLA-сроки тикетов</h3>
+            <div class="card .hint" style="margin:-6px 0 12px; font-size:11px; color:var(--text-faint);">Время на устранение по приоритету, отсчитывается с момента назначения исполнителя.</div>
+            <div class="field-row">
+              <div class="field"><label for="thSlaCritical">Критичный, ч</label><input type="number" id="thSlaCritical" min="1" max="720" step="1"></div>
+              <div class="field"><label for="thSlaHigh">Высокий, ч</label><input type="number" id="thSlaHigh" min="1" max="720" step="1"></div>
+              <div class="field"><label for="thSlaMedium">Средний, ч</label><input type="number" id="thSlaMedium" min="1" max="720" step="1"></div>
+              <div class="field"><label for="thSlaLow">Низкий, ч</label><input type="number" id="thSlaLow" min="1" max="720" step="1"></div>
+            </div>
+
+            <div class="diff-preview" id="thDiffPreview">
+              <div class="diff-title">Будут изменены:</div>
+              <div id="thDiffRows"></div>
+              <div class="diff-actions">
+                <button class="btn primary" id="btnThConfirm">Подтвердить и сохранить</button>
+                <button class="btn" id="btnThCancel">Отмена</button>
+              </div>
+            </div>
+
+            <div class="save-bar" style="margin-top:14px;">
+              <button class="btn primary" id="btnThSave">Сохранить пороги</button>
+              <button class="btn danger" id="btnThReset">Сбросить на умолчания</button>
+              <span class="save-status" id="thSaveStatus"></span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Пороги по формам оборудования</h3>
+            <div class="hint">Переопределяет общие пороги выше для конкретной формы. Пустое поле — используется общий порог проекта.</div>
+            <div id="shapeThresholdsWrap"><div class="empty">Загрузка…</div></div>
+
+            <div class="diff-preview" id="shapeDiffPreview">
+              <div class="diff-title">Будут изменены:</div>
+              <div id="shapeDiffRows"></div>
+              <div class="diff-actions">
+                <button class="btn primary" id="btnShapeConfirm">Подтвердить и сохранить</button>
+                <button class="btn" id="btnShapeCancel">Отмена</button>
+              </div>
+            </div>
+
+            <div class="save-bar" style="margin-top:14px;">
+              <button class="btn primary" id="btnShapeSave">Сохранить пороги по формам</button>
+              <span class="save-status" id="shapeSaveStatus"></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ Справочники ============ -->
+        <section class="settings-panel" id="panel-references">
+          <h2>Справочники</h2>
+          <p class="subtitle">Кабели, формы оборудования и системы мониторинга — общие для всех проектов. Изменения применяются сразу.</p>
+          <iframe id="referencesFrame" src="about:blank"></iframe>
+        </section>
+
+        <!-- ============ Источники данных ============ -->
+        <section class="settings-panel" id="panel-sources">
+          <h2>Источники данных</h2>
+          <p class="subtitle">Настраиваемые источники мониторинга этого проекта (custom-monitor-worker.js). Новый источник строится и проверяется в конструкторе парсера.</p>
+          <div class="card">
+            <div class="save-bar" style="margin-bottom:14px;">
+              <a class="btn primary" id="btnOpenParsing" href="/parsing" target="_blank" rel="noopener">Открыть конструктор парсера →</a>
+            </div>
+            <div id="dataSourcesError"></div>
+            <div id="dataSourcesList"><div class="empty">Загрузка…</div></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+const CURRENT_PROJECT_ID = (location.pathname.split("/").filter(Boolean)[0] || "default").toLowerCase();
+
+function apiHeaders(extra) {
+  const auth = window.__auth;
+  const headers = Object.assign({}, extra || {});
+  if (auth && auth.token) headers["Authorization"] = "Bearer " + auth.token;
+  return headers;
+}
+async function apiFetch(url, options) {
+  const resp = await fetch(url, Object.assign({}, options, { headers: apiHeaders((options && options.headers) || {}) }));
+  if (resp.status === 401) {
+    if (window.__kzmLogout) window.__kzmLogout();
+    throw new Error("Сессия истекла, требуется повторный вход.");
+  }
+  return resp;
+}
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function parseServerDate(s) {
+  if (!s) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/.exec(s);
+  return m ? new Date(m[1] + "T" + m[2] + "Z") : new Date(s);
+}
+
+/* ================= сайдбар-навигация между разделами ================= */
+function showSection(name) {
+  document.querySelectorAll(".settings-nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.section === name));
+  document.querySelectorAll(".settings-panel").forEach((p) => p.classList.toggle("active", p.id === "panel-" + name));
+  if (name === "references") {
+    const frame = document.getElementById("referencesFrame");
+    if (frame.src === "about:blank") frame.src = "/references";
+  }
+  if (name === "sources") loadDataSources();
+  try { history.replaceState(null, "", `/${CURRENT_PROJECT_ID}/settings?section=${name}`); } catch (e) {}
+}
+document.querySelectorAll(".settings-nav-btn").forEach((btn) => {
+  btn.addEventListener("click", () => showSection(btn.dataset.section));
+});
+
+/* ================= Пользователи (та же логика, что была в index.html) ================= */
+const ICON_X = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg>';
+const ICON_EYE = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /></svg>';
+const uaList = document.getElementById("userAdminList");
+const uaError = document.getElementById("userAdminError");
+
+async function loadUserAdminList() {
+  try {
+    const resp = await apiFetch("/api/users");
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    renderUserAdminList(data.users || []);
+  } catch (err) {
+    uaError.textContent = "Не удалось загрузить список пользователей: " + err.message;
+  }
+}
+function renderUserAdminList(users) {
+  uaList.innerHTML = "";
+  const myUsername = window.__auth && window.__auth.username;
+  for (const u of users) {
+    const row = document.createElement("div");
+    row.className = "ua-row";
+    const name = document.createElement("span");
+    name.className = "ua-name";
+    name.textContent = u.username;
+    const roleSelect = document.createElement("select");
+    for (const r of ["viewer", "editor", "admin"]) {
+      const opt = document.createElement("option");
+      opt.value = r; opt.textContent = r;
+      if (r === u.role) opt.selected = true;
+      roleSelect.appendChild(opt);
+    }
+    const dots = document.createElement("span");
+    dots.className = "ua-dots";
+    dots.textContent = "••••••••";
+    const btnReveal = document.createElement("button");
+    btnReveal.innerHTML = ICON_EYE;
+    btnReveal.title = "Пароль хранится в зашифрованном виде и его нельзя посмотреть — нажмите, чтобы задать новый";
+    const btnDelete = document.createElement("button");
+    btnDelete.className = "ua-delete";
+    btnDelete.innerHTML = ICON_X;
+    btnDelete.title = "Удалить пользователя";
+    if (u.username === myUsername) btnDelete.disabled = true;
+    row.appendChild(name); row.appendChild(roleSelect); row.appendChild(dots);
+    row.appendChild(btnReveal); row.appendChild(btnDelete);
+    uaList.appendChild(row);
+
+    const resetRow = document.createElement("div");
+    resetRow.className = "ua-reset-row";
+    const resetInput = document.createElement("input");
+    resetInput.type = "password";
+    resetInput.placeholder = "Новый пароль";
+    const btnResetSave = document.createElement("button");
+    btnResetSave.textContent = "Сохранить";
+    resetRow.appendChild(resetInput); resetRow.appendChild(btnResetSave);
+    uaList.appendChild(resetRow);
+
+    roleSelect.addEventListener("change", async () => {
+      uaError.textContent = "";
+      try {
+        const resp = await apiFetch(`/api/users/${encodeURIComponent(u.username)}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: roleSelect.value }),
+        });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
+      } catch (err) {
+        uaError.textContent = "Не удалось сменить роль: " + err.message;
+        roleSelect.value = u.role;
+      }
+    });
+    btnReveal.addEventListener("click", () => {
+      resetRow.classList.toggle("open");
+      resetInput.value = "";
+      if (resetRow.classList.contains("open")) resetInput.focus();
+    });
+    btnResetSave.addEventListener("click", async () => {
+      uaError.textContent = "";
+      const pass = resetInput.value;
+      if (!pass || pass.length < 4) {
+        uaError.textContent = "Пароль должен быть не короче 4 символов.";
+        return;
+      }
+      try {
+        const resp = await apiFetch(`/api/users/${encodeURIComponent(u.username)}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pass }),
+        });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
+        resetRow.classList.remove("open");
+        resetInput.value = "";
+      } catch (err) {
+        uaError.textContent = "Не удалось сменить пароль: " + err.message;
+      }
+    });
+    btnDelete.addEventListener("click", async () => {
+      if (u.username === myUsername) return;
+      if (!confirm(`Удалить пользователя «${u.username}»?`)) return;
+      uaError.textContent = "";
+      try {
+        const resp = await apiFetch(`/api/users/${encodeURIComponent(u.username)}`, { method: "DELETE" });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
+        loadUserAdminList();
+      } catch (err) {
+        uaError.textContent = "Не удалось удалить пользователя: " + err.message;
+      }
+    });
+  }
+}
+document.getElementById("btnUaAdd").addEventListener("click", async () => {
+  const loginEl = document.getElementById("uaNewLogin");
+  const passEl = document.getElementById("uaNewPassword");
+  const roleEl = document.getElementById("uaNewRole");
+  const login = loginEl.value.trim();
+  const password = passEl.value;
+  uaError.textContent = "";
+  if (!login) { uaError.textContent = "Введите логин."; return; }
+  if (!password || password.length < 4) { uaError.textContent = "Пароль должен быть не короче 4 символов."; return; }
+  try {
+    const resp = await apiFetch("/api/users", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: login, password, role: roleEl.value }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error === "already_exists" ? "Такой логин уже существует." : (err.error || ("HTTP " + resp.status)));
+    }
+    loginEl.value = ""; passEl.value = "";
+    loadUserAdminList();
+  } catch (err) {
+    uaError.textContent = "Не удалось добавить пользователя: " + err.message;
+  }
+});
+
+/* ================= Пороги: общие + explicit save с diff-превью ================= */
+const TH_FIELD_SPECS = [
+  { id: "thPingTimeout", key: "pingTimeoutSec", label: "Таймаут пинга", kind: "int" },
+  { id: "thPingFails", key: "pingFailDurationSec", label: "Простой до аварии (ping)", kind: "minutes" },
+  { id: "thCustomStale", key: "customStaleAfterSec", label: "Молчание источника до «Нет связи»", kind: "int" },
+  { id: "thCustomFails", key: "customFailDurationSec", label: "Простой до аварии (источник)", kind: "minutes" },
+  { id: "thLampFails", key: "lampFailAfterHours", label: "Фонарь неисправен после", kind: "int" },
+  { id: "thSlaCritical", key: "ticketSlaCriticalHours", label: "SLA критичный", kind: "int" },
+  { id: "thSlaHigh", key: "ticketSlaHighHours", label: "SLA высокий", kind: "int" },
+  { id: "thSlaMedium", key: "ticketSlaMediumHours", label: "SLA средний", kind: "int" },
+  { id: "thSlaLow", key: "ticketSlaLowHours", label: "SLA низкий", kind: "int" },
+];
+let thLoaded = null; // последние загруженные с сервера значения (для diff)
+let thPendingBody = null;
+
+function fillThresholdForm(data) {
+  document.getElementById("thPingTimeout").value = data.pingTimeoutSec;
+  document.getElementById("thPingFails").value = data.pingFailDurationSec / 60;
+  document.getElementById("thCustomStale").value = data.customStaleAfterSec;
+  document.getElementById("thCustomFails").value = data.customFailDurationSec / 60;
+  document.getElementById("thLampFails").value = data.lampFailAfterHours;
+  document.getElementById("thSlaCritical").value = data.ticketSlaCriticalHours;
+  document.getElementById("thSlaHigh").value = data.ticketSlaHighHours;
+  document.getElementById("thSlaMedium").value = data.ticketSlaMediumHours;
+  document.getElementById("thSlaLow").value = data.ticketSlaLowHours;
+}
+async function loadThresholds() {
+  const statusEl = document.getElementById("thSaveStatus");
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    thLoaded = data;
+    fillThresholdForm(data);
+    statusEl.className = "save-status";
+    statusEl.textContent = data.configured
+      ? `Настроено${data.updatedBy ? " — " + data.updatedBy : ""}${data.updatedAt ? ", " + parseServerDate(data.updatedAt).toLocaleString() : ""}`
+      : "Используются значения по умолчанию.";
+  } catch (err) {
+    statusEl.className = "save-status err";
+    statusEl.textContent = "Не удалось загрузить: " + err.message;
+  }
+}
+
+function readThresholdForm() {
+  const pingTimeoutSec = parseInt(document.getElementById("thPingTimeout").value, 10);
+  const pingFailMinutes = parseFloat(document.getElementById("thPingFails").value);
+  const customStaleAfterSec = parseInt(document.getElementById("thCustomStale").value, 10);
+  const customFailMinutes = parseFloat(document.getElementById("thCustomFails").value);
+  const lampFailAfterHours = parseInt(document.getElementById("thLampFails").value, 10);
+  const ticketSlaCriticalHours = parseInt(document.getElementById("thSlaCritical").value, 10);
+  const ticketSlaHighHours = parseInt(document.getElementById("thSlaHigh").value, 10);
+  const ticketSlaMediumHours = parseInt(document.getElementById("thSlaMedium").value, 10);
+  const ticketSlaLowHours = parseInt(document.getElementById("thSlaLow").value, 10);
+  if (!Number.isInteger(pingTimeoutSec) || pingTimeoutSec < 1 || pingTimeoutSec > 10) throw new Error("Таймаут пинга — целое число от 1 до 10 сек.");
+  if (!Number.isFinite(pingFailMinutes) || pingFailMinutes < 0 || pingFailMinutes > 60) throw new Error("Простой до аварии (ping) — число от 0 до 60 мин.");
+  if (!Number.isInteger(customStaleAfterSec) || customStaleAfterSec < 30 || customStaleAfterSec > 3600) throw new Error("Молчание источника — целое число от 30 до 3600 сек.");
+  if (!Number.isFinite(customFailMinutes) || customFailMinutes < 0 || customFailMinutes > 60) throw new Error("Простой до аварии (источник) — число от 0 до 60 мин.");
+  if (!Number.isInteger(lampFailAfterHours) || lampFailAfterHours < 1 || lampFailAfterHours > 336) throw new Error("Молчание фонаря до «неисправен» — целое число от 1 до 336 ч.");
+  for (const [label, val] of [["критичный", ticketSlaCriticalHours], ["высокий", ticketSlaHighHours], ["средний", ticketSlaMediumHours], ["низкий", ticketSlaLowHours]]) {
+    if (!Number.isInteger(val) || val < 1 || val > 720) throw new Error(`Срок устранения (${label}) — целое число от 1 до 720 ч.`);
+  }
+  return {
+    pingTimeoutSec, pingFailDurationSec: Math.round(pingFailMinutes * 60),
+    customStaleAfterSec, customFailDurationSec: Math.round(customFailMinutes * 60),
+    lampFailAfterHours, ticketSlaCriticalHours, ticketSlaHighHours, ticketSlaMediumHours, ticketSlaLowHours,
+  };
+}
+function fmtThVal(spec, raw) {
+  if (spec.kind === "minutes") return (raw / 60) + " мин";
+  if (spec.id === "thLampFails") return raw + " ч";
+  return String(raw);
+}
+document.getElementById("btnThSave").addEventListener("click", () => {
+  const statusEl = document.getElementById("thSaveStatus");
+  statusEl.className = "save-status";
+  let next;
+  try {
+    next = readThresholdForm();
+  } catch (err) {
+    statusEl.className = "save-status err";
+    statusEl.textContent = err.message;
+    return;
+  }
+  const rowsEl = document.getElementById("thDiffRows");
+  rowsEl.innerHTML = "";
+  let changed = false;
+  for (const spec of TH_FIELD_SPECS) {
+    const before = thLoaded ? thLoaded[spec.key] : undefined;
+    const after = next[spec.key];
+    if (before === after) continue;
+    changed = true;
+    const row = document.createElement("div");
+    row.className = "diff-row";
+    row.innerHTML = `<span class="diff-k">${esc(spec.label)}</span><span class="diff-old">${esc(fmtThVal(spec, before))}</span><span class="diff-arrow">→</span><span class="diff-new">${esc(fmtThVal(spec, after))}</span>`;
+    rowsEl.appendChild(row);
+  }
+  if (!changed) {
+    statusEl.textContent = "Изменений нет.";
+    document.getElementById("thDiffPreview").classList.remove("open");
+    return;
+  }
+  thPendingBody = next;
+  document.getElementById("thDiffPreview").classList.add("open");
+});
+document.getElementById("btnThCancel").addEventListener("click", () => {
+  document.getElementById("thDiffPreview").classList.remove("open");
+  thPendingBody = null;
+});
+document.getElementById("btnThConfirm").addEventListener("click", async () => {
+  if (!thPendingBody) return;
+  const statusEl = document.getElementById("thSaveStatus");
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(thPendingBody),
+    });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
+    document.getElementById("thDiffPreview").classList.remove("open");
+    statusEl.className = "save-status ok";
+    statusEl.textContent = "Сохранено.";
+    thPendingBody = null;
+    loadThresholds();
+  } catch (err) {
+    statusEl.className = "save-status err";
+    statusEl.textContent = "Не удалось сохранить: " + err.message;
+  }
+});
+document.getElementById("btnThReset").addEventListener("click", async () => {
+  if (!confirm(`Сбросить пороги проекта «${CURRENT_PROJECT_ID}» на значения по умолчанию?`)) return;
+  const statusEl = document.getElementById("thSaveStatus");
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`, { method: "DELETE" });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    statusEl.className = "save-status ok";
+    statusEl.textContent = "Сброшено.";
+    loadThresholds();
+  } catch (err) {
+    statusEl.className = "save-status err";
+    statusEl.textContent = "Не удалось сбросить: " + err.message;
+  }
+});
+
+/* ================= Пороги по формам оборудования ================= */
+let shapesCatalog = []; // [{key,label,monitorable}]
+let shapeOverridesLoaded = new Map(); // shape -> {staleAfterSec,failDurationSec}
+let shapePendingChanges = null; // [{shape,label,staleAfterSec,failDurationSec}]
+
+async function loadShapeThresholds() {
+  const wrap = document.getElementById("shapeThresholdsWrap");
+  try {
+    const [shapesResp, overridesResp] = await Promise.all([
+      apiFetch("/api/references/equipment-shapes/public"),
+      apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/shape-thresholds`),
+    ]);
+    if (!shapesResp.ok) throw new Error("HTTP " + shapesResp.status);
+    if (!overridesResp.ok) throw new Error("HTTP " + overridesResp.status);
+    const shapesData = await shapesResp.json();
+    const overridesData = await overridesResp.json();
+    shapesCatalog = (shapesData.shapes || []).filter((s) => s.monitorable);
+    shapeOverridesLoaded = new Map();
+    for (const o of overridesData.overrides || []) {
+      shapeOverridesLoaded.set(o.shape, { staleAfterSec: o.staleAfterSec, failDurationSec: o.failDurationSec });
+    }
+    renderShapeThresholdsTable();
+  } catch (err) {
+    wrap.innerHTML = `<div class="empty">Не удалось загрузить: ${esc(err.message)}</div>`;
+  }
+}
+function renderShapeThresholdsTable() {
+  const wrap = document.getElementById("shapeThresholdsWrap");
+  if (!shapesCatalog.length) {
+    wrap.innerHTML = `<div class="empty">Нет форм оборудования, помеченных как «мониторируемые» в справочнике.</div>`;
+    return;
+  }
+  const rows = shapesCatalog.map((s) => {
+    const o = shapeOverridesLoaded.get(s.key) || {};
+    return `<tr data-shape="${esc(s.key)}">
+      <td><span class="shape-label">${esc(s.label)}</span><br><span class="shape-key mono">${esc(s.key)}</span></td>
+      <td><input type="number" class="shape-stale" min="30" max="3600" step="10" placeholder="—" value="${o.staleAfterSec != null ? o.staleAfterSec : ""}"></td>
+      <td><input type="number" class="shape-fail" min="0" max="3600" step="10" placeholder="—" value="${o.failDurationSec != null ? o.failDurationSec : ""}"></td>
+    </tr>`;
+  }).join("");
+  wrap.innerHTML = `<table class="shape-table"><thead><tr>
+    <th>Форма</th><th>Молчание, сек</th><th>Простой до аварии, сек</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+document.getElementById("btnShapeSave").addEventListener("click", () => {
+  const statusEl = document.getElementById("shapeSaveStatus");
+  statusEl.className = "save-status";
+  const rowsEl = document.getElementById("shapeDiffRows");
+  rowsEl.innerHTML = "";
+  const changes = [];
+  let hasError = false;
+  document.querySelectorAll("#shapeThresholdsWrap tr[data-shape]").forEach((tr) => {
+    const shape = tr.dataset.shape;
+    const staleRaw = tr.querySelector(".shape-stale").value;
+    const failRaw = tr.querySelector(".shape-fail").value;
+    const staleAfterSec = staleRaw === "" ? null : parseInt(staleRaw, 10);
+    const failDurationSec = failRaw === "" ? null : parseInt(failRaw, 10);
+    if (staleAfterSec !== null && (!Number.isInteger(staleAfterSec) || staleAfterSec < 30 || staleAfterSec > 3600)) hasError = true;
+    if (failDurationSec !== null && (!Number.isInteger(failDurationSec) || failDurationSec < 0 || failDurationSec > 3600)) hasError = true;
+    const before = shapeOverridesLoaded.get(shape) || { staleAfterSec: null, failDurationSec: null };
+    if (before.staleAfterSec === staleAfterSec && before.failDurationSec === failDurationSec) return;
+    const label = (shapesCatalog.find((s) => s.key === shape) || {}).label || shape;
+    changes.push({ shape, label, staleAfterSec, failDurationSec, before });
+  });
+  if (hasError) {
+    statusEl.className = "save-status err";
+    statusEl.textContent = "Молчание — 30–3600 сек, простой до аварии — 0–3600 сек (или пусто).";
+    return;
+  }
+  if (!changes.length) {
+    statusEl.textContent = "Изменений нет.";
+    document.getElementById("shapeDiffPreview").classList.remove("open");
+    return;
+  }
+  for (const c of changes) {
+    const row = document.createElement("div");
+    row.className = "diff-row";
+    const fmt = (v) => (v == null ? "по умолч." : v + " сек");
+    row.innerHTML = `<span class="diff-k">${esc(c.label)}</span><span class="diff-old">${fmt(c.before.staleAfterSec)}/${fmt(c.before.failDurationSec)}</span><span class="diff-arrow">→</span><span class="diff-new">${fmt(c.staleAfterSec)}/${fmt(c.failDurationSec)}</span>`;
+    rowsEl.appendChild(row);
+  }
+  shapePendingChanges = changes;
+  document.getElementById("shapeDiffPreview").classList.add("open");
+});
+document.getElementById("btnShapeCancel").addEventListener("click", () => {
+  document.getElementById("shapeDiffPreview").classList.remove("open");
+  shapePendingChanges = null;
+});
+document.getElementById("btnShapeConfirm").addEventListener("click", async () => {
+  if (!shapePendingChanges || !shapePendingChanges.length) return;
+  const statusEl = document.getElementById("shapeSaveStatus");
+  try {
+    for (const c of shapePendingChanges) {
+      const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/shape-thresholds/${encodeURIComponent(c.shape)}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staleAfterSec: c.staleAfterSec, failDurationSec: c.failDurationSec }),
+      });
+      if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
+    }
+    document.getElementById("shapeDiffPreview").classList.remove("open");
+    statusEl.className = "save-status ok";
+    statusEl.textContent = "Сохранено.";
+    shapePendingChanges = null;
+    loadShapeThresholds();
+  } catch (err) {
+    statusEl.className = "save-status err";
+    statusEl.textContent = "Не удалось сохранить: " + err.message;
+  }
+});
+
+/* ================= Источники данных ================= */
+async function loadDataSources() {
+  const listEl = document.getElementById("dataSourcesList");
+  const errEl = document.getElementById("dataSourcesError");
+  errEl.textContent = "";
+  try {
+    const resp = await apiFetch(`/api/parsing/sources?projectId=${encodeURIComponent(CURRENT_PROJECT_ID)}`);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    renderDataSources(data.sources || []);
+  } catch (err) {
+    listEl.innerHTML = "";
+    errEl.textContent = "Не удалось загрузить источники: " + err.message;
+  }
+}
+function renderDataSources(sources) {
+  const listEl = document.getElementById("dataSourcesList");
+  if (!sources.length) {
+    listEl.innerHTML = `<div class="ds-empty">Источников пока нет. Постройте и опубликуйте источник через конструктор парсера.</div>`;
+    return;
+  }
+  listEl.innerHTML = "";
+  for (const s of sources) {
+    const row = document.createElement("div");
+    row.className = "ds-row";
+    row.innerHTML = `
+      <div style="flex:1 1 auto; min-width:0;">
+        <div class="ds-name">${esc(s.name)}</div>
+        <div class="ds-meta">${esc(s.connection && s.connection.baseUrl || "")} · обновлено ${s.updatedAt ? esc(parseServerDate(s.updatedAt).toLocaleString()) : "—"}</div>
+      </div>
+      <label class="ds-toggle"><input type="checkbox" class="ds-enabled" ${s.enabled ? "checked" : ""}> включён</label>
+      <button class="btn danger ds-delete">Удалить</button>
+    `;
+    row.querySelector(".ds-enabled").addEventListener("change", async (e) => {
+      try {
+        const resp = await apiFetch(`/api/parsing/sources/${encodeURIComponent(s.id)}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: e.target.checked }),
+        });
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+      } catch (err) {
+        document.getElementById("dataSourcesError").textContent = "Не удалось изменить: " + err.message;
+        e.target.checked = !e.target.checked;
+      }
+    });
+    row.querySelector(".ds-delete").addEventListener("click", async () => {
+      if (!confirm(`Удалить источник «${s.name}»? Оборудование, привязанное к нему, перестанет получать данные.`)) return;
+      try {
+        const resp = await apiFetch(`/api/parsing/sources/${encodeURIComponent(s.id)}`, { method: "DELETE" });
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        loadDataSources();
+      } catch (err) {
+        document.getElementById("dataSourcesError").textContent = "Не удалось удалить: " + err.message;
+      }
+    });
+    listEl.appendChild(row);
+  }
+}
+
+/* ================= роль/шапка/переключатель проекта ================= */
+async function loadProjectSwitcher() {
+  const sel = document.getElementById("projectSelect");
+  if (!sel) return;
+  try {
+    const resp = await apiFetch("/api/projects");
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    sel.textContent = "";
+    let hasCurrent = false;
+    for (const p of data.projects) {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.name + " (" + p.id + ")";
+      if (p.id === CURRENT_PROJECT_ID) { opt.selected = true; hasCurrent = true; }
+      sel.appendChild(opt);
+    }
+    if (!hasCurrent) {
+      const opt = document.createElement("option");
+      opt.value = CURRENT_PROJECT_ID;
+      opt.textContent = CURRENT_PROJECT_ID;
+      opt.selected = true;
+      sel.insertBefore(opt, sel.firstChild);
+    }
+    sel.style.display = "";
+  } catch (e) {}
+}
+document.getElementById("projectSelect").addEventListener("change", (e) => {
+  const newId = e.target.value;
+  if (!newId || newId === CURRENT_PROJECT_ID) return;
+  location.pathname = location.pathname.replace(/^\/[^/]+/, "/" + newId);
+});
+
+function applyRoleUI() {
+  const auth = window.__auth;
+  document.getElementById("sessionProject").textContent = "Проект:";
+  document.getElementById("sessionUser").textContent = auth ? `${auth.username} (${auth.role})` : "";
+  document.getElementById("navToEditor").href = `/${CURRENT_PROJECT_ID}`;
+  document.getElementById("navToMonitoring").href = `/${CURRENT_PROJECT_ID}/monitoring`;
+  document.getElementById("navToStats").href = `/${CURRENT_PROJECT_ID}/monitoring/stats`;
+  document.getElementById("navToRegistry").href = `/${CURRENT_PROJECT_ID}/registry`;
+  document.getElementById("navToLamps").href = `/${CURRENT_PROJECT_ID}/lamps`;
+  document.getElementById("navToTickets").href = `/${CURRENT_PROJECT_ID}/tickets`;
+  document.getElementById("navToLog").href = `/${CURRENT_PROJECT_ID}/log`;
+  const isAdmin = auth && auth.role === "admin";
+  if (!isAdmin) {
+    document.getElementById("settingsForbidden").style.display = "block";
+    return false;
+  }
+  document.getElementById("settingsShell").style.display = "flex";
+  return true;
+}
+
+async function updateTicketsBadge() {
+  const auth = window.__auth;
+  const badge = document.getElementById("ticketsBadge");
+  if (!badge) return;
+  if (!auth || !(auth.role === "editor" || auth.role === "admin")) { badge.style.display = "none"; return; }
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/tickets?assignee=${encodeURIComponent(auth.username)}`);
+    const data = await resp.json();
+    const open = (data.tickets || []).filter((t) => !["closed", "cancelled"].includes(t.status));
+    if (!open.length) { badge.style.display = "none"; return; }
+    badge.textContent = open.length;
+    badge.className = "nav-badge" + (open.some((t) => t.isOverdue) ? " badge-danger" : "");
+    badge.style.display = "inline-flex";
+  } catch (e) {
+    badge.style.display = "none";
+  }
+}
+document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
+
+function boot() {
+  const isAdmin = applyRoleUI();
+  loadProjectSwitcher();
+  updateTicketsBadge();
+  setInterval(updateTicketsBadge, 30000);
+  if (!isAdmin) return;
+  loadUserAdminList();
+  loadThresholds();
+  loadShapeThresholds();
+  const initialSection = new URLSearchParams(location.search).get("section");
+  if (initialSection && document.getElementById("panel-" + initialSection)) showSection(initialSection);
+}
+if (window.__auth) boot();
+else document.addEventListener("kzmAuthReady", boot, { once: true });
+</script>
+</body>
+</html>

@@ -62,6 +62,13 @@ app.get(/^\/[^/]+\/tickets\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "tickets.html"));
 });
 
+// Настройки — единый раздел админки (Пользователи/Пороги/Справочники/
+// Источники данных), см. модуль "Настройки" в docs/monitoring-plan.md.
+// Project-scoped, как Лог/Фонари выше (Пользователи/Пороги — per-project).
+app.get(/^\/[^/]+\/settings\/?$/, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "settings.html"));
+});
+
 // Конструктор/тестер парсера потоков — не привязан к проекту, только admin.
 // См. server/routes/parsing.js и docs.
 app.get(/^\/parsing\/?$/, (req, res) => {

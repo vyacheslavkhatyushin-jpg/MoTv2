@@ -483,93 +483,8 @@
   #authCard #btnAuthSubmit:hover{ filter:brightness(1.08); }
   #authCard .authHint{ margin-top:14px; font-size:10.5px; color:var(--text-faint); text-align:center; line-height:1.5; }
 
-  /* ---- панель управления пользователями (admin) ---- */
-  #userAdminOverlay{
-    position:fixed; inset:0; z-index:900; display:flex; align-items:center; justify-content:center;
-    background:rgba(0,0,0,.55);
-  }
-  #userAdminOverlay.hidden{ display:none; }
-  #userAdminCard{
-    width:420px; max-width:92vw; max-height:82vh; overflow-y:auto; background:var(--panel);
-    border:1px solid var(--border); border-radius:10px; padding:18px 20px; box-shadow:0 20px 60px rgba(0,0,0,.5);
-  }
-  #userAdminCard h3{ margin:0 0 12px; font-size:14px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between; }
-  #userAdminCard h3 button{ background:none; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; line-height:1; padding:2px 6px; }
-  #userAdminCard h3 button:hover{ color:var(--text); }
-  .ua-add-row{ display:flex; gap:6px; margin-bottom:14px; }
-  .ua-add-row input[type="text"], .ua-add-row input[type="password"]{
-    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
-    border-radius:5px; padding:6px 8px; font-size:12px; font-family:inherit; width:0; flex:1 1 0;
-  }
-  .ua-add-row select{
-    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
-    border-radius:5px; padding:6px 4px; font-size:12px; font-family:inherit;
-  }
-  .ua-add-row button{
-    background:var(--accent); border:1px solid var(--accent); color:#14171a; border-radius:5px;
-    width:30px; flex-shrink:0; font-size:15px; font-weight:700; cursor:pointer;
-  }
-  .ua-add-row button:hover{ filter:brightness(1.08); }
-  #userAdminError{ min-height:14px; font-size:11px; color:var(--danger); margin:-8px 0 10px; }
-  .ua-row{
-    display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px solid var(--border-soft); font-size:12px; color:var(--text-dim);
-  }
-  .ua-row .ua-name{ flex:1 1 auto; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .ua-row select{
-    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
-    border-radius:4px; padding:3px; font-size:11px; font-family:inherit;
-  }
-  .ua-row .ua-dots{ letter-spacing:2px; color:var(--text-faint); }
-  .ua-row button{
-    background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px;
-    width:26px; height:24px; cursor:pointer; font-size:12px; flex-shrink:0;
-  }
-  .ua-row button:hover{ border-color:var(--accent); color:var(--accent); }
-  .ua-row button.ua-delete:hover{ border-color:var(--danger); color:var(--danger); }
-
-  /* ---- панель порогов мониторинга для проекта (admin) ---- */
-  #thresholdsOverlay{
-    position:fixed; inset:0; z-index:900; display:flex; align-items:center; justify-content:center;
-    background:rgba(0,0,0,.55);
-  }
-  #thresholdsOverlay.hidden{ display:none; }
-  #thresholdsCard{
-    width:360px; max-width:92vw; background:var(--panel);
-    border:1px solid var(--border); border-radius:10px; padding:18px 20px; box-shadow:0 20px 60px rgba(0,0,0,.5);
-  }
-  #thresholdsCard h3{ margin:0 0 12px; font-size:14px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between; }
-  #thresholdsCard h3 button{ background:none; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; line-height:1; padding:2px 6px; }
-  #thresholdsCard h3 button:hover{ color:var(--text); }
-  #thresholdsStatus{ font-size:11px; color:var(--text-faint); margin:-6px 0 12px; }
-  .sc-field{ margin-bottom:10px; }
-  .sc-field label{ display:block; font-size:11px; color:var(--text-dim); margin-bottom:4px; }
-  .sc-field input{
-    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
-    border-radius:5px; padding:7px 8px; font-size:12.5px; font-family:inherit;
-  }
-  #thresholdsError{ min-height:14px; font-size:11px; color:var(--danger); margin:4px 0 10px; }
-  .sc-actions{ display:flex; justify-content:space-between; gap:8px; margin-top:6px; }
-  .sc-actions button{
-    border-radius:5px; padding:7px 14px; font-size:12.5px; font-family:inherit; cursor:pointer;
-  }
-  .sc-actions .sc-btn-primary{
-    background:var(--accent); border:1px solid var(--accent); color:#14171a; font-weight:600;
-  }
-  .sc-actions .sc-btn-primary:hover{ filter:brightness(1.08); }
-  .sc-actions .sc-btn-secondary{
-    background:none; border:1px solid var(--border); color:var(--text-dim);
-  }
-  .sc-actions .sc-btn-secondary:hover{ border-color:var(--danger); color:var(--danger); }
-  .ua-reset-row{ display:none; gap:6px; margin:4px 0 8px; }
-  .ua-reset-row.open{ display:flex; }
-  .ua-reset-row input{
-    flex:1; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
-    border-radius:4px; padding:4px 6px; font-size:11.5px; font-family:inherit;
-  }
-  .ua-reset-row button{
-    background:var(--accent); border:1px solid var(--accent); color:#14171a; border-radius:4px;
-    padding:0 10px; font-size:11px; cursor:pointer; font-weight:600;
-  }
+  /* Пользователи/Пороги переехали в /settings (единый раздел админки) —
+     соответствующие панели и CSS удалены отсюда. */
 </style>
 
 <!--[if gte mso 9]><xml>
@@ -711,74 +626,11 @@
       <a id="navToRegistry" title="Реестр ЗИП" style="text-decoration:none; display:inline-flex; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" /><path d="M12 12l8 -4.5" /><path d="M12 12l0 9" /><path d="M12 12l-8 -4.5" /><path d="M16 5.25l-8 4.5" /></svg> ЗИП</a>
       <a id="navToLamps" title="Фонари" style="text-decoration:none; display:inline-flex; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3" /><path d="M9.7 17l4.6 0" /></svg> Фонари</a>
       <a id="navToLog" title="Журнал действий" style="display:none; text-decoration:none; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8l0 4l2 2" /><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 -4l1.75 -4.5l3.22 2.5m-4.97 2l4.5 1.5" /></svg> Лог</a>
-      <button id="btnUserAdmin" title="Управление пользователями" style="display:none; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M21 21v-2a4 4 0 0 0 -3 -3.85" /></svg> Пользователи</button>
-      <button id="btnThresholds" title="Пороги фиксации аварии для этого проекта" style="display:none; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M13.41 10.59l2.59 -2.59" /><path d="M7 12a5 5 0 0 1 5 -5" /></svg> Пороги</button>
+      <a id="navToSettings" title="Настройки" style="display:none; text-decoration:none; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" /><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /></svg> Настройки</a>
       <button id="btnLogout" title="Выйти" style="background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">Выйти</button>
     </div>
     <div class="brand-copyright">© 2026 MoT<br>Все права защищены</div>
   </header>
-<div id="userAdminOverlay" class="hidden">
-  <div id="userAdminCard">
-    <h3>Пользователи <button id="btnUserAdminClose" title="Закрыть"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
-    <div class="ua-add-row">
-      <input type="text" id="uaNewLogin" placeholder="Логин" autocomplete="off">
-      <input type="password" id="uaNewPassword" placeholder="Пароль" autocomplete="off">
-      <select id="uaNewRole">
-        <option value="viewer">viewer</option>
-        <option value="editor" selected>editor</option>
-        <option value="admin">admin</option>
-      </select>
-      <button id="btnUaAdd" title="Добавить пользователя">+</button>
-    </div>
-    <div id="userAdminError"></div>
-    <div id="userAdminList"></div>
-  </div>
-</div>
-<div id="thresholdsOverlay" class="hidden">
-  <div id="thresholdsCard">
-    <h3>Пороги фиксации аварии <button id="btnThresholdsClose" title="Закрыть"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
-    <div id="thresholdsStatus"></div>
-    <div style="font-size:11px; color:var(--text-faint); line-height:1.5; margin:-4px 0 12px;">
-      Статус на дашборде/3D-модели красится сразу по факту пинга/сигнала — эти пороги влияют только на то, когда простой запишется как авария в историю.
-    </div>
-    <div class="sc-field">
-      <label for="thPingTimeout">Таймаут пинга, сек (MAP/CAM/TEL/WiFi)</label>
-      <input type="number" id="thPingTimeout" min="1" max="10" step="1">
-    </div>
-    <div class="sc-field">
-      <label for="thPingFails">Простой до фиксации аварии, мин — ping (0 — сразу)</label>
-      <input type="number" id="thPingFails" min="0" max="60" step="0.5">
-    </div>
-    <div class="sc-field">
-      <label for="thLampFails">Фонарь неисправен после молчания, ч</label>
-      <input type="number" id="thLampFails" min="1" max="336" step="1">
-    </div>
-    <div style="font-size:11px; color:var(--text-faint); line-height:1.5; margin:14px 0 4px;">
-      SLA-сроки тикетов (модуль «Тикеты») — время на устранение по приоритету, отсчитывается с момента назначения исполнителя.
-    </div>
-    <div class="sc-field">
-      <label for="thSlaCritical">Срок устранения — критичный, ч</label>
-      <input type="number" id="thSlaCritical" min="1" max="720" step="1">
-    </div>
-    <div class="sc-field">
-      <label for="thSlaHigh">Срок устранения — высокий, ч</label>
-      <input type="number" id="thSlaHigh" min="1" max="720" step="1">
-    </div>
-    <div class="sc-field">
-      <label for="thSlaMedium">Срок устранения — средний, ч</label>
-      <input type="number" id="thSlaMedium" min="1" max="720" step="1">
-    </div>
-    <div class="sc-field">
-      <label for="thSlaLow">Срок устранения — низкий, ч</label>
-      <input type="number" id="thSlaLow" min="1" max="720" step="1">
-    </div>
-    <div id="thresholdsError"></div>
-    <div class="sc-actions">
-      <button id="btnThresholdsRemove" class="sc-btn-secondary">Сбросить на умолчания</button>
-      <button id="btnThresholdsSave" class="sc-btn-primary">Сохранить</button>
-    </div>
-  </div>
-</div>
 <div id="app">
   <div id="viewport">
     <canvas id="glcanvas"></canvas>
@@ -6619,10 +6471,11 @@ function applyRoleToUI() {
     navToLogEl.href = `/${CURRENT_PROJECT_ID}/log`;
     navToLogEl.style.display = isAdmin ? "inline-flex" : "none";
   }
-  const btnUserAdminEl = document.getElementById("btnUserAdmin");
-  if (btnUserAdminEl) btnUserAdminEl.style.display = isAdmin ? "inline-flex" : "none";
-  const btnThresholdsEl = document.getElementById("btnThresholds");
-  if (btnThresholdsEl) btnThresholdsEl.style.display = isAdmin ? "inline-flex" : "none";
+  const navToSettingsEl = document.getElementById("navToSettings");
+  if (navToSettingsEl) {
+    navToSettingsEl.href = `/${CURRENT_PROJECT_ID}/settings`;
+    navToSettingsEl.style.display = isAdmin ? "inline-flex" : "none";
+  }
 
   // Кабели/оборудование/метки/сохранение — доступны editor и admin.
   const editButtonIds = ["btnAddCable", "btnAddEquip", "btnAddMark", "btnSaveAll", "cableDExtend", "btnImportObjects"];
@@ -6666,8 +6519,7 @@ function applyRoleToUI() {
     if (sessionProjectEl) sessionProjectEl.textContent = "Локальная резервная копия";
     if (sessionUserEl) sessionUserEl.textContent = "";
     if (navToLogEl) navToLogEl.style.display = "none";
-    if (btnUserAdminEl) btnUserAdminEl.style.display = "none";
-    if (btnThresholdsEl) btnThresholdsEl.style.display = "none";
+    if (navToSettingsEl) navToSettingsEl.style.display = "none";
     const btnLogoutEl = document.getElementById("btnLogout");
     if (btnLogoutEl) btnLogoutEl.style.display = "none";
     const btnSaveAllEl = document.getElementById("btnSaveAll");
@@ -6802,243 +6654,6 @@ async function saveToServer() {
 
 document.getElementById("btnLogout").addEventListener("click", () => {
   if (window.__kzmLogout) window.__kzmLogout();
-});
-
-/* ---------- панель управления пользователями (admin) ----------
-   Пароль в базе хранится как bcrypt-хеш — "посмотреть" исходный пароль
-   невозможно ни при каком UI. Кнопка с иконкой глаза вместо этого задаёт
-   новый пароль (по сути сброс). */
-const uaOverlay = document.getElementById("userAdminOverlay");
-const uaList = document.getElementById("userAdminList");
-const uaError = document.getElementById("userAdminError");
-function openUserAdminPanel() {
-  uaOverlay.classList.remove("hidden");
-  uaError.textContent = "";
-  loadUserAdminList();
-}
-function closeUserAdminPanel() {
-  uaOverlay.classList.add("hidden");
-}
-document.getElementById("btnUserAdmin").addEventListener("click", openUserAdminPanel);
-document.getElementById("btnUserAdminClose").addEventListener("click", closeUserAdminPanel);
-uaOverlay.addEventListener("click", (e) => { if (e.target === uaOverlay) closeUserAdminPanel(); });
-
-async function loadUserAdminList() {
-  try {
-    const resp = await apiFetch("/api/users");
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const data = await resp.json();
-    renderUserAdminList(data.users || []);
-  } catch (err) {
-    uaError.textContent = "Не удалось загрузить список пользователей: " + err.message;
-  }
-}
-function renderUserAdminList(users) {
-  uaList.innerHTML = "";
-  const myUsername = window.__auth && window.__auth.username;
-  for (const u of users) {
-    const row = document.createElement("div");
-    row.className = "ua-row";
-    const name = document.createElement("span");
-    name.className = "ua-name";
-    name.textContent = u.username;
-    const roleSelect = document.createElement("select");
-    for (const r of ["viewer", "editor", "admin"]) {
-      const opt = document.createElement("option");
-      opt.value = r; opt.textContent = r;
-      if (r === u.role) opt.selected = true;
-      roleSelect.appendChild(opt);
-    }
-    const dots = document.createElement("span");
-    dots.className = "ua-dots";
-    dots.textContent = "••••••••";
-    const btnReveal = document.createElement("button");
-    btnReveal.innerHTML = ICON_EYE;
-    btnReveal.title = "Пароль хранится в зашифрованном виде и его нельзя посмотреть — нажмите, чтобы задать новый";
-    const btnDelete = document.createElement("button");
-    btnDelete.className = "ua-delete";
-    btnDelete.innerHTML = ICON_X;
-    btnDelete.title = "Удалить пользователя";
-    if (u.username === myUsername) btnDelete.disabled = true;
-    row.appendChild(name); row.appendChild(roleSelect); row.appendChild(dots);
-    row.appendChild(btnReveal); row.appendChild(btnDelete);
-    uaList.appendChild(row);
-
-    const resetRow = document.createElement("div");
-    resetRow.className = "ua-reset-row";
-    const resetInput = document.createElement("input");
-    resetInput.type = "password";
-    resetInput.placeholder = "Новый пароль";
-    const btnResetSave = document.createElement("button");
-    btnResetSave.textContent = "Сохранить";
-    resetRow.appendChild(resetInput); resetRow.appendChild(btnResetSave);
-    uaList.appendChild(resetRow);
-
-    roleSelect.addEventListener("change", async () => {
-      uaError.textContent = "";
-      try {
-        const resp = await apiFetch(`/api/users/${encodeURIComponent(u.username)}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ role: roleSelect.value }),
-        });
-        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
-      } catch (err) {
-        uaError.textContent = "Не удалось сменить роль: " + err.message;
-        roleSelect.value = u.role;
-      }
-    });
-    btnReveal.addEventListener("click", () => {
-      resetRow.classList.toggle("open");
-      resetInput.value = "";
-      if (resetRow.classList.contains("open")) resetInput.focus();
-    });
-    btnResetSave.addEventListener("click", async () => {
-      uaError.textContent = "";
-      const pass = resetInput.value;
-      if (!pass || pass.length < 4) {
-        uaError.textContent = "Пароль должен быть не короче 4 символов.";
-        return;
-      }
-      try {
-        const resp = await apiFetch(`/api/users/${encodeURIComponent(u.username)}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password: pass }),
-        });
-        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
-        resetRow.classList.remove("open");
-        resetInput.value = "";
-      } catch (err) {
-        uaError.textContent = "Не удалось сменить пароль: " + err.message;
-      }
-    });
-    btnDelete.addEventListener("click", async () => {
-      if (u.username === myUsername) return;
-      if (!confirm(`Удалить пользователя «${u.username}»?`)) return;
-      uaError.textContent = "";
-      try {
-        const resp = await apiFetch(`/api/users/${encodeURIComponent(u.username)}`, { method: "DELETE" });
-        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
-        loadUserAdminList();
-      } catch (err) {
-        uaError.textContent = "Не удалось удалить пользователя: " + err.message;
-      }
-    });
-  }
-}
-document.getElementById("btnUaAdd").addEventListener("click", async () => {
-  const loginEl = document.getElementById("uaNewLogin");
-  const passEl = document.getElementById("uaNewPassword");
-  const roleEl = document.getElementById("uaNewRole");
-  const login = loginEl.value.trim();
-  const password = passEl.value;
-  uaError.textContent = "";
-  if (!login) { uaError.textContent = "Введите логин."; return; }
-  if (!password || password.length < 4) { uaError.textContent = "Пароль должен быть не короче 4 символов."; return; }
-  try {
-    const resp = await apiFetch("/api/users", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: login, password, role: roleEl.value }),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error === "already_exists" ? "Такой логин уже существует." : (err.error || ("HTTP " + resp.status)));
-    }
-    loginEl.value = ""; passEl.value = "";
-    loadUserAdminList();
-  } catch (err) {
-    uaError.textContent = "Не удалось добавить пользователя: " + err.message;
-  }
-});
-
-/* ---------- пороги фиксации аварии, per-project. Отсутствие настройки на
-   сервере = используются старые дефолты воркеров (см.
-   project_monitor_thresholds в db.js). */
-const thOverlay = document.getElementById("thresholdsOverlay");
-const thStatus = document.getElementById("thresholdsStatus");
-const thError = document.getElementById("thresholdsError");
-function openThresholdsPanel() {
-  thOverlay.classList.remove("hidden");
-  thError.textContent = "";
-  loadThresholds();
-}
-function closeThresholdsPanel() {
-  thOverlay.classList.add("hidden");
-}
-document.getElementById("btnThresholds").addEventListener("click", openThresholdsPanel);
-document.getElementById("btnThresholdsClose").addEventListener("click", closeThresholdsPanel);
-thOverlay.addEventListener("click", (e) => { if (e.target === thOverlay) closeThresholdsPanel(); });
-
-async function loadThresholds() {
-  try {
-    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`);
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const data = await resp.json();
-    document.getElementById("thPingTimeout").value = data.pingTimeoutSec;
-    document.getElementById("thPingFails").value = data.pingFailDurationSec / 60;
-    document.getElementById("thLampFails").value = data.lampFailAfterHours;
-    document.getElementById("thSlaCritical").value = data.ticketSlaCriticalHours;
-    document.getElementById("thSlaHigh").value = data.ticketSlaHighHours;
-    document.getElementById("thSlaMedium").value = data.ticketSlaMediumHours;
-    document.getElementById("thSlaLow").value = data.ticketSlaLowHours;
-    thStatus.textContent = data.configured
-      ? `Настроено${data.updatedBy ? " — " + data.updatedBy : ""}${data.updatedAt ? ", " + parseServerDate(data.updatedAt).toLocaleString() : ""}`
-      : "Используются значения по умолчанию (ничего явно не настроено).";
-  } catch (err) {
-    thStatus.textContent = "";
-    thError.textContent = "Не удалось загрузить пороги: " + err.message;
-  }
-}
-document.getElementById("btnThresholdsSave").addEventListener("click", async () => {
-  const pingTimeoutSec = parseInt(document.getElementById("thPingTimeout").value, 10);
-  const pingFailMinutes = parseFloat(document.getElementById("thPingFails").value);
-  thError.textContent = "";
-  if (!Number.isInteger(pingTimeoutSec) || pingTimeoutSec < 1 || pingTimeoutSec > 10) {
-    thError.textContent = "Таймаут пинга — целое число от 1 до 10 сек."; return;
-  }
-  if (!Number.isFinite(pingFailMinutes) || pingFailMinutes < 0 || pingFailMinutes > 60) {
-    thError.textContent = "Простой до аварии (ping) — число от 0 до 60 мин."; return;
-  }
-  const pingFailDurationSec = Math.round(pingFailMinutes * 60);
-  const lampFailAfterHours = parseInt(document.getElementById("thLampFails").value, 10);
-  if (!Number.isInteger(lampFailAfterHours) || lampFailAfterHours < 1 || lampFailAfterHours > 336) {
-    thError.textContent = "Молчание фонаря до «неисправен» — целое число от 1 до 336 ч."; return;
-  }
-  const ticketSlaCriticalHours = parseInt(document.getElementById("thSlaCritical").value, 10);
-  const ticketSlaHighHours = parseInt(document.getElementById("thSlaHigh").value, 10);
-  const ticketSlaMediumHours = parseInt(document.getElementById("thSlaMedium").value, 10);
-  const ticketSlaLowHours = parseInt(document.getElementById("thSlaLow").value, 10);
-  for (const [label, val] of [["критичный", ticketSlaCriticalHours], ["высокий", ticketSlaHighHours], ["средний", ticketSlaMediumHours], ["низкий", ticketSlaLowHours]]) {
-    if (!Number.isInteger(val) || val < 1 || val > 720) {
-      thError.textContent = `Срок устранения (${label}) — целое число от 1 до 720 ч.`; return;
-    }
-  }
-  try {
-    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pingTimeoutSec, pingFailDurationSec, lampFailAfterHours,
-        ticketSlaCriticalHours, ticketSlaHighHours, ticketSlaMediumHours, ticketSlaLowHours,
-      }),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error || ("HTTP " + resp.status));
-    }
-    loadThresholds();
-  } catch (err) {
-    thError.textContent = "Не удалось сохранить: " + err.message;
-  }
-});
-document.getElementById("btnThresholdsRemove").addEventListener("click", async () => {
-  if (!confirm(`Сбросить пороги проекта «${CURRENT_PROJECT_ID}» на значения по умолчанию?`)) return;
-  thError.textContent = "";
-  try {
-    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`, { method: "DELETE" });
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    loadThresholds();
-  } catch (err) {
-    thError.textContent = "Не удалось сбросить: " + err.message;
-  }
 });
 
 async function restoreFromSnapshot(state) {
@@ -7275,14 +6890,6 @@ animate();
     await new Promise((r) => setTimeout(r, 150));
   }
   applyRoleToUI();
-  // Кнопки "Пользователи"/"Пороги" с остальных страниц (Фонари/ЗИП/
-  // Статистика) ведут сюда с ?panel=…, а не дублируют сами модалки —
-  // открываем нужную сразу после входа.
-  const panelParam = new URLSearchParams(location.search).get("panel");
-  if (panelParam && window.__auth.role === "admin") {
-    if (panelParam === "users") openUserAdminPanel();
-    else if (panelParam === "thresholds") openThresholdsPanel();
-  }
   if (window.__auth.offline) {
     // Локальная резервная копия — снимок уже встроен в сам файл (см.
     // saveStandaloneCopy()/authGate выше), сервер тут не при чём.
