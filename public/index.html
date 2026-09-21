@@ -6200,7 +6200,7 @@ function renderMonitorActiveList(rows) {
     ticketBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l0 2" /><path d="M15 11l0 2" /><path d="M15 17l0 2" /><path d="M5 5a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h14a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2z" /></svg>';
     ticketBtn.addEventListener("click", (e) => { e.stopPropagation(); createTicketFromActiveRow(row, eq); });
     el.appendChild(swatch); el.appendChild(lname); el.appendChild(since); el.appendChild(ticketBtn);
-    el.addEventListener("click", () => focusEquip(eq));
+    el.addEventListener("click", () => { showQuickInfoEquip(eq); refreshQuickInfoMetrics(); focusEquip(eq); });
     dom.monitorActiveList.appendChild(el);
   }
 }
