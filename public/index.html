@@ -4313,7 +4313,15 @@ function buildEquipGeometry(shape, size) {
       return new THREE.SphereGeometry(s * 0.5, 16, 12);
   }
 }
-const EQUIP_SHAPE_LABELS = {
+// Раньше это были захардкоженные объекты, теперь — справочник в БД
+// (equipment_shapes, см. server/routes/references.js), грузится один раз
+// при старте через loadEquipmentShapesOnce() ниже (тот же порядок, что и
+// loadCableTypesOnce() — до восстановления снапшота проекта). 3D-геометрия
+// формы (см. buildEquipGeometry() выше) в БД не переехала — у "родных" 18
+// форм своя уникальная модель захардкожена в коде, а форма, заведённая
+// только через /references, получает обобщённый fallback (сфера, см.
+// default-ветку buildEquipGeometry) — без деплоя bespoke-модель не завести.
+let EQUIP_SHAPE_LABELS = {
   mla: "MLA", map: "MAP", odf: "Муфта ODF", iilb: "IILB", isib: "ISIB", cam: "CAM",
   mps: "MPS", mpc: "MPC", mtu: "MTU", mvsa: "MVSA", wifi: "WiFi", mbu: "MBU",
   fs: "FS", tel: "TEL", stativ_lfc: "Статив LFC", stativ_ao: "Статив АО", poe: "PoE", go: "ГО",
@@ -4322,23 +4330,64 @@ const EQUIP_SHAPE_LABELS = {
   stativ: "Статив (устар.)",
   custom: "Другое",
 };
-const EQUIP_SHAPE_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "go", "stativ", "custom"];
+let EQUIP_SHAPE_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "go", "stativ", "custom"];
+// Формы, доступные при создании новой единицы оборудования (см.
+// #equipShapeSelect) — устаревший "stativ" сюда не входит.
+let EQUIP_SHAPE_SELECTABLE = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "go", "custom"];
 // Цвет по умолчанию при создании объекта — свой на каждую форму, чтобы разные
 // типы оборудования были различимы на модели ещё до того, как их перекрасят
 // вручную. Не трогает уже расставленные объекты — только новые.
-const EQUIP_SHAPE_DEFAULT_COLOR = {
+let EQUIP_SHAPE_DEFAULT_COLOR = {
   mla: 0x4fd6e0, map: 0x2ecc71, odf: 0xf1c40f, iilb: 0x3498db, isib: 0x9b59b6,
   cam: 0x455a64, mps: 0xe67e22, mpc: 0xe67e22, mtu: 0xe67e22, mvsa: 0xe67e22,
   wifi: 0x1abc9c, mbu: 0x95a5a6, fs: 0xe74c3c, tel: 0x3498db,
   stativ_lfc: 0x2ecc71, stativ_ao: 0x9b59b6, poe: 0xf39c12, go: 0xe74c3c,
 };
-function equipGroupKey(eq) {
-  return EQUIP_SHAPE_LABELS[eq.shape] ? eq.shape : "custom";
-}
 // Формы, для которых физически возможен опрос (см. docs/monitoring-plan.md) —
 // остальные (MLA, ODF, MPS/MPC/MTU/MVSA, MBU, PoE, устаревший "Статив")
 // пассивные, у них нет интерфейса для связи с внешней системой мониторинга.
-const MONITORABLE_SHAPES = new Set(["map", "iilb", "isib", "wifi", "cam", "fs", "tel", "stativ_lfc", "stativ_ao", "go", "custom"]);
+let MONITORABLE_SHAPES = new Set(["map", "iilb", "isib", "wifi", "cam", "fs", "tel", "stativ_lfc", "stativ_ao", "go", "custom"]);
+let equipmentShapesLoaded = false;
+async function loadEquipmentShapesOnce() {
+  if (equipmentShapesLoaded) return;
+  equipmentShapesLoaded = true;
+  try {
+    const resp = await apiFetch("/api/references/equipment-shapes/public");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!data.shapes || !data.shapes.length) return;
+    const labels = {};
+    const order = [];
+    const selectable = [];
+    const colors = {};
+    const monitorable = new Set();
+    for (const s of data.shapes) {
+      labels[s.key] = s.label;
+      order.push(s.key);
+      if (s.selectable) selectable.push(s.key);
+      if (s.defaultColor) colors[s.key] = parseInt(s.defaultColor.replace(/^#/, ""), 16);
+      if (s.monitorable) monitorable.add(s.key);
+    }
+    EQUIP_SHAPE_LABELS = labels;
+    EQUIP_SHAPE_ORDER = order;
+    EQUIP_SHAPE_SELECTABLE = selectable;
+    EQUIP_SHAPE_DEFAULT_COLOR = colors;
+    MONITORABLE_SHAPES = monitorable;
+    renderEquipShapeOptions();
+  } catch (e) {
+    // сбой сети — остаёмся на дефолтных значениях выше, ничего не падает
+  }
+}
+function renderEquipShapeOptions() {
+  const select = document.getElementById("equipShapeSelect");
+  if (!select) return;
+  select.innerHTML = EQUIP_SHAPE_SELECTABLE.map((key) => `<option value="${key}">${esc(EQUIP_SHAPE_LABELS[key])}</option>`).join("");
+  if (!EQUIP_SHAPE_LABELS[equipShape] && EQUIP_SHAPE_SELECTABLE.length) equipShape = EQUIP_SHAPE_SELECTABLE.includes("map") ? "map" : EQUIP_SHAPE_SELECTABLE[0];
+  select.value = equipShape;
+}
+function equipGroupKey(eq) {
+  return EQUIP_SHAPE_LABELS[eq.shape] ? eq.shape : "custom";
+}
 // В отличие от кабелей, у форм оборудования нет своего "фирменного" цвета
 // (все формы создаются одним и тем же дефолтным цветом объекта) — дефолт
 // подписи такой же нейтральный белый, что был у общего переключателя раньше.
@@ -7438,6 +7487,7 @@ animate();
     // (см. loadCableTypesOnce()). В offline-ветке выше не нужен — там сервера
     // нет вообще, остаёмся на дефолтных/зашитых в CABLE_TYPES значениях.
     await loadCableTypesOnce();
+    await loadEquipmentShapesOnce();
     await loadProjectFromServer();
     if (IS_MONITORING_PAGE) {
       renderMonitorLayerLists();
