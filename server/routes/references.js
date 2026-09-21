@@ -47,6 +47,18 @@ router.get("/cable-types/public", requireAuth, (req, res) => {
   res.json({ cableTypes: types });
 });
 
+// Формы оборудования — аналогично, нужны редактору для выпадающего списка
+// при создании оборудования (см. загрузку EQUIP_SHAPE_* в index.html).
+router.get("/equipment-shapes/public", requireAuth, (req, res) => {
+  const shapes = db
+    .prepare(
+      "SELECT key, label, default_color AS defaultColor, monitorable, selectable FROM equipment_shapes ORDER BY sort_order"
+    )
+    .all()
+    .map((s) => ({ ...s, monitorable: !!s.monitorable, selectable: !!s.selectable }));
+  res.json({ shapes });
+});
+
 router.use(requireAuth, requireRole("admin"));
 
 const DATA_TYPES = new Set(["number", "boolean", "string"]);
@@ -65,6 +77,23 @@ function countEquipmentUsingProfile(profileId) {
     }
     for (const eq of snap.equipment || []) {
       if (eq.profileId === profileId) count++;
+    }
+  }
+  return count;
+}
+
+function countEquipmentUsingShape(shapeKey) {
+  const rows = db.prepare("SELECT snapshot_json FROM project_state").all();
+  let count = 0;
+  for (const row of rows) {
+    let snap;
+    try {
+      snap = JSON.parse(row.snapshot_json);
+    } catch (e) {
+      continue;
+    }
+    for (const eq of snap.equipment || []) {
+      if (eq.shape === shapeKey) count++;
     }
   }
   return count;
@@ -286,6 +315,63 @@ router.delete("/cable-types/:key", (req, res) => {
   const result = db.prepare("DELETE FROM cable_types WHERE key = ?").run(key);
   if (!result.changes) return res.status(404).json({ error: "not_found" });
   logAudit({ actor: req.user.username, action: "cable_type.delete", entityType: "cable_type", entityId: key, ip: req.ip });
+  res.json({ ok: true });
+});
+
+/* ================= Формы оборудования ================= */
+
+router.get("/equipment-shapes", (req, res) => {
+  const shapes = db
+    .prepare(
+      "SELECT key, label, default_color AS defaultColor, monitorable, selectable, sort_order AS sortOrder FROM equipment_shapes ORDER BY sort_order"
+    )
+    .all()
+    .map((s) => ({ ...s, monitorable: !!s.monitorable, selectable: !!s.selectable, usage: countEquipmentUsingShape(s.key) }));
+  res.json({ shapes });
+});
+
+router.post("/equipment-shapes", (req, res) => {
+  const { key, label, defaultColor, monitorable, selectable } = req.body || {};
+  if (!key || !KEY_RE.test(key)) return res.status(400).json({ error: "invalid_key" });
+  if (!label || !String(label).trim()) return res.status(400).json({ error: "missing_label" });
+  if (defaultColor != null && !/^#[0-9a-fA-F]{6}$/.test(defaultColor)) return res.status(400).json({ error: "invalid_color" });
+  const exists = db.prepare("SELECT 1 FROM equipment_shapes WHERE key = ?").get(key);
+  if (exists) return res.status(409).json({ error: "already_exists" });
+  const maxOrder = db.prepare("SELECT COALESCE(MAX(sort_order), -1) AS m FROM equipment_shapes").get().m;
+  db.prepare(
+    "INSERT INTO equipment_shapes (key, label, default_color, monitorable, selectable, sort_order) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(key, label.trim(), defaultColor ?? null, monitorable ? 1 : 0, selectable === false ? 0 : 1, maxOrder + 1);
+  logAudit({ actor: req.user.username, action: "equipment_shape.create", entityType: "equipment_shape", entityId: key, entityLabel: label, ip: req.ip });
+  res.status(201).json({ ok: true });
+});
+
+router.patch("/equipment-shapes/:key", (req, res) => {
+  const { key } = req.params;
+  const existing = db.prepare("SELECT * FROM equipment_shapes WHERE key = ?").get(key);
+  if (!existing) return res.status(404).json({ error: "not_found" });
+  const { label, defaultColor, monitorable, selectable } = req.body || {};
+  const next = {
+    label: label !== undefined ? String(label).trim() : existing.label,
+    defaultColor: defaultColor !== undefined ? defaultColor : existing.default_color,
+    monitorable: monitorable !== undefined ? (monitorable ? 1 : 0) : existing.monitorable,
+    selectable: selectable !== undefined ? (selectable ? 1 : 0) : existing.selectable,
+  };
+  if (!next.label) return res.status(400).json({ error: "missing_label" });
+  if (next.defaultColor != null && !/^#[0-9a-fA-F]{6}$/.test(next.defaultColor)) return res.status(400).json({ error: "invalid_color" });
+  db.prepare(
+    "UPDATE equipment_shapes SET label = ?, default_color = ?, monitorable = ?, selectable = ? WHERE key = ?"
+  ).run(next.label, next.defaultColor, next.monitorable, next.selectable, key);
+  logAudit({ actor: req.user.username, action: "equipment_shape.update", entityType: "equipment_shape", entityId: key, entityLabel: next.label, details: next, ip: req.ip });
+  res.json({ ok: true });
+});
+
+router.delete("/equipment-shapes/:key", (req, res) => {
+  const { key } = req.params;
+  const usage = countEquipmentUsingShape(key);
+  if (usage > 0) return res.status(409).json({ error: "in_use", detail: "shape_assigned_to_equipment", count: usage });
+  const result = db.prepare("DELETE FROM equipment_shapes WHERE key = ?").run(key);
+  if (!result.changes) return res.status(404).json({ error: "not_found" });
+  logAudit({ actor: req.user.username, action: "equipment_shape.delete", entityType: "equipment_shape", entityId: key, ip: req.ip });
   res.json({ ok: true });
 });
 

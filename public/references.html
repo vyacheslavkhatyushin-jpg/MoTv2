@@ -141,6 +141,8 @@
   .add-form{display:none; gap:10px; align-items:center; flex-wrap:wrap; padding:14px; margin-bottom:16px; background:var(--panel-alt); border:1px solid var(--border); border-radius:8px;}
   .add-form.open{display:flex;}
   .add-form input, .add-form select{min-width:110px;}
+  .check-inline{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-dim); white-space:nowrap; cursor:pointer;}
+  .check-inline input{min-width:0; width:auto;}
 
   .profile-card{border:1px solid var(--border); border-radius:10px; background:var(--panel-alt); padding:20px; margin-bottom:14px;}
   .profile-card:last-child{margin-bottom:0;}
@@ -282,6 +284,7 @@
         <button class="tab-btn active" data-tab="attrs">Атрибуты</button>
         <button class="tab-btn" data-tab="profiles">Профили оборудования</button>
         <button class="tab-btn" data-tab="cables">Типы кабелей</button>
+        <button class="tab-btn" data-tab="shapes">Формы оборудования</button>
       </div>
 
       <!-- TAB 1: ATTRIBUTES -->
@@ -361,6 +364,34 @@
           </table>
         </div>
       </div>
+
+      <!-- TAB 4: EQUIPMENT SHAPES -->
+      <div class="panel" id="panel-shapes">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>Формы оборудования</h3>
+              <div class="hint" style="margin-top:4px;">Новая форма получит обобщённую 3D-модель (сфера) — у 18 базовых форм своя, зашита в коде. "Доступна при создании" скрывает устаревшие формы из списка добавления новой единицы, не удаляя их из уже расставленного оборудования.</div>
+            </div>
+            <button class="btn primary sm" id="toggle-add-shape">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Новая форма
+            </button>
+          </div>
+          <div class="add-form" id="add-shape-form">
+            <input type="text" class="mono" id="new-shape-key" placeholder="ключ (напр. gas_station)">
+            <input type="text" id="new-shape-label" placeholder="название">
+            <input type="color" id="new-shape-color" value="#4fd6e0">
+            <label class="check-inline"><input type="checkbox" id="new-shape-monitorable" checked> Мониторится</label>
+            <label class="check-inline"><input type="checkbox" id="new-shape-selectable" checked> Доступна при создании</label>
+            <button class="btn primary sm" id="submit-add-shape">Создать</button>
+          </div>
+          <table class="data-table">
+            <thead><tr><th style="width:14%;">Ключ</th><th style="width:26%;">Название</th><th style="width:12%;">Цвет</th><th style="width:14%;">Мониторится</th><th style="width:16%;">Доступна при создании</th><th style="width:10%;">Исп.</th><th></th></tr></thead>
+            <tbody id="equipshapes-body"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -425,6 +456,7 @@ function initTool(apiFetch){
   var attrs = [];
   var profiles = [];
   var cableTypes = [];
+  var equipShapes = [];
 
   document.querySelectorAll(".tab-btn").forEach(function(btn){
     btn.addEventListener("click", function(){
@@ -658,8 +690,73 @@ function initTool(apiFetch){
     } catch(e){ showToast(e.message, true); }
   });
 
+  /* ---------- equipment shapes ---------- */
+  async function loadEquipShapes(){
+    const resp = await apiFetch("/api/references/equipment-shapes");
+    const data = await resp.json();
+    equipShapes = data.shapes || [];
+    renderEquipShapes();
+  }
+  function renderEquipShapes(){
+    var body = document.getElementById("equipshapes-body");
+    body.innerHTML = equipShapes.map(function(s){
+      return '<tr data-shapekey="' + s.key + '">' +
+        '<td class="key-cell">' + s.key + '</td>' +
+        '<td><input type="text" data-shape="label" value="' + s.label.replace(/"/g,"&quot;") + '"></td>' +
+        '<td><input type="color" data-shape="defaultColor" value="' + (s.defaultColor || "#4fd6e0") + '"></td>' +
+        '<td><input type="checkbox" data-shape="monitorable"' + (s.monitorable ? " checked" : "") + '></td>' +
+        '<td><input type="checkbox" data-shape="selectable"' + (s.selectable ? " checked" : "") + '></td>' +
+        '<td class="hint">' + s.usage + '</td>' +
+        '<td><button class="btn ghost sm" data-del-shape="' + s.key + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></td>' +
+      '</tr>';
+    }).join("");
+    body.querySelectorAll("[data-shape]").forEach(function(inp){
+      inp.addEventListener("change", async function(){
+        var key = inp.closest("tr").dataset.shapekey;
+        var value = inp.type === "checkbox" ? inp.checked : inp.value;
+        try {
+          const resp = await apiFetch("/api/references/equipment-shapes/" + encodeURIComponent(key), { method: "PATCH", body: JSON.stringify({ [inp.dataset.shape]: value }) });
+          if (!resp.ok) throw new Error(await friendlyError(resp));
+          showToast("Сохранено");
+          await loadEquipShapes();
+        } catch(e){ showToast(e.message, true); await loadEquipShapes(); }
+      });
+    });
+    body.querySelectorAll("[data-del-shape]").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        try {
+          const resp = await apiFetch("/api/references/equipment-shapes/" + encodeURIComponent(btn.dataset.delShape), { method: "DELETE" });
+          if (!resp.ok) throw new Error(await friendlyError(resp));
+          showToast("Форма удалена");
+          await loadEquipShapes();
+        } catch(e){ showToast(e.message, true); }
+      });
+    });
+  }
+  document.getElementById("toggle-add-shape").addEventListener("click", function(){
+    document.getElementById("add-shape-form").classList.toggle("open");
+  });
+  document.getElementById("submit-add-shape").addEventListener("click", async function(){
+    var body = {
+      key: document.getElementById("new-shape-key").value.trim(),
+      label: document.getElementById("new-shape-label").value.trim(),
+      defaultColor: document.getElementById("new-shape-color").value,
+      monitorable: document.getElementById("new-shape-monitorable").checked,
+      selectable: document.getElementById("new-shape-selectable").checked,
+    };
+    try {
+      const resp = await apiFetch("/api/references/equipment-shapes", { method: "POST", body: JSON.stringify(body) });
+      if (!resp.ok) throw new Error(await friendlyError(resp));
+      showToast("Форма создана");
+      document.getElementById("add-shape-form").classList.remove("open");
+      ["new-shape-key","new-shape-label"].forEach(function(id){ document.getElementById(id).value = ""; });
+      await loadEquipShapes();
+    } catch(e){ showToast(e.message, true); }
+  });
+
   loadAttrs().then(loadProfiles);
   loadCableTypes();
+  loadEquipShapes();
 }
 </script>
 </body>
