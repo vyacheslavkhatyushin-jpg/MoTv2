@@ -392,6 +392,33 @@ CREATE TABLE IF NOT EXISTS equipment_shapes (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Системы связи/позиционирования в шахте (см. MONITOR_SYSTEMS/
+-- CABLE_TYPE_SYSTEMS/EQUIP_SHAPE_SYSTEMS в index.html) — третий и
+-- последний из справочников (после cable_types/equipment_shapes),
+-- связывающий два предыдущих: какой тип кабеля/формы оборудования к какой
+-- системе относится (кабель/оборудование может входить в несколько сразу,
+-- см. таблицы связей ниже). key совпадает с отображаемым названием
+-- (как и было в хардкоде — отдельного человекочитаемого label не
+-- заводили, сущностей всего 5 и переименование задним числом настолько
+-- же нежелательно, как для key кабеля/формы).
+CREATE TABLE IF NOT EXISTS monitor_systems (
+  key TEXT PRIMARY KEY,
+  sort_order INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS cable_type_systems (
+  cable_type_key TEXT NOT NULL REFERENCES cable_types(key),
+  system_key TEXT NOT NULL REFERENCES monitor_systems(key),
+  PRIMARY KEY (cable_type_key, system_key)
+);
+
+CREATE TABLE IF NOT EXISTS equipment_shape_systems (
+  shape_key TEXT NOT NULL REFERENCES equipment_shapes(key),
+  system_key TEXT NOT NULL REFERENCES monitor_systems(key),
+  PRIMARY KEY (shape_key, system_key)
+);
+
 -- Источники данных мониторинга на проект (см. /parsing — этот же конфиг
 -- собирается и проверяется там как черновик, прежде чем стать реальным
 -- источником здесь). В отличие от project_sppd_config (один захардкоженный
@@ -513,6 +540,51 @@ if (db.prepare("SELECT COUNT(*) AS n FROM equipment_shapes").get().n === 0) {
     ["custom", "Другое", null, "sphere", 1, 1],
   ];
   seedShapes.forEach((row, i) => insertShape.run(...row, i));
+}
+
+if (db.prepare("SELECT COUNT(*) AS n FROM monitor_systems").get().n === 0) {
+  const insertSystem = db.prepare("INSERT INTO monitor_systems (key, sort_order) VALUES (?, ?)");
+  ["ВОЛС", "LFC", "АО", "Телефония", "ВН"].forEach((key, i) => insertSystem.run(key, i));
+
+  const insertCableTypeSystem = db.prepare(
+    "INSERT INTO cable_type_systems (cable_type_key, system_key) VALUES (?, ?)"
+  );
+  // 1:1 с CABLE_TYPE_SYSTEMS в index.html — силовой кабель общий для всех систем.
+  const cableTypeSystems = {
+    vols: ["ВОЛС"],
+    lfc: ["LFC"],
+    kao: ["АО"],
+    tk: ["Телефония"],
+    ftp: ["ВН"],
+    power: ["ВОЛС", "LFC", "АО", "Телефония", "ВН"],
+  };
+  for (const [cableType, systems] of Object.entries(cableTypeSystems)) {
+    for (const system of systems) insertCableTypeSystem.run(cableType, system);
+  }
+
+  const insertShapeSystem = db.prepare(
+    "INSERT INTO equipment_shape_systems (shape_key, system_key) VALUES (?, ?)"
+  );
+  // 1:1 с EQUIP_SHAPE_SYSTEMS в index.html — "custom" туда никогда не входил
+  // (оборудование произвольной формы не попадает ни в один системный фильтр).
+  const shapeSystems = {
+    map: ["ВОЛС", "Телефония", "ВН"],
+    odf: ["ВОЛС"],
+    wifi: ["ВОЛС"],
+    mla: ["LFC"], iilb: ["LFC"], isib: ["LFC"], mps: ["LFC"], mpc: ["LFC"],
+    mtu: ["LFC"], mvsa: ["LFC"], mbu: ["LFC"],
+    stativ_lfc: ["LFC"],
+    stativ_ao: ["АО"],
+    stativ: ["LFC", "АО"],
+    fs: ["АО"],
+    go: ["АО"],
+    tel: ["Телефония"],
+    cam: ["ВН"],
+    poe: ["ВН"],
+  };
+  for (const [shape, systems] of Object.entries(shapeSystems)) {
+    for (const system of systems) insertShapeSystem.run(shape, system);
+  }
 }
 
 // Добавочная миграция: geometry на equipment_shapes — появилась позже

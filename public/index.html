@@ -6070,8 +6070,13 @@ function renderDeletionLog(rows) {
 // обслуживать несколько систем сразу (например MAP — ВОЛС+Телефония+ВН,
 // Статив — LFC+АО) — тогда он появляется в списке при выборе любой из них.
 // Силовой кабель — общая инфраструктура для всех систем.
-const MONITOR_SYSTEMS = ["ВОЛС", "LFC", "АО", "Телефония", "ВН"];
-const CABLE_TYPE_SYSTEMS = {
+// Раньше это были захардкоженные объекты, теперь — справочник в БД
+// (monitor_systems/cable_type_systems/equipment_shape_systems, см.
+// server/routes/references.js), грузится один раз при старте через
+// loadMonitorSystemsOnce() ниже, тем же порядком что и loadCableTypesOnce/
+// loadEquipmentShapesOnce — до восстановления снапшота проекта.
+let MONITOR_SYSTEMS = ["ВОЛС", "LFC", "АО", "Телефония", "ВН"];
+let CABLE_TYPE_SYSTEMS = {
   vols: ["ВОЛС"],
   lfc: ["LFC"],
   kao: ["АО"],
@@ -6079,7 +6084,7 @@ const CABLE_TYPE_SYSTEMS = {
   ftp: ["ВН"],
   power: ["ВОЛС", "LFC", "АО", "Телефония", "ВН"],
 };
-const EQUIP_SHAPE_SYSTEMS = {
+let EQUIP_SHAPE_SYSTEMS = {
   map: ["ВОЛС", "Телефония", "ВН"],
   odf: ["ВОЛС"],
   wifi: ["ВОЛС"],
@@ -6094,6 +6099,22 @@ const EQUIP_SHAPE_SYSTEMS = {
   cam: ["ВН"],
   poe: ["ВН"],
 };
+let monitorSystemsLoaded = false;
+async function loadMonitorSystemsOnce() {
+  if (monitorSystemsLoaded) return;
+  monitorSystemsLoaded = true;
+  try {
+    const resp = await apiFetch("/api/references/monitor-systems/public");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!data.systems || !data.systems.length) return;
+    MONITOR_SYSTEMS = data.systems;
+    CABLE_TYPE_SYSTEMS = data.cableTypeSystems || {};
+    EQUIP_SHAPE_SYSTEMS = data.equipmentShapeSystems || {};
+  } catch (e) {
+    // сбой сети — остаёмся на дефолтных значениях выше, ничего не падает
+  }
+}
 let monitorActiveSystem = "all"; // "all" | одно из MONITOR_SYSTEMS
 const monitorCollapsedGroups = new Set(); // "c:<cableType>" | "e:<shape>"
 const seenMonitorGroupKeys = new Set();
@@ -7515,6 +7536,7 @@ animate();
     // нет вообще, остаёмся на дефолтных/зашитых в CABLE_TYPES значениях.
     await loadCableTypesOnce();
     await loadEquipmentShapesOnce();
+    await loadMonitorSystemsOnce();
     await loadProjectFromServer();
     if (IS_MONITORING_PAGE) {
       renderMonitorLayerLists();

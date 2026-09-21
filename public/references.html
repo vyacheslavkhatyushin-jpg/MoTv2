@@ -285,6 +285,7 @@
         <button class="tab-btn" data-tab="profiles">Профили оборудования</button>
         <button class="tab-btn" data-tab="cables">Типы кабелей</button>
         <button class="tab-btn" data-tab="shapes">Формы оборудования</button>
+        <button class="tab-btn" data-tab="systems">Системы мониторинга</button>
       </div>
 
       <!-- TAB 1: ATTRIBUTES -->
@@ -400,6 +401,43 @@
           </table>
         </div>
       </div>
+
+      <!-- TAB 5: MONITOR SYSTEMS -->
+      <div class="panel" id="panel-systems">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-head">
+            <div>
+              <h3>Системы связи/позиционирования</h3>
+              <div class="hint" style="margin-top:4px;">Кнопки-фильтры на странице "Мониторинг" — кабель/оборудование может входить в несколько систем сразу</div>
+            </div>
+          </div>
+          <div class="add-form" id="add-system-form" style="display:flex;">
+            <input type="text" id="new-system-key" placeholder="название (напр. ВН)">
+            <button class="btn primary sm" id="submit-add-system">Добавить</button>
+          </div>
+          <div id="systems-list" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;"></div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-head">
+            <h3>Типы кабелей × Системы</h3>
+          </div>
+          <table class="data-table">
+            <thead><tr id="cable-systems-head"><th style="width:20%;">Тип кабеля</th></tr></thead>
+            <tbody id="cable-systems-body"></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Формы оборудования × Системы</h3>
+          </div>
+          <table class="data-table">
+            <thead><tr id="shape-systems-head"><th style="width:20%;">Форма</th></tr></thead>
+            <tbody id="shape-systems-body"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -465,6 +503,7 @@ function initTool(apiFetch){
   var profiles = [];
   var cableTypes = [];
   var equipShapes = [];
+  var monitorSystems = [];
 
   document.querySelectorAll(".tab-btn").forEach(function(btn){
     btn.addEventListener("click", function(){
@@ -770,9 +809,88 @@ function initTool(apiFetch){
     } catch(e){ showToast(e.message, true); }
   });
 
+  /* ---------- monitor systems ---------- */
+  async function loadMonitorSystems(){
+    const resp = await apiFetch("/api/references/monitor-systems");
+    const data = await resp.json();
+    monitorSystems = data.systems || [];
+    renderSystemsList();
+    renderSystemsMatrices();
+  }
+  function renderSystemsList(){
+    var el = document.getElementById("systems-list");
+    el.innerHTML = monitorSystems.map(function(s){
+      return '<span style="display:inline-flex; align-items:center; gap:6px; background:var(--panel-alt); border:1px solid var(--border); border-radius:999px; padding:5px 6px 5px 12px; font-size:12.5px;">' +
+        s.key +
+        '<button class="btn ghost sm" data-del-system="' + s.key.replace(/"/g,"&quot;") + '" style="padding:2px 6px;" title="Удалить">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><path d="M18 6 6 18M6 6l12 12"/></svg>' +
+        '</button>' +
+      '</span>';
+    }).join("") || '<span class="hint">Систем пока нет</span>';
+    el.querySelectorAll("[data-del-system]").forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        try {
+          const resp = await apiFetch("/api/references/monitor-systems/" + encodeURIComponent(btn.dataset.delSystem), { method: "DELETE" });
+          if (!resp.ok) throw new Error(await friendlyError(resp));
+          showToast("Система удалена");
+          await loadMonitorSystems();
+        } catch(e){ showToast(e.message, true); }
+      });
+    });
+  }
+  document.getElementById("submit-add-system").addEventListener("click", async function(){
+    var key = document.getElementById("new-system-key").value.trim();
+    if (!key) return;
+    try {
+      const resp = await apiFetch("/api/references/monitor-systems", { method: "POST", body: JSON.stringify({ key }) });
+      if (!resp.ok) throw new Error(await friendlyError(resp));
+      showToast("Система добавлена");
+      document.getElementById("new-system-key").value = "";
+      await loadMonitorSystems();
+    } catch(e){ showToast(e.message, true); }
+  });
+
+  function renderSystemsMatrix(headEl, bodyEl, items, endpointBase){
+    headEl.innerHTML = '<th style="width:20%;">' + headEl.dataset.rowLabel + '</th>' +
+      monitorSystems.map(function(s){ return '<th class="hint" style="text-align:center;">' + s.key + '</th>'; }).join("");
+    bodyEl.innerHTML = items.map(function(item){
+      return '<tr data-matrixkey="' + item.key + '">' +
+        '<td>' + item.label + '</td>' +
+        monitorSystems.map(function(s){
+          var checked = (item.systems || []).includes(s.key);
+          return '<td style="text-align:center;"><input type="checkbox" data-matrix-system="' + s.key.replace(/"/g,"&quot;") + '"' + (checked ? " checked" : "") + '></td>';
+        }).join("") +
+      '</tr>';
+    }).join("");
+    bodyEl.querySelectorAll("[data-matrix-system]").forEach(function(cb){
+      cb.addEventListener("change", async function(){
+        var tr = cb.closest("tr");
+        var itemKey = tr.dataset.matrixkey;
+        var systems = Array.from(tr.querySelectorAll("[data-matrix-system]:checked")).map(function(c){ return c.dataset.matrixSystem; });
+        try {
+          const resp = await apiFetch(endpointBase + "/" + encodeURIComponent(itemKey) + "/systems", { method: "PUT", body: JSON.stringify({ systems }) });
+          if (!resp.ok) throw new Error(await friendlyError(resp));
+          showToast("Сохранено");
+        } catch(e){ showToast(e.message, true); cb.checked = !cb.checked; }
+      });
+    });
+  }
+  function renderSystemsMatrices(){
+    var cableHead = document.getElementById("cable-systems-head");
+    cableHead.dataset.rowLabel = "Тип кабеля";
+    renderSystemsMatrix(cableHead, document.getElementById("cable-systems-body"),
+      cableTypes.map(function(c){ return { key: c.key, label: c.label, systems: c.systems }; }),
+      "/api/references/cable-types");
+
+    var shapeHead = document.getElementById("shape-systems-head");
+    shapeHead.dataset.rowLabel = "Форма";
+    renderSystemsMatrix(shapeHead, document.getElementById("shape-systems-body"),
+      equipShapes.map(function(s){ return { key: s.key, label: s.label, systems: s.systems }; }),
+      "/api/references/equipment-shapes");
+  }
+
   loadAttrs().then(loadProfiles);
-  loadCableTypes();
-  loadEquipShapes();
+  Promise.all([loadCableTypes(), loadEquipShapes()]).then(loadMonitorSystems);
 }
 </script>
 </body>
