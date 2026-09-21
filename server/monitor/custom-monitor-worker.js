@@ -125,9 +125,15 @@ function applyParsedResult(projectId, targetsByAddr, parsed) {
   if (!targets || !targets.length) return;
 
   const onlineAttr = parsed.attributes.find((a) => a.key === "online");
+  // tagPulseEvent — не метрика, а разовое событие ("метка зарегистрирована"):
+  // в проде это INSERT в monitor_tag_pulses (см. sppd-worker.emitTagPulse),
+  // который server.js рассылает по WS для вспышки в 3D-редакторе
+  // (spawnMonitorTagPulse). Значение атрибута тут неважно, важен сам факт —
+  // поэтому не кладём его в raw_metrics_json как обычную метрику.
+  const hasTagPulse = parsed.attributes.some((a) => a.key === "tagPulseEvent");
   const metricsPatch = {};
   for (const a of parsed.attributes) {
-    if (a.key === "online") continue;
+    if (a.key === "online" || a.key === "tagPulseEvent") continue;
     metricsPatch[a.key] = a.value;
   }
   const hasMetrics = Object.keys(metricsPatch).length > 0;
@@ -138,6 +144,7 @@ function applyParsedResult(projectId, targetsByAddr, parsed) {
     } else if (hasMetrics) {
       sppd.applyMetricsOnly(target, metricsPatch);
     }
+    if (hasTagPulse) sppd.emitTagPulse(target);
   }
 }
 
