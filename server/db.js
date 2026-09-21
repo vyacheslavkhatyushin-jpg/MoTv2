@@ -374,16 +374,18 @@ CREATE TABLE IF NOT EXISTS cable_types (
 
 -- Формы оборудования (см. EQUIP_SHAPE_LABELS/ORDER/DEFAULT_COLOR/
 -- MONITORABLE_SHAPES в index.html — то же самое, что уже сделали с
--- cable_types, только у форм ещё нет своей 3D-геометрии в БД: у 18
--- "родных" форм geometry захардкожена в buildEquipGeometry() (уникальная
--- 3D-модель на каждую), новая форма, заведённая только через /references,
--- получит обобщённый fallback (сфера, см. default-ветку в switch) — без
--- деплоя кода бespoke-модель не завести. default_color может быть NULL —
+-- cable_types). У 18 "родных" форм своя уникальная 3D-модель зашита в
+-- buildEquipGeometry() (составная — из нескольких мешей) и имеет
+-- приоритет; geometry ниже — это только fallback-примитив для формы,
+-- заведённой исключительно через /references (полноценную bespoke-модель
+-- без деплоя кода не завести, но хотя бы разные примитивы разной формы
+-- лучше, чем всем одна и та же сфера). default_color может быть NULL —
 -- тогда объект получает нейтральный дефолт 0x4fd6e0 (см. placeEquipment).
 CREATE TABLE IF NOT EXISTS equipment_shapes (
   key TEXT PRIMARY KEY,
   label TEXT NOT NULL,
   default_color TEXT,
+  geometry TEXT NOT NULL DEFAULT 'sphere' CHECK(geometry IN ('sphere','box','cylinder','cone','capsule','disc')),
   monitorable INTEGER NOT NULL DEFAULT 0,
   selectable INTEGER NOT NULL DEFAULT 1,
   sort_order INTEGER NOT NULL,
@@ -479,35 +481,49 @@ if (db.prepare("SELECT COUNT(*) AS n FROM cable_types").get().n === 0) {
 
 if (db.prepare("SELECT COUNT(*) AS n FROM equipment_shapes").get().n === 0) {
   const insertShape = db.prepare(
-    "INSERT INTO equipment_shapes (key, label, default_color, monitorable, selectable, sort_order) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT INTO equipment_shapes (key, label, default_color, geometry, monitorable, selectable, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)"
   );
-  // [key, label, default_color|null, monitorable, selectable] — 1:1 то, что
-  // сейчас зашито в index.html (EQUIP_SHAPE_*), включая устаревший "stativ"
-  // (selectable=0 — не предлагается при создании новой единицы, только для
-  // группировки уже расставленных до разделения на LFC/АО).
+  // [key, label, default_color|null, geometry, monitorable, selectable] —
+  // 1:1 то, что сейчас зашито в index.html (EQUIP_SHAPE_*), включая
+  // устаревший "stativ" (selectable=0 — не предлагается при создании новой
+  // единицы, только для группировки уже расставленных до разделения на
+  // LFC/АО). geometry тут просто приблизительный fallback-примитив — у
+  // всех этих 18 форм есть своя bespoke-модель в buildEquipGeometry(),
+  // которая имеет приоритет, это поле никогда для них не используется.
   const seedShapes = [
-    ["mla", "MLA", "#4fd6e0", 0, 1],
-    ["map", "MAP", "#2ecc71", 1, 1],
-    ["odf", "Муфта ODF", "#f1c40f", 0, 1],
-    ["iilb", "IILB", "#3498db", 1, 1],
-    ["isib", "ISIB", "#9b59b6", 1, 1],
-    ["cam", "CAM", "#455a64", 1, 1],
-    ["mps", "MPS", "#e67e22", 0, 1],
-    ["mpc", "MPC", "#e67e22", 0, 1],
-    ["mtu", "MTU", "#e67e22", 0, 1],
-    ["mvsa", "MVSA", "#e67e22", 0, 1],
-    ["wifi", "WiFi", "#1abc9c", 1, 1],
-    ["mbu", "MBU", "#95a5a6", 0, 1],
-    ["fs", "FS", "#e74c3c", 1, 1],
-    ["tel", "TEL", "#3498db", 1, 1],
-    ["stativ_lfc", "Статив LFC", "#2ecc71", 1, 1],
-    ["stativ_ao", "Статив АО", "#9b59b6", 1, 1],
-    ["poe", "PoE", "#f39c12", 0, 1],
-    ["go", "ГО", "#e74c3c", 1, 1],
-    ["stativ", "Статив (устар.)", null, 0, 0],
-    ["custom", "Другое", null, 1, 1],
+    ["mla", "MLA", "#4fd6e0", "box", 0, 1],
+    ["map", "MAP", "#2ecc71", "box", 1, 1],
+    ["odf", "Муфта ODF", "#f1c40f", "cylinder", 0, 1],
+    ["iilb", "IILB", "#3498db", "box", 1, 1],
+    ["isib", "ISIB", "#9b59b6", "box", 1, 1],
+    ["cam", "CAM", "#455a64", "box", 1, 1],
+    ["mps", "MPS", "#e67e22", "cylinder", 0, 1],
+    ["mpc", "MPC", "#e67e22", "box", 0, 1],
+    ["mtu", "MTU", "#e67e22", "box", 0, 1],
+    ["mvsa", "MVSA", "#e67e22", "cone", 0, 1],
+    ["wifi", "WiFi", "#1abc9c", "disc", 1, 1],
+    ["mbu", "MBU", "#95a5a6", "box", 0, 1],
+    ["fs", "FS", "#e74c3c", "box", 1, 1],
+    ["tel", "TEL", "#3498db", "box", 1, 1],
+    ["stativ_lfc", "Статив LFC", "#2ecc71", "box", 1, 1],
+    ["stativ_ao", "Статив АО", "#9b59b6", "box", 1, 1],
+    ["poe", "PoE", "#f39c12", "box", 0, 1],
+    ["go", "ГО", "#e74c3c", "cone", 1, 1],
+    ["stativ", "Статив (устар.)", null, "box", 0, 0],
+    ["custom", "Другое", null, "sphere", 1, 1],
   ];
   seedShapes.forEach((row, i) => insertShape.run(...row, i));
+}
+
+// Добавочная миграция: geometry на equipment_shapes — появилась позже
+// основного сида выше (см. обсуждение выбора 3D-модели формы), поэтому не
+// может просто попасть в CREATE TABLE/seed: на уже задеплоенной инсталляции
+// таблица создана и засеяна раньше этой колонки.
+{
+  const hasGeometryColumn = db.prepare("PRAGMA table_info(equipment_shapes)").all().some((c) => c.name === "geometry");
+  if (!hasGeometryColumn) {
+    db.exec("ALTER TABLE equipment_shapes ADD COLUMN geometry TEXT NOT NULL DEFAULT 'sphere'");
+  }
 }
 
 // Добавочная миграция: rx/tx (счётчики принятых/переданных пакетов

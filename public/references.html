@@ -382,12 +382,20 @@
             <input type="text" class="mono" id="new-shape-key" placeholder="ключ (напр. gas_station)">
             <input type="text" id="new-shape-label" placeholder="название">
             <input type="color" id="new-shape-color" value="#4fd6e0">
+            <select id="new-shape-geometry">
+              <option value="sphere">Сфера</option>
+              <option value="box">Куб</option>
+              <option value="cylinder">Цилиндр</option>
+              <option value="cone">Конус</option>
+              <option value="capsule">Капсула</option>
+              <option value="disc">Диск</option>
+            </select>
             <label class="check-inline"><input type="checkbox" id="new-shape-monitorable" checked> Мониторится</label>
             <label class="check-inline"><input type="checkbox" id="new-shape-selectable" checked> Доступна при создании</label>
             <button class="btn primary sm" id="submit-add-shape">Создать</button>
           </div>
           <table class="data-table">
-            <thead><tr><th style="width:14%;">Ключ</th><th style="width:26%;">Название</th><th style="width:12%;">Цвет</th><th style="width:14%;">Мониторится</th><th style="width:16%;">Доступна при создании</th><th style="width:10%;">Исп.</th><th></th></tr></thead>
+            <thead><tr><th style="width:12%;">Ключ</th><th style="width:20%;">Название</th><th style="width:10%;">Цвет</th><th style="width:13%;">3D-модель</th><th style="width:12%;">Мониторится</th><th style="width:14%;">Доступна при создании</th><th style="width:9%;">Исп.</th><th></th></tr></thead>
             <tbody id="equipshapes-body"></tbody>
           </table>
         </div>
@@ -697,6 +705,12 @@ function initTool(apiFetch){
     equipShapes = data.shapes || [];
     renderEquipShapes();
   }
+  var GEOMETRY_LABELS = { sphere: "Сфера", box: "Куб", cylinder: "Цилиндр", cone: "Конус", capsule: "Капсула", disc: "Диск" };
+  function geometrySelectHtml(current){
+    return '<select data-shape="geometry">' + Object.keys(GEOMETRY_LABELS).map(function(g){
+      return '<option value="' + g + '"' + (g === current ? " selected" : "") + '>' + GEOMETRY_LABELS[g] + '</option>';
+    }).join("") + '</select>';
+  }
   function renderEquipShapes(){
     var body = document.getElementById("equipshapes-body");
     body.innerHTML = equipShapes.map(function(s){
@@ -704,6 +718,7 @@ function initTool(apiFetch){
         '<td class="key-cell">' + s.key + '</td>' +
         '<td><input type="text" data-shape="label" value="' + s.label.replace(/"/g,"&quot;") + '"></td>' +
         '<td><input type="color" data-shape="defaultColor" value="' + (s.defaultColor || "#4fd6e0") + '"></td>' +
+        '<td>' + geometrySelectHtml(s.geometry) + '</td>' +
         '<td><input type="checkbox" data-shape="monitorable"' + (s.monitorable ? " checked" : "") + '></td>' +
         '<td><input type="checkbox" data-shape="selectable"' + (s.selectable ? " checked" : "") + '></td>' +
         '<td class="hint">' + s.usage + '</td>' +
@@ -741,6 +756,7 @@ function initTool(apiFetch){
       key: document.getElementById("new-shape-key").value.trim(),
       label: document.getElementById("new-shape-label").value.trim(),
       defaultColor: document.getElementById("new-shape-color").value,
+      geometry: document.getElementById("new-shape-geometry").value,
       monitorable: document.getElementById("new-shape-monitorable").checked,
       selectable: document.getElementById("new-shape-selectable").checked,
     };
