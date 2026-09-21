@@ -350,7 +350,6 @@
       <a id="navToLamps" title="Фонари"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3" /><path d="M9.7 17l4.6 0" /></svg> Фонари</a>
       <a id="navToLog" class="nav-current" title="Журнал действий"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8l0 4l2 2" /><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 -4l1.75 -4.5l3.22 2.5m-4.97 2l4.5 1.5" /></svg> Лог</a>
       <a id="navToUsers" title="Управление пользователями" style="display:none;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M21 21v-2a4 4 0 0 0 -3 -3.85" /></svg> Пользователи</a>
-      <a id="navToSppd" title="Подключение к SPPD для этого проекта" style="display:none;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.785 6l8.215 8.215l-2.054 2.054a5.81 5.81 0 1 1 -8.215 -8.215l2.054 -2.054" /><path d="M4 20l3.5 -3.5" /><path d="M15 4l-3.5 3.5" /><path d="M20 9l-3.5 3.5" /></svg> SPPD</a>
       <a id="navToThresholds" title="Пороги фиксации аварии для этого проекта" style="display:none;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M13.41 10.59l2.59 -2.59" /><path d="M7 12a5 5 0 0 1 5 -5" /></svg> Пороги</a>
       <button id="btnLogout" title="Выйти">Выйти</button>
     </div>
@@ -875,8 +874,6 @@ function applyRoleUI() {
   const isAdmin = auth && auth.role === "admin";
   document.getElementById("navToUsers").href = `/${CURRENT_PROJECT_ID}?panel=users`;
   document.getElementById("navToUsers").style.display = isAdmin ? "inline-flex" : "none";
-  document.getElementById("navToSppd").href = `/${CURRENT_PROJECT_ID}?panel=sppd`;
-  document.getElementById("navToSppd").style.display = isAdmin ? "inline-flex" : "none";
   document.getElementById("navToThresholds").href = `/${CURRENT_PROJECT_ID}?panel=thresholds`;
   document.getElementById("navToThresholds").style.display = isAdmin ? "inline-flex" : "none";
   if (!isAdmin) { showForbidden(); return false; }
