@@ -12,7 +12,17 @@ parserConfig (parser_json колонки project_data_sources):
   {
     mode: "bytype" | "bypoint",
     typePath: "$.WSM_TYPE",                    // для "bytype"
-    mtypes: [{ match, addressPath, fields:[{source, target, transform, tval, customName}] }],
+    mtypes: [{
+      match, addressPath,
+      // nameField/valueField — только для "именованных" протоколов, где одно
+      // сообщение несёт одну пару имя-параметра/значение (см. ниже), а не
+      // фиксированный набор полей сразу (как у SPPD/akvs). По умолчанию
+      // "name_value"/"value" — под конкретный формат FlexAlert-TTE (статив АО).
+      nameField, valueField,
+      fields:[{source, target, transform, tval, customName}
+        // либо, для "именованных" сообщений: {nameMatch, target, transform, tval, customName}
+      ],
+    }],
     catalogRows: [{ id, idjs, typedata, option, groupKey }],  // для "bypoint"
     groupConfigs: { "<idjs>": { mode:"direct"|"profile", addressRegex, profileId } },
     profiles: [{ id, name, channels:[{td, target, customName, unit, transform, tval}] }],
@@ -82,7 +92,17 @@ function parseByType(rawMessage, parserConfig) {
 
   const attributes = [];
   for (const field of mt.fields || []) {
-    const raw = resolvePath(msg.WSM_DATA, field.source);
+    let raw;
+    if (field.nameMatch) {
+      // "именованное" сообщение (напр. FlexAlert-TTE UPDATE_VALUE): одна пара
+      // {name_value, value} на сообщение — поле применяется, только если
+      // name_value совпал с nameMatch этого конкретного поля.
+      const nameVal = resolvePath(msg.WSM_DATA, mt.nameField || "name_value");
+      if (String(nameVal) !== String(field.nameMatch)) continue;
+      raw = resolvePath(msg.WSM_DATA, mt.valueField || "value");
+    } else {
+      raw = resolvePath(msg.WSM_DATA, field.source);
+    }
     const value = applyTransform(raw, field.transform, field.tval);
     if (value === undefined) continue;
     attributes.push({ key: fieldKey(field), value });

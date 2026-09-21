@@ -719,7 +719,8 @@ function initTool(apiFetch){
           extraHtml = '<input class="mono" type="text" data-ff="tval" value="' + (f.tval||"").replace(/"/g,'&quot;') + '" placeholder="значение" style="width:90px;">';
         }
         return '<tr data-field="' + f.id + '">' +
-          '<td><input class="mono" type="text" data-ff="source" value="' + f.source.replace(/"/g,'&quot;') + '" placeholder="$.Path.To.Value" style="min-width:200px;"></td>' +
+          '<td><input class="mono" type="text" data-ff="source" value="' + f.source.replace(/"/g,'&quot;') + '" placeholder="$.Path.To.Value" style="min-width:160px;"></td>' +
+          '<td><input class="mono" type="text" data-ff="nameMatch" value="' + (f.nameMatch||"").replace(/"/g,'&quot;') + '" placeholder="напр. S_TEMP_1" style="min-width:120px;"></td>' +
           '<td><select data-ff="target">' + optionsHtml(TARGET_ATTRS, f.target) + '</select></td>' +
           '<td><select data-ff="transform">' + optionsHtml(TRANSFORMS, f.transform) + '</select></td>' +
           '<td>' + extraHtml + '</td>' +
@@ -738,10 +739,15 @@ function initTool(apiFetch){
             ' Удалить тип' +
           '</button>' +
         '</div>' +
+        '<div class="mtype-top" style="margin-top:-4px;">' +
+          '<div class="grp"><label>Поле имени параметра (для «Имя параметра» ниже)</label><input class="mono" type="text" data-mt="nameField" value="' + (mt.nameField||"").replace(/"/g,'&quot;') + '" placeholder="name_value (по умолчанию)"></div>' +
+          '<div class="grp"><label>Поле значения (для «Имя параметра» ниже)</label><input class="mono" type="text" data-mt="valueField" value="' + (mt.valueField||"").replace(/"/g,'&quot;') + '" placeholder="value (по умолчанию)"></div>' +
+        '</div>' +
         '<table class="fields">' +
-          '<thead><tr><th style="width:32%;">Путь к полю</th><th style="width:24%;">Атрибут в системе</th><th style="width:20%;">Преобразование</th><th style="width:14%;">Параметр</th><th></th></tr></thead>' +
+          '<thead><tr><th style="width:24%;">Путь к полю</th><th style="width:20%;">Имя параметра</th><th style="width:20%;">Атрибут в системе</th><th style="width:16%;">Преобразование</th><th style="width:12%;">Параметр</th><th></th></tr></thead>' +
           '<tbody>' + rowsHtml + '</tbody>' +
         '</table>' +
+        '<div class="hint" style="margin-top:6px;">Заполняй либо «Путь к полю» (фиксированный путь в сообщении, как у SPPD), либо «Имя параметра» (для протоколов вида один {имя, значение} на сообщение, как FlexAlert-TTE/UPDATE_VALUE) — если «Имя параметра» заполнено, путь игнорируется.</div>' +
         '<button class="btn sm add-field-btn" data-add-field="' + mt.id + '">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>' +
           ' Добавить поле' +
@@ -765,7 +771,7 @@ function initTool(apiFetch){
     el.querySelectorAll("[data-add-field]").forEach(function(btn){
       btn.addEventListener("click", function(){
         var mt = state.mtypes.find(function(m){ return m.id === btn.dataset.addField; });
-        mt.fields.push({ id: uid("f"), source: "", target: "online", transform: "none", tval: "" });
+        mt.fields.push({ id: uid("f"), source: "", nameMatch: "", target: "online", transform: "none", tval: "" });
         renderMtypes();
       });
     });
@@ -1040,9 +1046,17 @@ function initTool(apiFetch){
     }
     var addr = resolvePath(msg.WSM_DATA, mt.addressPath);
     var rowsHtml = mt.fields.map(function(f){
-      var rawVal = resolvePath(msg.WSM_DATA, f.source);
+      var rawVal, pathLabel;
+      if (f.nameMatch) {
+        var nameVal = resolvePath(msg.WSM_DATA, mt.nameField || "name_value");
+        pathLabel = (mt.nameField || "name_value") + " = " + JSON.stringify(f.nameMatch);
+        rawVal = String(nameVal) === String(f.nameMatch) ? resolvePath(msg.WSM_DATA, mt.valueField || "value") : undefined;
+      } else {
+        pathLabel = f.source;
+        rawVal = resolvePath(msg.WSM_DATA, f.source);
+      }
       var val = applyTransform(rawVal, f.transform, f.tval);
-      return '<tr><td class="attr">' + attrLabel(f) + '</td><td class="raw">' + f.source + '</td>' +
+      return '<tr><td class="attr">' + attrLabel(f) + '</td><td class="raw">' + pathLabel + '</td>' +
         '<td class="val">' + (val === undefined ? '<span class="pill neutral">нет в сообщении</span>' : JSON.stringify(val)) + '</td></tr>';
     }).join("");
 
