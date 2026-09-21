@@ -329,15 +329,22 @@
   .uo-details .dtitle .dclose:hover{ filter:brightness(1.08); }
   .uo-details{ border-top:1px solid var(--border); padding:10px 12px; flex-shrink:0; display:none; max-height:50%; overflow-y:auto; }
   .uo-details.open{ display:block; }
+  /* Плавающая карточка над 3D-видом (не в сайдбаре) — раньше сидела внизу
+     #sidebar и на узких списках перекрывала/поджимала последние строки
+     (МЕТКИ и т.п.). Тот же визуальный язык, что у #navToolbar (низ-лево):
+     полупрозрачная плашка со своим border/blur поверх канвы. */
   #quickInfoPanel{
-    border-top:1px solid var(--border); flex-shrink:0; max-height:150px; overflow-y:auto;
-    background:var(--panel-alt);
+    position:absolute; right:12px; bottom:12px; width:300px; max-width:calc(100% - 24px);
+    max-height:min(320px, calc(100% - 24px)); overflow-y:auto;
+    background:rgba(27,31,35,.92); border:1px solid var(--border); border-radius:8px;
+    backdrop-filter:blur(4px); box-shadow:0 6px 20px rgba(0,0,0,.35); z-index:4;
   }
   #quickInfoPanel.collapsed{ display:none; }
   .quick-info-head{
     display:flex; align-items:center; justify-content:space-between; padding:7px 12px;
     font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint);
-    position:sticky; top:0; background:var(--panel-alt); border-bottom:1px solid var(--border-soft);
+    position:sticky; top:0; background:rgba(27,31,35,.92); border-bottom:1px solid var(--border-soft);
+    border-radius:8px 8px 0 0;
   }
   .quick-info-head #quickInfoClose{
     width:auto; background:none; border:none; color:var(--text-faint); font-size:15px; line-height:1;
@@ -681,6 +688,13 @@
         <button class="nav-btn nav-btn-pivot" id="btnPivotMode" title="Выбрать точку вращения: включить и кликнуть по модели">⊕</button>
       </div>
     </div>
+    <div id="quickInfoPanel">
+      <div class="quick-info-head">
+        <span>Инфо</span>
+        <button id="quickInfoClose" title="Скрыть">×</button>
+      </div>
+      <div class="quick-info-body" id="quickInfoBody">Кликните по объекту в списке справа — здесь появится краткая карточка.</div>
+    </div>
   </div>
   <div id="sidebar">
     <div id="monitorPageTitle"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 4v8" /><path d="M16 4.5v7" /><path d="M12 5v16" /><path d="M8 5.5v5" /><path d="M4 6v4" /><path d="M20 8h-16" /></svg> Мониторинг оборудования</div>
@@ -985,13 +999,6 @@
           <div class="mon-sec-body" id="monitorMarksList"></div>
         </div>
       </div>
-    </div>
-    <div id="quickInfoPanel">
-      <div class="quick-info-head">
-        <span>Инфо</span>
-        <button id="quickInfoClose" title="Скрыть">×</button>
-      </div>
-      <div class="quick-info-body" id="quickInfoBody">Кликните по объекту в списке слева — здесь появится краткая карточка.</div>
     </div>
   </div>
 </div>
@@ -6341,7 +6348,7 @@ function showQuickInfoMark(m) {
 if (dom.quickInfoClose) {
   dom.quickInfoClose.addEventListener("click", () => {
     currentQuickInfoEquip = null;
-    dom.quickInfoBody.textContent = "Кликните по объекту в списке слева — здесь появится краткая карточка.";
+    dom.quickInfoBody.textContent = "Кликните по объекту в списке справа — здесь появится краткая карточка.";
     dom.quickInfoPanel.classList.add("collapsed");
   });
 }
