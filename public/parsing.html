@@ -405,6 +405,19 @@
             <button class="btn ghost sm" id="live-clear">Очистить</button>
             <span class="hint" id="live-status">Не запущено</span>
           </div>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+            <label class="hint" style="display:flex; align-items:center; gap:6px;">
+              Эндпойнт
+              <select class="mono" id="live-filter-endpoint" style="min-width:140px;">
+                <option value="">все</option>
+              </select>
+            </label>
+            <label class="hint" style="display:flex; align-items:center; gap:6px; flex:1; min-width:220px;">
+              Фильтр (подстрока или /regex/flags)
+              <input class="mono" type="text" id="live-filter-text" placeholder="например: online или /addr\"\s*:\s*12/" style="flex:1;">
+            </label>
+            <span class="hint" id="live-filter-count"></span>
+          </div>
           <div class="scroll-y" id="live-console" style="max-height:420px;">
             <div class="result-empty">Заполни «Подключение» выше и нажми «Начать прослушивание» — сюда начнут падать сырые сообщения по мере поступления</div>
           </div>
@@ -1048,14 +1061,48 @@ function initTool(apiFetch){
   /* ---------- live raw stream (real backend) ---------- */
   var liveSocket = null;
   var liveConnectionId = null;
+  var liveHistory = [];
+  var liveSeenEndpoints = {};
+  var LIVE_HISTORY_LIMIT = 500;
 
-  function pushLiveRow(entry){
+  function addLiveEndpointOption(ep){
+    if (!ep || liveSeenEndpoints[ep]) return;
+    liveSeenEndpoints[ep] = true;
+    var sel = document.getElementById("live-filter-endpoint");
+    var opt = document.createElement("option");
+    opt.value = ep;
+    opt.textContent = ep;
+    sel.appendChild(opt);
+  }
+
+  function parseFilterText(text){
+    text = (text || "").trim();
+    if (!text) return null;
+    var m = text.match(/^\/(.*)\/([a-z]*)$/i);
+    if (m) {
+      try { return new RegExp(m[1], m[2]); } catch(e) { /* fall through to plain substring */ }
+    }
+    return text;
+  }
+
+  function entryMatchesFilter(entry){
+    var epFilter = document.getElementById("live-filter-endpoint").value;
+    if (epFilter && entry.ep !== epFilter) return false;
+    var filter = parseFilterText(document.getElementById("live-filter-text").value);
+    if (!filter) return true;
+    var body = entry.error ? ("ошибка: " + entry.error) : entry.closed ? "соединение закрыто" : JSON.stringify(entry.raw);
+    var haystack = String(body);
+    if (filter instanceof RegExp) return filter.test(haystack);
+    return haystack.toLowerCase().indexOf(filter.toLowerCase()) !== -1;
+  }
+
+  function renderLiveRow(entry){
     var consoleEl = document.getElementById("live-console");
     if (consoleEl.querySelector(".result-empty")) consoleEl.innerHTML = "";
     var row = document.createElement("div");
     row.className = "live-row" + (entry.error ? " err" : "");
-    var now = new Date();
-    var ts = String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0")+":"+String(now.getSeconds()).padStart(2,"0");
+    var d = new Date(entry._ts || Date.now());
+    var ts = String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")+":"+String(d.getSeconds()).padStart(2,"0");
     var body = entry.error ? ("ошибка: " + entry.error) : entry.closed ? "соединение закрыто" : JSON.stringify(entry.raw);
     row.innerHTML =
       '<div class="t">' + ts + '</div>' +
@@ -1073,8 +1120,39 @@ function initTool(apiFetch){
     }
     consoleEl.appendChild(row);
     consoleEl.scrollTop = consoleEl.scrollHeight;
-    while (consoleEl.children.length > 300) consoleEl.removeChild(consoleEl.firstChild);
   }
+
+  function refreshLiveConsole(){
+    var consoleEl = document.getElementById("live-console");
+    consoleEl.innerHTML = "";
+    var matched = liveHistory.filter(entryMatchesFilter);
+    if (!matched.length){
+      consoleEl.innerHTML = '<div class="result-empty">Нет сообщений, подходящих под текущий фильтр</div>';
+    } else {
+      matched.forEach(renderLiveRow);
+    }
+    var countEl = document.getElementById("live-filter-count");
+    countEl.textContent = liveHistory.length ? (matched.length + " из " + liveHistory.length) : "";
+  }
+
+  function pushLiveRow(entry){
+    entry._ts = Date.now();
+    liveHistory.push(entry);
+    while (liveHistory.length > LIVE_HISTORY_LIMIT) liveHistory.shift();
+    addLiveEndpointOption(entry.ep);
+    var countEl = document.getElementById("live-filter-count");
+    if (entryMatchesFilter(entry)){
+      var consoleEl = document.getElementById("live-console");
+      if (consoleEl.querySelector(".result-empty")) consoleEl.innerHTML = "";
+      renderLiveRow(entry);
+      while (consoleEl.children.length > 300) consoleEl.removeChild(consoleEl.firstChild);
+    }
+    var matchedCount = liveHistory.filter(entryMatchesFilter).length;
+    countEl.textContent = matchedCount + " из " + liveHistory.length;
+  }
+
+  document.getElementById("live-filter-endpoint").addEventListener("change", refreshLiveConsole);
+  document.getElementById("live-filter-text").addEventListener("input", refreshLiveConsole);
 
   async function startLive(){
     var baseUrl = document.getElementById("conn-baseurl").value.trim();
@@ -1142,6 +1220,12 @@ function initTool(apiFetch){
     if (liveRunning) stopLive(); else startLive();
   });
   document.getElementById("live-clear").addEventListener("click", function(){
+    liveHistory = [];
+    liveSeenEndpoints = {};
+    var sel = document.getElementById("live-filter-endpoint");
+    sel.innerHTML = '<option value="">все</option>';
+    document.getElementById("live-filter-text").value = "";
+    document.getElementById("live-filter-count").textContent = "";
     document.getElementById("live-console").innerHTML = '<div class="result-empty">Заполни «Подключение» выше и нажми «Начать прослушивание» — сюда начнут падать сырые сообщения по мере поступления</div>';
   });
   window.addEventListener("beforeunload", function(){
