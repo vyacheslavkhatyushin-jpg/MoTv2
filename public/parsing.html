@@ -329,6 +329,7 @@
         <button class="tab-btn" data-tab="types">Типы сообщений</button>
         <button class="tab-btn" data-tab="catalog">Каталог и профили</button>
         <button class="tab-btn" data-tab="test">Тестер</button>
+        <button class="tab-btn" data-tab="publish">Публикация</button>
       </div>
 
       <!-- TAB 1: CONNECTION -->
@@ -497,9 +498,52 @@
         </div>
       </div>
 
+      <!-- TAB 5: PUBLISH AS PROJECT SOURCE -->
+      <div class="panel" id="panel-publish">
+        <div class="card">
+          <div class="card-head">
+            <h3>Публикация как источник проекта</h3>
+            <span class="hint">Когда конфигурация выше проверена — сохрани её на конкретный проект. Дальше её подхватит custom-monitor-worker и будет гонять постоянно, а не только пока открыта эта страница.</span>
+          </div>
+          <div class="field-row">
+            <label>Проект</label>
+            <select id="publish-project"><option value="">— выбрать проект —</option></select>
+          </div>
+          <div class="field-row">
+            <label>Название источника</label>
+            <input type="text" id="publish-name" placeholder="напр. АГС Заречная">
+          </div>
+          <div class="field-row">
+            <label>Режим разбора</label>
+            <select id="publish-mode">
+              <option value="bytype">По типу сообщения</option>
+              <option value="bypoint">Поток точек (через каталог)</option>
+            </select>
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; margin-top:8px;">
+            <button class="btn primary sm" id="publish-save">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/></svg>
+              Сохранить как новый источник
+            </button>
+            <span class="hint" id="publish-status"></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Источники выбранного проекта</h3>
+            <span class="hint">Загрузить конфигурацию обратно в конструктор, включить/выключить или удалить</span>
+          </div>
+          <table class="fields">
+            <thead><tr><th style="width:30%;">Название</th><th style="width:20%;">Режим</th><th style="width:15%;">Обновлён</th><th style="width:15%;">Статус</th><th></th></tr></thead>
+            <tbody id="publish-sources-body"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="foot-note">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16v-4M12 8h.01M22 12c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2s10 4.477 10 10Z"/></svg>
-        <div>Это изолированный тестовый инструмент — он не пишет в <b style="color:var(--text)">monitor_status</b> и не связан с оборудованием проекта. Когда парсер проверен на реальных потоках, интеграция с конкретными объектами настраивается отдельно.</div>
+        <div>Подключение и тестер выше — песочница, ничего не пишут в <b style="color:var(--text)">monitor_status</b>. Реальные данные начинают идти в мониторинг только после публикации на вкладке «Публикация» и появления соответствующего <b style="color:var(--text)">monitorMethod:"custom"</b> на оборудовании в редакторе.</div>
       </div>
     </div>
   </div>
@@ -1109,6 +1153,130 @@ function initTool(apiFetch){
   renderMtypes();
   renderGroupConfigs();
   renderProfiles();
+
+  /* ---------- publish as project data source ---------- */
+  function gatherConnectionConfig(){
+    return {
+      baseUrl: document.getElementById("conn-baseurl").value.trim(),
+      authType: document.getElementById("conn-authtype").value,
+      username: document.getElementById("conn-username").value,
+      password: document.getElementById("conn-password").value,
+      endpoints: state.endpoints.filter(function(e){ return e.path; }),
+    };
+  }
+  function gatherParserConfig(mode){
+    return {
+      mode: mode,
+      typePath: document.getElementById("conn-typepath").value,
+      mtypes: state.mtypes,
+      catalogRows: state.catalogRows,
+      groupConfigs: state.groupConfigs,
+      profiles: state.profiles,
+    };
+  }
+  function applyConnectionConfig(connection){
+    document.getElementById("conn-baseurl").value = connection.baseUrl || "";
+    document.getElementById("conn-authtype").value = connection.authType || "none";
+    document.getElementById("conn-username").value = connection.username || "";
+    document.getElementById("conn-password").value = connection.password || "";
+    state.endpoints = (connection.endpoints || []).map(function(e){ return { name: e.name || "", path: e.path || "" }; });
+    renderEndpoints();
+  }
+  function applyParserConfig(parser){
+    document.getElementById("conn-typepath").value = parser.typePath || "$.WSM_TYPE";
+    document.getElementById("publish-mode").value = parser.mode || "bytype";
+    state.mtypes = parser.mtypes || [];
+    state.catalogRows = parser.catalogRows || [];
+    state.groupConfigs = parser.groupConfigs || {};
+    state.profiles = parser.profiles && parser.profiles.length ? parser.profiles : state.profiles;
+    renderMtypes();
+    renderCatalogPreview();
+    renderGroupConfigs();
+    renderProfiles();
+  }
+
+  async function loadProjectsForPublish(){
+    try {
+      const resp = await apiFetch("/api/projects");
+      const data = await resp.json();
+      const sel = document.getElementById("publish-project");
+      sel.innerHTML = '<option value="">— выбрать проект —</option>' +
+        (data.projects || []).map(function(p){ return '<option value="' + p.id + '">' + p.name + ' (' + p.id + ')</option>'; }).join("");
+    } catch(e){}
+  }
+
+  var loadedSourceMap = {};
+  async function loadSourcesForProject(){
+    const projectId = document.getElementById("publish-project").value;
+    const body = document.getElementById("publish-sources-body");
+    if (!projectId){ body.innerHTML = ""; loadedSourceMap = {}; return; }
+    try {
+      const resp = await apiFetch("/api/parsing/sources?projectId=" + encodeURIComponent(projectId));
+      const data = await resp.json();
+      loadedSourceMap = {};
+      (data.sources || []).forEach(function(s){ loadedSourceMap[s.id] = s; });
+      body.innerHTML = (data.sources || []).map(function(s){
+        return '<tr data-source="' + s.id + '">' +
+          '<td>' + s.name + '</td>' +
+          '<td class="mono">' + (s.parser.mode === "bypoint" ? "поток точек" : "по типу") + '</td>' +
+          '<td class="mono" style="font-size:12px;">' + (s.updatedAt || "") + '</td>' +
+          '<td>' + (s.enabled ? '<span class="pill ok">включён</span>' : '<span class="pill neutral">выключен</span>') + '</td>' +
+          '<td style="display:flex; gap:6px;">' +
+            '<button class="btn sm" data-load-source>Загрузить</button>' +
+            '<button class="btn sm" data-toggle-source>' + (s.enabled ? "Выключить" : "Включить") + '</button>' +
+            '<button class="btn ghost sm" data-delete-source><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>' +
+          '</td>' +
+        '</tr>';
+      }).join("") || '<tr><td colspan="5" class="hint">У этого проекта пока нет сохранённых источников</td></tr>';
+
+      body.querySelectorAll("[data-load-source]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          const s = loadedSourceMap[btn.closest("tr").dataset.source];
+          applyConnectionConfig(s.connection);
+          applyParserConfig(s.parser);
+          document.getElementById("publish-name").value = s.name;
+          document.querySelector('.tab-btn[data-tab="conn"]').click();
+        });
+      });
+      body.querySelectorAll("[data-toggle-source]").forEach(function(btn){
+        btn.addEventListener("click", async function(){
+          const s = loadedSourceMap[btn.closest("tr").dataset.source];
+          await apiFetch("/api/parsing/sources/" + s.id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: !s.enabled }) });
+          loadSourcesForProject();
+        });
+      });
+      body.querySelectorAll("[data-delete-source]").forEach(function(btn){
+        btn.addEventListener("click", async function(){
+          const id = btn.closest("tr").dataset.source;
+          await apiFetch("/api/parsing/sources/" + id, { method: "DELETE" });
+          loadSourcesForProject();
+        });
+      });
+    } catch(e){}
+  }
+
+  document.getElementById("publish-project").addEventListener("change", loadSourcesForProject);
+  document.getElementById("publish-save").addEventListener("click", async function(){
+    const statusEl = document.getElementById("publish-status");
+    const projectId = document.getElementById("publish-project").value;
+    const name = document.getElementById("publish-name").value.trim();
+    const mode = document.getElementById("publish-mode").value;
+    if (!projectId){ statusEl.textContent = "Выбери проект"; statusEl.style.color = "var(--danger)"; return; }
+    if (!name){ statusEl.textContent = "Укажи название источника"; statusEl.style.color = "var(--danger)"; return; }
+    try {
+      const resp = await apiFetch("/api/parsing/sources", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: projectId, name: name, connection: gatherConnectionConfig(), parser: gatherParserConfig(mode) }),
+      });
+      const data = await resp.json();
+      if (!resp.ok){ statusEl.textContent = data.message || data.error || ("Ошибка " + resp.status); statusEl.style.color = "var(--danger)"; return; }
+      statusEl.textContent = "Сохранено как источник проекта";
+      statusEl.style.color = "var(--ok)";
+      loadSourcesForProject();
+    } catch(e){ statusEl.textContent = e.message; statusEl.style.color = "var(--danger)"; }
+  });
+
+  loadProjectsForPublish();
 }
 </script>
 </body>

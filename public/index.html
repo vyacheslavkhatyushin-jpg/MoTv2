@@ -1051,11 +1051,14 @@
               <option value="snmp">SNMP</option>
               <option value="sppd" id="equipDMonitorSppdOption">SPPD (позиционирование)</option>
               <option value="fs" id="equipDMonitorFsOption">FieldSense (обрыв кабеля)</option>
+              <option value="custom">Настраиваемый источник</option>
             </select>
           </div>
           <div class="drow" id="equipDSnmpCommunityRow" style="display:none;"><span>SNMP community</span><input type="text" id="equipDSnmpCommunity" placeholder="public"></div>
           <div class="drow" id="equipDSnmpProfileRow" style="display:none;"><span>SNMP профиль</span><input type="text" id="equipDSnmpProfile" placeholder="по умолчанию"></div>
           <div class="drow" id="equipDSppdAddressRow" style="display:none;"><span>Адрес SPPD</span><input type="text" id="equipDSppdAddress" placeholder="напр. 3934"></div>
+          <div class="drow" id="equipDDataSourceRow" style="display:none;"><span>Источник данных</span><select id="equipDDataSource" style="background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 6px; font-family:inherit;"><option value="">— выбрать —</option></select></div>
+          <div class="drow" id="equipDSourceAddressRow" style="display:none;"><span>Адрес в источнике</span><input type="text" id="equipDSourceAddress" placeholder="напр. 1234"></div>
           <div class="drow" id="equipDVoltageRow" style="display:none;"><span>Напряжение (SPPD)</span><span id="equipDVoltage" class="mono" style="color:var(--text-dim);">—</span></div>
           <div class="drow" id="equipDRssiRow" style="display:none;"><span>RSSI (SPPD)</span><span id="equipDRssi" class="mono" style="color:var(--text-dim);">—</span></div>
           <div class="drow" id="equipDTxRxRow" style="display:none;"><span>Tx/Rx (SPPD)</span><span id="equipDTxRx" class="mono" style="color:var(--text-dim);">—</span></div>
@@ -2016,6 +2019,10 @@ const dom = {
   equipDSnmpProfile: document.getElementById("equipDSnmpProfile"),
   equipDSppdAddressRow: document.getElementById("equipDSppdAddressRow"),
   equipDSppdAddress: document.getElementById("equipDSppdAddress"),
+  equipDDataSourceRow: document.getElementById("equipDDataSourceRow"),
+  equipDDataSource: document.getElementById("equipDDataSource"),
+  equipDSourceAddressRow: document.getElementById("equipDSourceAddressRow"),
+  equipDSourceAddress: document.getElementById("equipDSourceAddress"),
   equipDVoltageRow: document.getElementById("equipDVoltageRow"),
   equipDRssiRow: document.getElementById("equipDRssiRow"),
   equipDRssi: document.getElementById("equipDRssi"),
@@ -4336,6 +4343,8 @@ function placeEquipment(point, overrides, select = true) {
     snmpProfile: overrides?.snmpProfile ?? "",
     sppdAddress: overrides?.sppdAddress ?? "",
     fsAddress: overrides?.fsAddress ?? "",
+    dataSourceId: overrides?.dataSourceId ?? "",
+    sourceAddress: overrides?.sourceAddress ?? "",
     createdBy: overrides?.createdBy ?? currentUsername(),
     createdAt: overrides?.createdAt ?? new Date().toISOString(),
   };
@@ -4463,7 +4472,29 @@ function selectEquip(eq) {
   dom.equipDSnmpProfile.value = eq.snmpProfile || "";
   dom.equipDSppdAddress.value = eq.sppdAddress || "";
   dom.equipDFsAddress.value = eq.fsAddress || "";
+  dom.equipDSourceAddress.value = eq.sourceAddress || "";
   updateEquipMonitorRows(eq);
+  dom.equipDDataSource.value = eq.dataSourceId || "";
+}
+// Список источников (project_data_sources) для выпадающего списка "custom" —
+// без connection_json/parser_json (там логин/пароль от системы шахты), см.
+// GET /api/projects/:id/data-sources. Грузится один раз лениво, при первом
+// открытии карточки объекта с методом "custom" — не на каждый выбор объекта.
+let customDataSourcesLoaded = false;
+async function loadCustomDataSourcesOnce() {
+  if (customDataSourcesLoaded) return;
+  customDataSourcesLoaded = true;
+  try {
+    const resp = await apiFetch(`/api/projects/${CURRENT_PROJECT_ID}/data-sources`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const current = dom.equipDDataSource.value;
+    dom.equipDDataSource.innerHTML = '<option value="">— выбрать —</option>' +
+      (data.sources || []).map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
+    dom.equipDDataSource.value = current;
+  } catch (e) {
+    // офлайн/сбой сети — оставляем список пустым, поле останется как есть
+  }
 }
 // SPPD (система позиционирования HFT) имеет смысл только для считывателей
 // IILB/ISIB, FieldSense (поиск обрыва кабеля) — только для датчиков FS —
@@ -4499,6 +4530,9 @@ function updateEquipMonitorRows(eq) {
   dom.equipDRssiRow.style.display = method === "sppd" ? "" : "none";
   dom.equipDTxRxRow.style.display = method === "sppd" ? "" : "none";
   dom.equipDFirmwareRow.style.display = method === "sppd" ? "" : "none";
+  dom.equipDDataSourceRow.style.display = method === "custom" ? "" : "none";
+  dom.equipDSourceAddressRow.style.display = method === "custom" ? "" : "none";
+  if (method === "custom") loadCustomDataSourcesOnce();
   refreshEquipDetailVoltage();
 }
 // Живое значение — обновляется и при выборе объекта, и на каждом тике
@@ -4611,6 +4645,14 @@ dom.equipDSppdAddress.addEventListener("input", () => {
 dom.equipDFsAddress.addEventListener("input", () => {
   if (!selectedEquip) return;
   selectedEquip.fsAddress = dom.equipDFsAddress.value;
+});
+dom.equipDDataSource.addEventListener("change", () => {
+  if (!selectedEquip) return;
+  selectedEquip.dataSourceId = dom.equipDDataSource.value;
+});
+dom.equipDSourceAddress.addEventListener("input", () => {
+  if (!selectedEquip) return;
+  selectedEquip.sourceAddress = dom.equipDSourceAddress.value;
 });
 function focusEquip(eq) {
   if (!eq) return;
@@ -5587,6 +5629,8 @@ function serializeEquip(eq) {
     snmpProfile: eq.snmpProfile || "",
     sppdAddress: eq.sppdAddress || "",
     fsAddress: eq.fsAddress || "",
+    dataSourceId: eq.dataSourceId || "",
+    sourceAddress: eq.sourceAddress || "",
     createdBy: eq.createdBy, createdAt: eq.createdAt,
   };
 }
@@ -6296,7 +6340,7 @@ function renderMonitorActiveList(rows) {
   }
 }
 
-const MONITOR_METHOD_LABELS = { ping: "Пинг", snmp: "SNMP", sppd: "SPPD", fs: "FieldSense" };
+const MONITOR_METHOD_LABELS = { ping: "Пинг", snmp: "SNMP", sppd: "SPPD", fs: "FieldSense", custom: "Настраиваемый источник" };
 
 // Компактная сводка по объекту в нижней панели "Инфо" — по клику на строку
 // в списке (и в редакторе, и в мониторинге), без открытия полной формы
@@ -6345,6 +6389,7 @@ function showQuickInfoEquip(eq) {
   if (eq.monitorMethod === "snmp" && eq.snmpProfile) rows.push(qiRow("SNMP профиль", eq.snmpProfile));
   if (eq.monitorMethod === "sppd" && eq.sppdAddress) rows.push(qiRow("SPPD адрес", eq.sppdAddress));
   if (eq.monitorMethod === "fs" && eq.fsAddress) rows.push(qiRow("FieldSense адрес", eq.fsAddress));
+  if (eq.monitorMethod === "custom" && eq.sourceAddress) rows.push(qiRow("Адрес в источнике", eq.sourceAddress));
   const metricsHtml = eq.monitorMethod === "sppd" ? metricsRowsHtml(quickInfoMetricsCache.get(eq.id)) : "";
   dom.quickInfoBody.innerHTML = `<div class="qi-title">${esc(eq.label)}</div>${rows.join("")}${metricsHtml}`;
 }
@@ -6537,7 +6582,7 @@ function applyRoleToUI() {
   // Настройка мониторинга (метод опроса, SNMP-community, адрес SPPD) —
   // тоже только admin: это инфраструктурная привязка устройства, а не
   // повседневное редактирование карточки оборудования.
-  const monitorFieldIds = ["equipDMonitorMethod", "equipDSnmpCommunity", "equipDSnmpProfile", "equipDSppdAddress", "equipDFsAddress"];
+  const monitorFieldIds = ["equipDMonitorMethod", "equipDSnmpCommunity", "equipDSnmpProfile", "equipDSppdAddress", "equipDFsAddress", "equipDDataSource", "equipDSourceAddress"];
   for (const id of monitorFieldIds) {
     const el = document.getElementById(id);
     if (el) el.disabled = !isAdmin;
