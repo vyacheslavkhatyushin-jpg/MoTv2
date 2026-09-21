@@ -24,6 +24,19 @@ const { requireAuth, requireRole } = require("../auth");
 const { logAudit } = require("../lib/audit");
 
 const router = express.Router();
+
+// Лёгкий read-only эндпоинт — доступен любой авторизованной роли (не только
+// admin), в отличие от остального CRUD ниже: панель "Инфо" в редакторе
+// показывает человекочитаемые названия/единицы метрик всем, кто открыл
+// проект (см. index.html metricsRowsHtml), а не только админам. Определён
+// до router.use(requireRole("admin")) ниже, чтобы не попасть под общий гейт.
+router.get("/attributes/public", requireAuth, (req, res) => {
+  const attrs = db
+    .prepare("SELECT key, label, data_type AS dataType, unit FROM attribute_definitions ORDER BY group_name, label")
+    .all();
+  res.json({ attributes: attrs });
+});
+
 router.use(requireAuth, requireRole("admin"));
 
 const DATA_TYPES = new Set(["number", "boolean", "string"]);
