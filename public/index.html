@@ -3573,8 +3573,15 @@ function exitDrawMode() {
 // Типовые кабели с настройками по умолчанию (цвет/тип линии/толщина) —
 // применяются при создании новой трассы через выпадающий список; после
 // этого каждое значение можно поменять индивидуально, как и раньше.
-// Толщина по умолчанию убывает в порядке ВОЛС → LFC → КАО → Силовой → FTP.
-const CABLE_TYPES = {
+// Раньше это был захардкоженный объект, теперь — справочник в БД
+// (cable_types, см. server/routes/references.js), грузится один раз при
+// старте через loadCableTypesOnce() ниже, до восстановления снапшота
+// проекта (см. "многопользовательский режим" в конце файла), чтобы кабели
+// сразу рисовались с правильными цветом/толщиной/типом линии. Значения
+// ниже — дефолт/фолбэк на случай сбоя сети и постоянное значение для
+// локальных резервных копий (standalone-файл, см. saveStandaloneCopy —
+// там нет сервера вообще, loadCableTypesOnce() туда сознательно не зовётся).
+let CABLE_TYPES = {
   vols:  { label: "ВОЛС",     color: 0xffcc00, thickness: 14, lineType: "solid" },
   lfc:   { label: "LFC",      color: 0x2ecc71, thickness: 11, lineType: "solid" },
   kao:   { label: "КАО",      color: 0x29b6f6, thickness: 8,  lineType: "dashed" },
@@ -3582,7 +3589,43 @@ const CABLE_TYPES = {
   power: { label: "Силовой",  color: 0xe74c3c, thickness: 5,  lineType: "solid" },
   ftp:   { label: "FTP",      color: 0x9b59b6, thickness: 3,  lineType: "dotted" },
 };
-const CABLE_TYPE_ORDER = ["vols", "lfc", "kao", "tk", "power", "ftp"];
+let CABLE_TYPE_ORDER = ["vols", "lfc", "kao", "tk", "power", "ftp"];
+let cableTypesLoaded = false;
+async function loadCableTypesOnce() {
+  if (cableTypesLoaded) return;
+  cableTypesLoaded = true;
+  try {
+    const resp = await apiFetch("/api/references/cable-types/public");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!data.cableTypes || !data.cableTypes.length) return;
+    const types = {};
+    const order = [];
+    for (const t of data.cableTypes) {
+      const colorHex = typeof t.color === "string" ? t.color.replace(/^#/, "") : "ffcc00";
+      types[t.key] = { label: t.label, color: parseInt(colorHex, 16) || 0xffcc00, thickness: t.thickness, lineType: t.lineType };
+      order.push(t.key);
+    }
+    CABLE_TYPES = types;
+    CABLE_TYPE_ORDER = order;
+    renderCableTypeOptions();
+  } catch (e) {
+    // сбой сети — остаёмся на дефолтных значениях выше, ничего не падает
+  }
+}
+// Выпадающие списки типа кабеля (создание новой трассы и смена типа у уже
+// существующей) раньше были захардкожены прямо в HTML — теперь перерисовываем
+// их опциями из справочника после загрузки.
+function renderCableTypeOptions() {
+  const optsHtml = CABLE_TYPE_ORDER.map((key) => `<option value="${key}">${esc(CABLE_TYPES[key].label)}</option>`).join("");
+  const selectNew = document.getElementById("cableTypeSelect");
+  if (selectNew) {
+    selectNew.innerHTML = optsHtml;
+    if (!CABLE_TYPES[cableTypeSelected] && CABLE_TYPE_ORDER.length) cableTypeSelected = CABLE_TYPE_ORDER[0];
+    selectNew.value = cableTypeSelected;
+  }
+  if (dom.cableDType) dom.cableDType.innerHTML = optsHtml + '<option value="custom">Другое</option>';
+}
 function cableGroupKey(c) {
   return CABLE_TYPES[c.cableType] ? c.cableType : "custom";
 }
@@ -7390,6 +7433,11 @@ animate();
         : "Локальная резервная копия";
     }
   } else {
+    // Справочник типов кабелей — до загрузки проекта, чтобы трассы сразу
+    // рисовались с правильными цветом/толщиной/типом линии, а не с дефолтными
+    // (см. loadCableTypesOnce()). В offline-ветке выше не нужен — там сервера
+    // нет вообще, остаёмся на дефолтных/зашитых в CABLE_TYPES значениях.
+    await loadCableTypesOnce();
     await loadProjectFromServer();
     if (IS_MONITORING_PAGE) {
       renderMonitorLayerLists();

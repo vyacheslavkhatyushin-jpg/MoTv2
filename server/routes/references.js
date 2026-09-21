@@ -37,6 +37,16 @@ router.get("/attributes/public", requireAuth, (req, res) => {
   res.json({ attributes: attrs });
 });
 
+// Типы кабелей нужны редактору для отрисовки трасс (цвет/толщина/тип линии
+// выпадающего списка при создании кабеля) — тоже любой авторизованной роли,
+// не только admin (см. загрузку CABLE_TYPES в index.html).
+router.get("/cable-types/public", requireAuth, (req, res) => {
+  const types = db
+    .prepare("SELECT key, label, color, thickness, line_type AS lineType FROM cable_types ORDER BY sort_order")
+    .all();
+  res.json({ cableTypes: types });
+});
+
 router.use(requireAuth, requireRole("admin"));
 
 const DATA_TYPES = new Set(["number", "boolean", "string"]);
