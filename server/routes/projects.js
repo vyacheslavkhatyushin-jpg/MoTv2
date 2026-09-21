@@ -108,6 +108,7 @@ function mergeCollection(baseArr, incoming, context) {
   const byId = new Map((baseArr || []).map((o) => [o.id, o]));
   const conflicts = [];
   const applied = [];
+  const deletedIds = [];
   for (const entry of (incoming && incoming.upserts) || []) {
     const { id, data, base } = entry || {};
     if (!id || !data) {
@@ -151,11 +152,31 @@ function mergeCollection(baseArr, incoming, context) {
     const baseJson = base ? JSON.stringify(base) : null;
     if (currentJson === baseJson) {
       byId.delete(id);
+      deletedIds.push(id);
     } else {
       conflicts.push({ id, label: currentObj.label || id, action: "delete" });
     }
   }
-  return { merged: [...byId.values()], conflicts, applied };
+  return { merged: [...byId.values()], conflicts, applied, deletedIds };
+}
+
+// Оборудование, удалённое из снимка модели, оставляло "осиротевшие" строки
+// в monitor_status/monitor_events/monitor_tag_pulses навсегда — ничего их
+// раньше не подчищало. Они не показываются как объект в списке (сам объект
+// уже удалён), но их state/person_count/vehicle_count продолжали
+// подмешиваться в общие суммы на странице "Мониторинг" (см. applyMonitorStatus
+// в index.html), давая необъяснимое на вид расхождение вида "наверху
+// написано 2 человека, а у видимых считывателей бейдж пустой".
+function cleanupMonitorDataFor(projectId, equipmentIds) {
+  if (!equipmentIds.length) return;
+  const tx = db.transaction((ids) => {
+    for (const id of ids) {
+      db.prepare("DELETE FROM monitor_status WHERE project_id = ? AND equipment_id = ?").run(projectId, id);
+      db.prepare("DELETE FROM monitor_events WHERE project_id = ? AND equipment_id = ?").run(projectId, id);
+      db.prepare("DELETE FROM monitor_tag_pulses WHERE project_id = ? AND equipment_id = ?").run(projectId, id);
+    }
+  });
+  tx(equipmentIds);
 }
 
 const EMPTY_SNAPSHOT = {
@@ -221,6 +242,7 @@ router.put("/:id/state", requireRole("engineer", "admin", "supervisor"), (req, r
     version: nextVersion,
     by: req.user.username,
   });
+  cleanupMonitorDataFor(req.params.id, equipmentResult.deletedIds);
 
   const AUDIT_ENTITY_TYPES = { cables: "cable", equipment: "equipment", marks: "mark", patches: "patch" };
   for (const [collectionName, result] of Object.entries({ cables: cablesResult, equipment: equipmentResult, marks: marksResult, patches: patchesResult })) {
