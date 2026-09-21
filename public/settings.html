@@ -347,12 +347,12 @@
 
   <div id="app">
     <div id="settingsError" style="display:none;"></div>
-    <div id="settingsForbidden" style="display:none;"><b>Недостаточно прав.</b><br>Раздел доступен только администраторам.</div>
+    <div id="settingsForbidden" style="display:none;"><b>Недостаточно прав.</b><br>Раздел доступен только администраторам и supervisor.</div>
 
     <div class="settings-shell" id="settingsShell" style="display:none;">
       <nav class="settings-sidebar">
         <h1>Настройки</h1>
-        <button class="settings-nav-btn active" data-section="users">
+        <button class="settings-nav-btn" data-section="users" data-admin-only="1">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M21 21v-2a4 4 0 0 0 -3 -3.85" /></svg>
           Пользователи
         </button>
@@ -360,7 +360,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M13.41 10.59l2.59 -2.59" /><path d="M7 12a5 5 0 0 1 5 -5" /></svg>
           Пороги
         </button>
-        <button class="settings-nav-btn" data-section="references">
+        <button class="settings-nav-btn" data-section="references" data-admin-only="1">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11a2 2 0 0 1 2 2v14l-7 -3l-7 3v-14a2 2 0 0 1 2 -2z" /></svg>
           Справочники
         </button>
@@ -372,7 +372,7 @@
 
       <div class="settings-content">
         <!-- ============ Пользователи ============ -->
-        <section class="settings-panel active" id="panel-users">
+        <section class="settings-panel" id="panel-users">
           <h2>Пользователи</h2>
           <p class="subtitle">Доступ применяется сразу — роль и сброс пароля отдельного пользователя не требуют общего сохранения.</p>
           <div class="card">
@@ -381,7 +381,8 @@
               <input type="password" id="uaNewPassword" placeholder="Пароль" autocomplete="off">
               <select id="uaNewRole">
                 <option value="viewer">viewer</option>
-                <option value="editor" selected>editor</option>
+                <option value="engineer" selected>engineer</option>
+                <option value="supervisor">supervisor</option>
                 <option value="admin">admin</option>
               </select>
               <button id="btnUaAdd" title="Добавить пользователя">+</button>
@@ -516,8 +517,15 @@ function parseServerDate(s) {
   return m ? new Date(m[1] + "T" + m[2] + "Z") : new Date(s);
 }
 
-/* ================= сайдбар-навигация между разделами ================= */
+/* ================= сайдбар-навигация между разделами =================
+   Пользователи и Справочники — только admin (supervisor видит остальное
+   наравне с admin, см. applyRoleUI). ADMIN_ONLY_SECTIONS — единственное
+   место, где это решение принимается на клиенте; сервер всё равно гейтит
+   /api/users и /api/references по роли независимо от того, что тут покажут. */
+const ADMIN_ONLY_SECTIONS = new Set(["users", "references"]);
+let isFullAdmin = false;
 function showSection(name) {
+  if (ADMIN_ONLY_SECTIONS.has(name) && !isFullAdmin) name = "thresholds";
   document.querySelectorAll(".settings-nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.section === name));
   document.querySelectorAll(".settings-panel").forEach((p) => p.classList.toggle("active", p.id === "panel-" + name));
   if (name === "references") {
@@ -557,7 +565,7 @@ function renderUserAdminList(users) {
     name.className = "ua-name";
     name.textContent = u.username;
     const roleSelect = document.createElement("select");
-    for (const r of ["viewer", "editor", "admin"]) {
+    for (const r of ["viewer", "engineer", "supervisor", "admin"]) {
       const opt = document.createElement("option");
       opt.value = r; opt.textContent = r;
       if (r === u.role) opt.selected = true;
@@ -1019,11 +1027,18 @@ function applyRoleUI() {
   document.getElementById("navToLamps").href = `/${CURRENT_PROJECT_ID}/lamps`;
   document.getElementById("navToTickets").href = `/${CURRENT_PROJECT_ID}/tickets`;
   document.getElementById("navToLog").href = `/${CURRENT_PROJECT_ID}/log`;
-  const isAdmin = auth && auth.role === "admin";
-  if (!isAdmin) {
+  const role = auth ? auth.role : "viewer";
+  isFullAdmin = role === "admin";
+  const hasAccess = isFullAdmin || role === "supervisor";
+  if (!hasAccess) {
     document.getElementById("settingsForbidden").style.display = "block";
     return false;
   }
+  // Пользователи/Справочники — только admin; supervisor их не видит вовсе
+  // (не просто disabled — кнопки и разделы убраны из DOM-навигации).
+  document.querySelectorAll('.settings-nav-btn[data-admin-only="1"]').forEach((b) => {
+    b.style.display = isFullAdmin ? "" : "none";
+  });
   document.getElementById("settingsShell").style.display = "flex";
   return true;
 }
@@ -1032,7 +1047,7 @@ async function updateTicketsBadge() {
   const auth = window.__auth;
   const badge = document.getElementById("ticketsBadge");
   if (!badge) return;
-  if (!auth || !(auth.role === "editor" || auth.role === "admin")) { badge.style.display = "none"; return; }
+  if (!auth || !(auth.role === "engineer" || auth.role === "admin" || auth.role === "supervisor")) { badge.style.display = "none"; return; }
   try {
     const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/tickets?assignee=${encodeURIComponent(auth.username)}`);
     const data = await resp.json();
@@ -1048,16 +1063,16 @@ async function updateTicketsBadge() {
 document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
 
 function boot() {
-  const isAdmin = applyRoleUI();
+  const hasAccess = applyRoleUI();
   loadProjectSwitcher();
   updateTicketsBadge();
   setInterval(updateTicketsBadge, 30000);
-  if (!isAdmin) return;
-  loadUserAdminList();
+  if (!hasAccess) return;
+  if (isFullAdmin) loadUserAdminList();
   loadThresholds();
   loadShapeThresholds();
-  const initialSection = new URLSearchParams(location.search).get("section");
-  if (initialSection && document.getElementById("panel-" + initialSection)) showSection(initialSection);
+  const initialSection = new URLSearchParams(location.search).get("section") || (isFullAdmin ? "users" : "thresholds");
+  showSection(initialSection);
 }
 if (window.__auth) boot();
 else document.addEventListener("kzmAuthReady", boot, { once: true });

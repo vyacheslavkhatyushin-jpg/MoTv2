@@ -1,6 +1,6 @@
 /*
 Usage:
-  node seed.js user <username> <password> <viewer|editor|admin>
+  node seed.js user <username> <password> <viewer|engineer|supervisor|admin>
   node seed.js project <id> <name>
 
 Examples:
@@ -14,8 +14,8 @@ const [, , cmd, ...args] = process.argv;
 
 if (cmd === "user") {
   const [username, password, role] = args;
-  if (!username || !password || !["viewer", "editor", "admin"].includes(role)) {
-    console.error("Usage: node seed.js user <username> <password> <viewer|editor|admin>");
+  if (!username || !password || !["viewer", "engineer", "supervisor", "admin"].includes(role)) {
+    console.error("Usage: node seed.js user <username> <password> <viewer|engineer|supervisor|admin>");
     process.exit(1);
   }
   const hash = bcrypt.hashSync(password, 10);

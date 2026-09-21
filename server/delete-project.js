@@ -1,7 +1,7 @@
 /*
 Безвозвратное удаление проекта целиком — модель, кабели/оборудование/метки/
-заплатки, история мониторинга, ЗИП, отчёты по фонарям, пороги и SPPD-
-подключение. Кнопки на это в интерфейсе нет намеренно (слишком легко нажать
+заплатки, история мониторинга, ЗИП, отчёты по фонарям, пороги (общие и
+пер-формные). Кнопки на это в интерфейсе нет намеренно (слишком легко нажать
 по ошибке) — только эта команда.
 
 Все связанные таблицы объявлены с `REFERENCES projects(id) ON DELETE CASCADE`
@@ -43,7 +43,7 @@ const counts = {
   "записи в журнале удалений": db.prepare("SELECT COUNT(*) c FROM deletion_log WHERE project_id = ?").get(projectId).c,
   "статусы мониторинга оборудования": db.prepare("SELECT COUNT(*) c FROM monitor_status WHERE project_id = ?").get(projectId).c,
   "события/аварии мониторинга": db.prepare("SELECT COUNT(*) c FROM monitor_events WHERE project_id = ?").get(projectId).c,
-  "импульсы тегов (FieldSense/SPPD)": db.prepare("SELECT COUNT(*) c FROM monitor_tag_pulses WHERE project_id = ?").get(projectId).c,
+  "импульсы тегов (регистрация меток)": db.prepare("SELECT COUNT(*) c FROM monitor_tag_pulses WHERE project_id = ?").get(projectId).c,
   "позиции ЗИП": db.prepare("SELECT COUNT(*) c FROM zip_items WHERE project_id = ?").get(projectId).c,
   "заявки на ЗИП": db.prepare("SELECT COUNT(*) c FROM zip_requests WHERE project_id = ?").get(projectId).c,
   "движения по ЗИП": db.prepare("SELECT COUNT(*) c FROM zip_movements WHERE project_id = ?").get(projectId).c,
@@ -51,6 +51,8 @@ const counts = {
   "записи фонарей во всех отчётах": db.prepare(
     "SELECT COUNT(*) c FROM lamp_records WHERE report_id IN (SELECT id FROM lamp_reports WHERE project_id = ?)"
   ).get(projectId).c,
+  "источники данных мониторинга": db.prepare("SELECT COUNT(*) c FROM project_data_sources WHERE project_id = ?").get(projectId).c,
+  "пер-формные переопределения порогов": db.prepare("SELECT COUNT(*) c FROM project_shape_thresholds WHERE project_id = ?").get(projectId).c,
 };
 
 console.log(`Проект: ${project.name} (${project.id}), создан ${project.created_at}`);
@@ -58,7 +60,7 @@ console.log("Будет удалено вместе с проектом:");
 for (const [label, n] of Object.entries(counts)) {
   console.log(`  ${label}: ${n}`);
 }
-console.log("(SPPD-подключение и пороги фиксации аварии для проекта, если настроены, тоже удаляются)");
+console.log("(источники данных мониторинга и пороги фиксации аварии для проекта, если настроены, тоже удаляются)");
 
 if (!confirmed) {
   console.log("\nЭто только предпросмотр — ничего не удалено. Чтобы удалить по-настоящему:");

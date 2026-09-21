@@ -605,8 +605,8 @@ function catalogSortHeaderHtml(key) {
 }
 function renderCatalog() {
   const role = (window.__auth && window.__auth.role) || "viewer";
-  const isAdmin = role === "admin";
-  const canRequest = role === "editor" || role === "admin";
+  const isAdmin = role === "admin" || role === "supervisor";
+  const canRequest = role === "engineer" || role === "admin" || role === "supervisor";
   const q = (document.getElementById("catalogSearch").value || "").trim().toLowerCase();
   const wrap = document.getElementById("catalogTableWrap");
   const filtered = itemsCache.filter((it) => {
@@ -655,7 +655,7 @@ async function loadCatalog() {
 /* ---------------- Мои заявки ---------------- */
 function renderMyRequests() {
   const role = (window.__auth && window.__auth.role) || "viewer";
-  const canCancel = role === "editor" || role === "admin";
+  const canCancel = role === "engineer" || role === "admin" || role === "supervisor";
   const wrap = document.getElementById("myRequestsTableWrap");
   if (!myRequestsCache.length) {
     wrap.innerHTML = `<div class="empty-hint"><b>Заявок пока нет.</b><br>Подайте заявку на позицию из вкладки «Каталог».</div>`;
@@ -678,7 +678,8 @@ function renderMyRequests() {
 }
 async function loadMyRequests() {
   const data = await apiJson(`${API}/requests`);
-  const isAdmin = (window.__auth && window.__auth.role) === "admin";
+  const role = window.__auth && window.__auth.role;
+  const isAdmin = role === "admin" || role === "supervisor";
   myRequestsCache = isAdmin ? data.requests.filter((r) => r.requestedBy === window.__auth.username) : data.requests;
   renderMyRequests();
 }
@@ -1044,23 +1045,22 @@ function applyRoleUI() {
   document.getElementById("navToStats").href = `/${CURRENT_PROJECT_ID}/monitoring/stats`;
   document.getElementById("navToRegistry").href = `/${CURRENT_PROJECT_ID}/registry`;
   document.getElementById("navToLamps").href = `/${CURRENT_PROJECT_ID}/lamps`;
-  document.getElementById("btnAddItem").style.display = role === "admin" ? "" : "none";
-  document.querySelector('.reg-tab-btn[data-tab="pending"]').style.display = role === "admin" ? "" : "none";
-  document.querySelector('.reg-tab-btn[data-tab="movements"]').style.display = role === "admin" ? "" : "none";
-  // "Пользователи"/"SPPD"/"Пороги" — модалки живут только в редакторе, эти
-  // кнопки ведут туда и просят открыть нужную сразу после входа.
-  const isAdmin = role === "admin";
+  const isAdminLevel = role === "admin" || role === "supervisor";
+  document.getElementById("btnAddItem").style.display = isAdminLevel ? "" : "none";
+  document.querySelector('.reg-tab-btn[data-tab="pending"]').style.display = isAdminLevel ? "" : "none";
+  document.querySelector('.reg-tab-btn[data-tab="movements"]').style.display = isAdminLevel ? "" : "none";
+  // "Лог"/"Настройки" — доступны admin и supervisor.
   document.getElementById("navToTickets").href = `/${CURRENT_PROJECT_ID}/tickets`;
   document.getElementById("navToLog").href = `/${CURRENT_PROJECT_ID}/log`;
-  document.getElementById("navToLog").style.display = isAdmin ? "inline-flex" : "none";
+  document.getElementById("navToLog").style.display = isAdminLevel ? "inline-flex" : "none";
   document.getElementById("navToSettings").href = `/${CURRENT_PROJECT_ID}/settings`;
-  document.getElementById("navToSettings").style.display = isAdmin ? "inline-flex" : "none";
+  document.getElementById("navToSettings").style.display = isAdminLevel ? "inline-flex" : "none";
 }
 async function updateTicketsBadge() {
   const auth = window.__auth;
   const badge = document.getElementById("ticketsBadge");
   if (!badge) return;
-  if (!auth || !(auth.role === "editor" || auth.role === "admin")) { badge.style.display = "none"; return; }
+  if (!auth || !(auth.role === "engineer" || auth.role === "admin" || auth.role === "supervisor")) { badge.style.display = "none"; return; }
   try {
     const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/tickets?assignee=${encodeURIComponent(auth.username)}`);
     const data = await resp.json();

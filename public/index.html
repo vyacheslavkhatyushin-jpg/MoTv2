@@ -6465,44 +6465,49 @@ function applyRoleToUI() {
   const auth = window.__auth;
   const role = auth ? auth.role : "viewer";
   const isAdmin = role === "admin";
-  const canEdit = role === "editor" || role === "admin";
+  // supervisor = всё, что может admin, кроме разделов "Настройки" →
+  // Пользователи и Справочники (эти два живут только в settings.html,
+  // здесь, в редакторе, этого разделения нет — все admin-гейты ниже
+  // одинаково открыты и для supervisor).
+  const isAdminLevel = isAdmin || role === "supervisor";
+  const canEdit = role === "engineer" || isAdminLevel;
   const navToLogEl = document.getElementById("navToLog");
   if (navToLogEl) {
     navToLogEl.href = `/${CURRENT_PROJECT_ID}/log`;
-    navToLogEl.style.display = isAdmin ? "inline-flex" : "none";
+    navToLogEl.style.display = isAdminLevel ? "inline-flex" : "none";
   }
   const navToSettingsEl = document.getElementById("navToSettings");
   if (navToSettingsEl) {
     navToSettingsEl.href = `/${CURRENT_PROJECT_ID}/settings`;
-    navToSettingsEl.style.display = isAdmin ? "inline-flex" : "none";
+    navToSettingsEl.style.display = isAdminLevel ? "inline-flex" : "none";
   }
 
-  // Кабели/оборудование/метки/сохранение — доступны editor и admin.
+  // Кабели/оборудование/метки/сохранение — доступны engineer и выше.
   const editButtonIds = ["btnAddCable", "btnAddEquip", "btnAddMark", "btnSaveAll", "cableDExtend", "btnImportObjects"];
   for (const id of editButtonIds) {
     const el = document.getElementById(id);
     if (el) el.disabled = !canEdit;
   }
 
-  // Загрузка/удаление STR-модели и инструмент "Заплатки" — только admin,
-  // у остальных ролей эти элементы управления полностью скрыты.
+  // Загрузка/удаление STR-модели и инструмент "Заплатки" — admin и
+  // supervisor, у viewer/engineer эти элементы управления полностью скрыты.
   const adminOnlyIds = ["dropzoneWrap", "btnClearAll", "tabBtnPatches", "btnSaveBackup"];
   for (const id of adminOnlyIds) {
     const el = document.getElementById(id);
-    if (el) el.style.display = isAdmin ? "" : "none";
+    if (el) el.style.display = isAdminLevel ? "" : "none";
   }
 
   // Настройка мониторинга (метод опроса, SNMP-community, источник) —
-  // тоже только admin: это инфраструктурная привязка устройства, а не
+  // тоже admin/supervisor: это инфраструктурная привязка устройства, а не
   // повседневное редактирование карточки оборудования.
   const monitorFieldIds = ["equipDMonitorMethod", "equipDSnmpCommunity", "equipDSnmpProfile", "equipDDataSource", "equipDSourceAddress"];
   for (const id of monitorFieldIds) {
     const el = document.getElementById(id);
-    if (el) el.disabled = !isAdmin;
+    if (el) el.disabled = !isAdminLevel;
   }
   const patchTab = document.getElementById("tab-patches");
-  if (patchTab) patchTab.style.display = isAdmin ? "" : "none";
-  if (!isAdmin && patchTab && patchTab.classList.contains("active")) {
+  if (patchTab) patchTab.style.display = isAdminLevel ? "" : "none";
+  if (!isAdminLevel && patchTab && patchTab.classList.contains("active")) {
     // Если заплатки были активной вкладкой — переключаемся на "Шахта".
     patchTab.classList.remove("active");
     document.querySelector('.tab-btn[data-tab="patches"]').classList.remove("active");
@@ -6532,7 +6537,7 @@ function applyRoleToUI() {
   }
   if (sessionProjectEl) sessionProjectEl.textContent = "Проект:";
   if (sessionUserEl && auth) {
-    const roleLabel = { viewer: "просмотр", editor: "редактирование", admin: "администратор" }[auth.role] || auth.role;
+    const roleLabel = { viewer: "просмотр", engineer: "редактирование", supervisor: "супервайзер", admin: "администратор" }[auth.role] || auth.role;
     sessionUserEl.textContent = auth.username + " (" + roleLabel + ")";
   }
   loadProjectSwitcher();
@@ -6545,7 +6550,7 @@ async function updateTicketsBadge() {
   const auth = window.__auth;
   const badge = document.getElementById("ticketsBadge");
   if (!badge) return;
-  if (!auth || auth.offline || !(auth.role === "editor" || auth.role === "admin")) { badge.style.display = "none"; return; }
+  if (!auth || auth.offline || !(auth.role === "engineer" || auth.role === "admin" || auth.role === "supervisor")) { badge.style.display = "none"; return; }
   try {
     const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/tickets?assignee=${encodeURIComponent(auth.username)}`);
     const data = await resp.json();

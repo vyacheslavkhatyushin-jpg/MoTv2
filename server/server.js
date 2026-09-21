@@ -52,7 +52,7 @@ app.get(/^\/[^/]+\/lamps\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "lamps.html"));
 });
 
-// Журнал действий — только admin, поверх /api/audit-log.
+// Журнал действий — admin/supervisor, поверх /api/audit-log.
 app.get(/^\/[^/]+\/log\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "log.html"));
 });
@@ -65,11 +65,14 @@ app.get(/^\/[^/]+\/tickets\/?$/, (req, res) => {
 // Настройки — единый раздел админки (Пользователи/Пороги/Справочники/
 // Источники данных), см. модуль "Настройки" в docs/monitoring-plan.md.
 // Project-scoped, как Лог/Фонари выше (Пользователи/Пороги — per-project).
+// Доступен admin и supervisor — но Пользователи/Справочники внутри видит
+// только admin (гейтится на клиенте settings.html + на сервере отдельно
+// для /api/users и /api/references).
 app.get(/^\/[^/]+\/settings\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "settings.html"));
 });
 
-// Конструктор/тестер парсера потоков — не привязан к проекту, только admin.
+// Конструктор/тестер парсера потоков — не привязан к проекту, admin/supervisor.
 // См. server/routes/parsing.js и docs.
 app.get(/^\/parsing\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "parsing.html"));

@@ -846,21 +846,20 @@ function applyRoleUI() {
   document.getElementById("navToStats").href = `/${CURRENT_PROJECT_ID}/monitoring/stats`;
   document.getElementById("navToRegistry").href = `/${CURRENT_PROJECT_ID}/registry`;
   document.getElementById("navToLamps").href = `/${CURRENT_PROJECT_ID}/lamps`;
-  // "Пользователи"/"SPPD"/"Пороги" — модалки живут только в редакторе, эти
-  // кнопки ведут туда и просят открыть нужную сразу после входа.
-  const isAdmin = auth && auth.role === "admin";
+  // "Лог"/"Настройки" — доступны admin и supervisor.
+  const isAdminLevel = auth && (auth.role === "admin" || auth.role === "supervisor");
   document.getElementById("navToTickets").href = `/${CURRENT_PROJECT_ID}/tickets`;
   document.getElementById("navToLog").href = `/${CURRENT_PROJECT_ID}/log`;
-  document.getElementById("navToLog").style.display = isAdmin ? "inline-flex" : "none";
+  document.getElementById("navToLog").style.display = isAdminLevel ? "inline-flex" : "none";
   document.getElementById("navToSettings").href = `/${CURRENT_PROJECT_ID}/settings`;
-  document.getElementById("navToSettings").style.display = isAdmin ? "inline-flex" : "none";
+  document.getElementById("navToSettings").style.display = isAdminLevel ? "inline-flex" : "none";
 }
 const MONITOR_SYSTEMS_LIST = ["ВОЛС", "LFC", "АО", "Телефония", "ВН"];
 async function updateTicketsBadge() {
   const auth = window.__auth;
   const badge = document.getElementById("ticketsBadge");
   if (!badge) return;
-  if (!auth || !(auth.role === "editor" || auth.role === "admin")) { badge.style.display = "none"; return; }
+  if (!auth || !(auth.role === "engineer" || auth.role === "admin" || auth.role === "supervisor")) { badge.style.display = "none"; return; }
   try {
     const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/tickets?assignee=${encodeURIComponent(auth.username)}`);
     const data = await resp.json();

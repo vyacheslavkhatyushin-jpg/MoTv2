@@ -12,8 +12,10 @@ POST /connect логинится на указанный сервер и отк�
 /api/monitor/ws, так как браузерный WebSocket API не умеет слать свои
 заголовки при хендшейке.
 
-Только admin — эта страница принимает реальные логины/пароли от промышленных
-систем шахты и открывает произвольные исходящие соединения с сервера.
+admin и supervisor — эта страница принимает реальные логины/пароли от
+промышленных систем шахты и открывает произвольные исходящие соединения
+с сервера (Источники данных — один из разделов "Настройки", supervisor
+управляет ими наравне с admin).
 */
 const express = require("express");
 const crypto = require("crypto");
@@ -24,7 +26,7 @@ const { logAudit } = require("../lib/audit");
 const shared = require("../lib/monitorShared");
 
 const router = express.Router();
-router.use(requireAuth, requireRole("admin"));
+router.use(requireAuth, requireRole("admin", "supervisor"));
 
 const MAX_BUFFER = 50;
 const CONNECTION_TTL_MS = 30 * 60 * 1000;

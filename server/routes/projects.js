@@ -26,7 +26,7 @@ router.get("/", (req, res) => {
 // Список источников данных проекта для выпадающего списка на карточке
 // оборудования (monitorMethod:"custom") — только id/name, без connection_json
 // (там логин/пароль от промышленной системы шахты) и без parser_json.
-// Полный CRUD с этими деталями — /api/parsing/sources, только admin.
+// Полный CRUD с этими деталями — /api/parsing/sources, только admin/supervisor.
 router.get("/:id/data-sources", (req, res) => {
   const sources = db
     .prepare("SELECT id, name FROM project_data_sources WHERE project_id = ? AND enabled = 1 ORDER BY name")
@@ -34,7 +34,7 @@ router.get("/:id/data-sources", (req, res) => {
   res.json({ sources });
 });
 
-router.post("/", requireRole("admin"), (req, res) => {
+router.post("/", requireRole("admin", "supervisor"), (req, res) => {
   const { id, name } = req.body || {};
   if (!id || !SLUG_RE.test(id)) {
     return res.status(400).json({
@@ -170,7 +170,7 @@ const EMPTY_SNAPSHOT = {
   patches: [],
 };
 
-router.put("/:id/state", requireRole("editor", "admin"), (req, res) => {
+router.put("/:id/state", requireRole("engineer", "admin", "supervisor"), (req, res) => {
   const project = db
     .prepare("SELECT id FROM projects WHERE id = ?")
     .get(req.params.id);
@@ -182,16 +182,16 @@ router.put("/:id/state", requireRole("editor", "admin"), (req, res) => {
     .get(req.params.id);
   const currentSnapshot = current ? JSON.parse(current.snapshot_json) : EMPTY_SNAPSHOT;
   const currentVersion = current ? current.version : 0;
-  const isAdmin = req.user.role === "admin";
+  const isAdmin = req.user.role === "admin" || req.user.role === "supervisor";
 
   const logCtx = `project=${req.params.id} user=${req.user.username} collection=`;
   const cablesResult = mergeCollection(currentSnapshot.cables, body.cables, logCtx + "cables");
   const equipmentResult = mergeCollection(currentSnapshot.equipment, body.equipment, logCtx + "equipment");
   const marksResult = mergeCollection(currentSnapshot.marks, body.marks, logCtx + "marks");
   // Заплатки — как и загрузка/удаление STR/DTM/OBJ-модели — инструмент
-  // только для admin (см. applyRoleToUI на фронтенде); правки заплаток от
-  // не-admin просто игнорируются, чтобы UI-ограничение нельзя было обойти
-  // прямым вызовом API.
+  // только для admin/supervisor (см. applyRoleToUI на фронтенде); правки
+  // заплаток от engineer/viewer просто игнорируются, чтобы UI-ограничение
+  // нельзя было обойти прямым вызовом API.
   const patchesResult = isAdmin
     ? mergeCollection(currentSnapshot.patches, body.patches, logCtx + "patches")
     : { merged: currentSnapshot.patches || [], conflicts: [], applied: [] };
@@ -262,7 +262,7 @@ router.put("/:id/state", requireRole("editor", "admin"), (req, res) => {
 
 const OBJECT_TYPES = new Set(["cable", "equipment", "mark", "patch"]);
 
-router.post("/:id/deletions", requireRole("editor", "admin"), (req, res) => {
+router.post("/:id/deletions", requireRole("engineer", "admin", "supervisor"), (req, res) => {
   const project = db
     .prepare("SELECT id FROM projects WHERE id = ?")
     .get(req.params.id);
@@ -568,7 +568,7 @@ function serializeThresholds(row) {
   };
 }
 
-router.get("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
+router.get("/:id/monitor/thresholds", requireRole("admin", "supervisor"), (req, res) => {
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
@@ -576,7 +576,7 @@ router.get("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   res.json(serializeThresholds(row));
 });
 
-router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
+router.put("/:id/monitor/thresholds", requireRole("admin", "supervisor"), (req, res) => {
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
@@ -635,7 +635,7 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   res.json(serializeThresholds(row));
 });
 
-router.delete("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
+router.delete("/:id/monitor/thresholds", requireRole("admin", "supervisor"), (req, res) => {
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
@@ -649,7 +649,7 @@ router.delete("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
 // shape), null-поле значит "использовать дефолт проекта". Ping-worker.js и
 // custom-monitor-worker.js читают эту таблицу напрямую (server/lib/
 // monitorShared.js), эти роуты — только для UI.
-router.get("/:id/monitor/shape-thresholds", requireRole("admin"), (req, res) => {
+router.get("/:id/monitor/shape-thresholds", requireRole("admin", "supervisor"), (req, res) => {
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
@@ -667,7 +667,7 @@ router.get("/:id/monitor/shape-thresholds", requireRole("admin"), (req, res) => 
   });
 });
 
-router.put("/:id/monitor/shape-thresholds/:shape", requireRole("admin"), (req, res) => {
+router.put("/:id/monitor/shape-thresholds/:shape", requireRole("admin", "supervisor"), (req, res) => {
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
   if (!project) return res.status(404).json({ error: "project_not_found" });
 

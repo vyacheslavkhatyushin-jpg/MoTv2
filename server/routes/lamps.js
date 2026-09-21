@@ -5,7 +5,8 @@
 экспортируют этот отчёт в разных форматах, парсер это учитывает.
 
 Роли: смотреть статистику может любой авторизованный (viewer и выше);
-загружать новый отчёт — editor/admin (как правки объектов в редакторе).
+загружать новый отчёт — engineer/admin/supervisor (как правки объектов в
+редакторе); удалять отчёт — только admin/supervisor.
 */
 const crypto = require("crypto");
 const express = require("express");
@@ -63,7 +64,7 @@ function serializeReportSummary(row) {
 const UPLOAD_LIMIT = "15mb";
 const uploadParser = express.raw({ type: () => true, limit: UPLOAD_LIMIT });
 
-router.post("/:id/lamps/reports", requireRole("editor", "admin"), uploadParser, (req, res) => {
+router.post("/:id/lamps/reports", requireRole("engineer", "admin", "supervisor"), uploadParser, (req, res) => {
   const project = requireProject(req, res);
   if (!project) return;
 
@@ -196,7 +197,7 @@ router.get("/:id/lamps/reports/:reportId", (req, res) => {
   });
 });
 
-router.delete("/:id/lamps/reports/:reportId", requireRole("admin"), (req, res) => {
+router.delete("/:id/lamps/reports/:reportId", requireRole("admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const row = db.prepare("SELECT source_filename FROM lamp_reports WHERE project_id = ? AND id = ?").get(req.params.id, req.params.reportId);
   const result = db

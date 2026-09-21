@@ -4,9 +4,9 @@
 (см. server/db.js). ЗИП только расходуется, возврата на склад нет.
 
 Роли: смотреть каталог/свои заявки может любой авторизованный (viewer
-и выше); подавать заявку — editor/admin; управлять каталогом (создавать
-позиции, оформлять приход, корректировки) и решать по заявкам
-(одобрить/отклонить/выдать) — только admin.
+и выше); подавать заявку — engineer/admin/supervisor; управлять каталогом
+(создавать позиции, оформлять приход, корректировки) и решать по заявкам
+(одобрить/отклонить/выдать) — только admin/supervisor.
 */
 const crypto = require("crypto");
 const express = require("express");
@@ -50,7 +50,7 @@ router.get("/:id/zip/items", (req, res) => {
   res.json({ items: rows.map(serializeItem) });
 });
 
-router.post("/:id/zip/items", requireRole("admin"), (req, res) => {
+router.post("/:id/zip/items", requireRole("admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const { name, category, unit, manufacturer, partNumber, description, location, minQty } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: "missing_name" });
@@ -69,7 +69,7 @@ router.post("/:id/zip/items", requireRole("admin"), (req, res) => {
   res.status(201).json({ item: serializeItem(row) });
 });
 
-router.put("/:id/zip/items/:itemId", requireRole("admin"), (req, res) => {
+router.put("/:id/zip/items/:itemId", requireRole("admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const row = db.prepare("SELECT * FROM zip_items WHERE id = ? AND project_id = ?").get(req.params.itemId, req.params.id);
   if (!row) return res.status(404).json({ error: "item_not_found" });
@@ -96,7 +96,7 @@ router.put("/:id/zip/items/:itemId", requireRole("admin"), (req, res) => {
   res.json({ item: serializeItem(updated) });
 });
 
-router.delete("/:id/zip/items/:itemId", requireRole("admin"), (req, res) => {
+router.delete("/:id/zip/items/:itemId", requireRole("admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const row = db.prepare("SELECT id, name FROM zip_items WHERE id = ? AND project_id = ?").get(req.params.itemId, req.params.id);
   if (!row) return res.status(404).json({ error: "item_not_found" });
@@ -113,7 +113,7 @@ const stmtInsertMovement = db.prepare(
    VALUES (@projectId, @itemId, @delta, @reason, @requestId, @note, @createdBy)`
 );
 
-router.post("/:id/zip/items/:itemId/receipt", requireRole("admin"), (req, res) => {
+router.post("/:id/zip/items/:itemId/receipt", requireRole("admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const item = stmtGetItemForUpdate.get(req.params.itemId, req.params.id);
   if (!item) return res.status(404).json({ error: "item_not_found" });
@@ -128,7 +128,7 @@ router.post("/:id/zip/items/:itemId/receipt", requireRole("admin"), (req, res) =
   res.json({ item: serializeItem(stmtGetItemForUpdate.get(item.id, req.params.id)) });
 });
 
-router.post("/:id/zip/items/:itemId/adjust", requireRole("admin"), (req, res) => {
+router.post("/:id/zip/items/:itemId/adjust", requireRole("admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const item = stmtGetItemForUpdate.get(req.params.itemId, req.params.id);
   if (!item) return res.status(404).json({ error: "item_not_found" });
@@ -174,15 +174,15 @@ const REQUEST_SELECT = `
 
 router.get("/:id/zip/requests", (req, res) => {
   if (!requireProject(req, res)) return;
-  // viewer/editor видят только свои заявки, admin — все.
-  const isAdmin = req.user.role === "admin";
+  // viewer/engineer видят только свои заявки, admin/supervisor — все.
+  const isAdmin = req.user.role === "admin" || req.user.role === "supervisor";
   const rows = isAdmin
     ? db.prepare(REQUEST_SELECT + " ORDER BY zr.requested_at DESC, zr.id DESC").all(req.params.id)
     : db.prepare(REQUEST_SELECT + " AND zr.requested_by = ? ORDER BY zr.requested_at DESC, zr.id DESC").all(req.params.id, req.user.username);
   res.json({ requests: rows.map(serializeRequest) });
 });
 
-router.post("/:id/zip/requests", requireRole("editor", "admin"), (req, res) => {
+router.post("/:id/zip/requests", requireRole("engineer", "admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const { itemId, reason } = req.body || {};
   const qty = parseInt((req.body || {}).qty, 10);
@@ -211,7 +211,7 @@ function getOwnRequest(req, res, allowedStatuses) {
   return row;
 }
 
-router.post("/:id/zip/requests/:reqId/approve", requireRole("admin"), (req, res) => {
+router.post("/:id/zip/requests/:reqId/approve", requireRole("admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const request = getOwnRequest(req, res, ["pending"]);
   if (!request) return;
@@ -230,7 +230,7 @@ router.post("/:id/zip/requests/:reqId/approve", requireRole("admin"), (req, res)
   res.json({ request: serializeRequest(db.prepare(REQUEST_SELECT + " AND zr.id = ?").get(req.params.id, request.id)) });
 });
 
-router.post("/:id/zip/requests/:reqId/reject", requireRole("admin"), (req, res) => {
+router.post("/:id/zip/requests/:reqId/reject", requireRole("admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const request = getOwnRequest(req, res, ["pending"]);
   if (!request) return;
@@ -241,12 +241,12 @@ router.post("/:id/zip/requests/:reqId/reject", requireRole("admin"), (req, res) 
   res.json({ request: serializeRequest(db.prepare(REQUEST_SELECT + " AND zr.id = ?").get(req.params.id, request.id)) });
 });
 
-router.post("/:id/zip/requests/:reqId/cancel", requireRole("editor", "admin"), (req, res) => {
+router.post("/:id/zip/requests/:reqId/cancel", requireRole("engineer", "admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const request = getOwnRequest(req, res, ["pending", "approved"]);
   if (!request) return;
-  // Инженер может отменить только свою заявку; admin — любую.
-  if (req.user.role !== "admin" && request.requested_by !== req.user.username) {
+  // Инженер может отменить только свою заявку; admin/supervisor — любую.
+  if (req.user.role !== "admin" && req.user.role !== "supervisor" && request.requested_by !== req.user.username) {
     return res.status(403).json({ error: "forbidden" });
   }
   db.transaction(() => {
@@ -260,7 +260,7 @@ router.post("/:id/zip/requests/:reqId/cancel", requireRole("editor", "admin"), (
   res.json({ request: serializeRequest(db.prepare(REQUEST_SELECT + " AND zr.id = ?").get(req.params.id, request.id)) });
 });
 
-router.post("/:id/zip/requests/:reqId/issue", requireRole("admin"), (req, res) => {
+router.post("/:id/zip/requests/:reqId/issue", requireRole("admin", "supervisor"), (req, res) => {
   if (!requireProject(req, res)) return;
   const request = getOwnRequest(req, res, ["approved"]);
   if (!request) return;
