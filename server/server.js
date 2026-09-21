@@ -2,6 +2,7 @@ const path = require("path");
 const http = require("http");
 const express = require("express");
 const cors = require("cors");
+const compression = require("compression");
 const { WebSocketServer } = require("ws");
 
 const authRoutes = require("./routes/auth");
@@ -20,6 +21,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
+// gzip/brotli на ответы — project snapshot (STR/DTM-геометрия) и сам
+// index.html отдаются как сырой JSON/текст без сжатия, что почти незаметно
+// на локалхосте (loopback), но ощутимо лагает по реальной сети, особенно
+// на площадках с небогатым интернетом. Сжимает только исходящие ответы,
+// на приём тела запроса (загрузка модели) не влияет.
+app.use(compression());
 // Snapshots embed parsed STR/DTM geometry and can be large.
 app.use(express.json({ limit: "300mb" }));
 
@@ -102,7 +109,11 @@ app.get(/^\/(?!api\/).*/, (req, res) => {
    Authorization-заголовком, как в обычных REST-запросах.
 ============================================================ */
 const server = http.createServer(app);
-const wss = new WebSocketServer({ noServer: true });
+// perMessageDeflate — статусы мониторинга шлются всем подключённым вкладкам
+// раз в BROADCAST_INTERVAL_MS сырым JSON; на проекте с сотнями объектов
+// это ощутимый трафик по реальной сети без сжатия (по умолчанию 'ws' его
+// не включает).
+const wss = new WebSocketServer({ noServer: true, perMessageDeflate: true });
 const monitorClients = new Map(); // projectId -> Set<ws>
 
 function getMonitorStatus(projectId) {
