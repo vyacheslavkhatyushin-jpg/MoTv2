@@ -131,9 +131,14 @@ function applyParsedResult(projectId, targetsByAddr, parsed) {
   // (spawnMonitorTagPulse). Значение атрибута тут неважно, важен сам факт —
   // поэтому не кладём его в raw_metrics_json как обычную метрику.
   const hasTagPulse = parsed.attributes.some((a) => a.key === "tagPulseEvent");
+  // personCount/vehicleCount — тоже не raw_metrics_json, а отдельные колонки
+  // monitor_status.person_count/vehicle_count (см. sppd-worker.applyCounts),
+  // которые UI читает напрямую (monitorCountsBadgeEl), а не через metrics.
+  const personCountAttr = parsed.attributes.find((a) => a.key === "personCount");
+  const vehicleCountAttr = parsed.attributes.find((a) => a.key === "vehicleCount");
   const metricsPatch = {};
   for (const a of parsed.attributes) {
-    if (a.key === "online" || a.key === "tagPulseEvent") continue;
+    if (a.key === "online" || a.key === "tagPulseEvent" || a.key === "personCount" || a.key === "vehicleCount") continue;
     metricsPatch[a.key] = a.value;
   }
   const hasMetrics = Object.keys(metricsPatch).length > 0;
@@ -145,6 +150,9 @@ function applyParsedResult(projectId, targetsByAddr, parsed) {
       sppd.applyMetricsOnly(target, metricsPatch);
     }
     if (hasTagPulse) sppd.emitTagPulse(target);
+    if (personCountAttr || vehicleCountAttr) {
+      sppd.applyCounts(target, personCountAttr && personCountAttr.value, vehicleCountAttr && vehicleCountAttr.value);
+    }
   }
 }
 

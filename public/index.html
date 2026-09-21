@@ -6390,7 +6390,7 @@ function showQuickInfoEquip(eq) {
   if (eq.monitorMethod === "sppd" && eq.sppdAddress) rows.push(qiRow("SPPD адрес", eq.sppdAddress));
   if (eq.monitorMethod === "fs" && eq.fsAddress) rows.push(qiRow("FieldSense адрес", eq.fsAddress));
   if (eq.monitorMethod === "custom" && eq.sourceAddress) rows.push(qiRow("Адрес в источнике", eq.sourceAddress));
-  const metricsHtml = eq.monitorMethod === "sppd" ? metricsRowsHtml(quickInfoMetricsCache.get(eq.id)) : "";
+  const metricsHtml = (eq.monitorMethod === "sppd" || eq.monitorMethod === "custom") ? metricsRowsHtml(quickInfoMetricsCache.get(eq.id)) : "";
   dom.quickInfoBody.innerHTML = `<div class="qi-title">${esc(eq.label)}</div>${rows.join("")}${metricsHtml}`;
 }
 async function fetchEquipMetrics(eq) {
@@ -6409,7 +6409,7 @@ async function fetchEquipMetrics(eq) {
 }
 async function refreshQuickInfoMetrics() {
   const eq = currentQuickInfoEquip;
-  if (!eq || eq.monitorMethod !== "sppd") return;
+  if (!eq || (eq.monitorMethod !== "sppd" && eq.monitorMethod !== "custom")) return;
   const metrics = await fetchEquipMetrics(eq);
   quickInfoMetricsCache.set(eq.id, metrics);
   if (currentQuickInfoEquip === eq) showQuickInfoEquip(eq);
