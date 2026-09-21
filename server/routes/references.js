@@ -59,6 +59,23 @@ router.get("/equipment-shapes/public", requireAuth, (req, res) => {
   res.json({ shapes });
 });
 
+// Системы мониторинга (ВОЛС/LFC/АО/...) и их связи с типами кабелей/формами
+// оборудования — нужны странице "Мониторинг" (кнопки-фильтры системы + какие
+// слои показывать/скрывать, см. MONITOR_SYSTEMS/CABLE_TYPE_SYSTEMS/
+// EQUIP_SHAPE_SYSTEMS в index.html), любой авторизованной роли.
+router.get("/monitor-systems/public", requireAuth, (req, res) => {
+  const systems = db.prepare("SELECT key FROM monitor_systems ORDER BY sort_order").all().map((r) => r.key);
+  const cableTypeSystems = {};
+  for (const row of db.prepare("SELECT cable_type_key, system_key FROM cable_type_systems").all()) {
+    (cableTypeSystems[row.cable_type_key] ||= []).push(row.system_key);
+  }
+  const equipmentShapeSystems = {};
+  for (const row of db.prepare("SELECT shape_key, system_key FROM equipment_shape_systems").all()) {
+    (equipmentShapeSystems[row.shape_key] ||= []).push(row.system_key);
+  }
+  res.json({ systems, cableTypeSystems, equipmentShapeSystems });
+});
+
 router.use(requireAuth, requireRole("admin"));
 
 const DATA_TYPES = new Set(["number", "boolean", "string"]);
@@ -259,13 +276,17 @@ router.delete("/equipment-profiles/:id/attributes/:attributeKey", (req, res) => 
 
 /* ================= Типы кабелей ================= */
 
+function getSystemsFor(table, column, key) {
+  return db.prepare(`SELECT system_key FROM ${table} WHERE ${column} = ?`).all(key).map((r) => r.system_key);
+}
+
 router.get("/cable-types", (req, res) => {
   const types = db
     .prepare(
       "SELECT key, label, color, thickness, line_type AS lineType, sort_order AS sortOrder FROM cable_types ORDER BY sort_order"
     )
     .all()
-    .map((t) => ({ ...t, usage: countCablesUsingType(t.key) }));
+    .map((t) => ({ ...t, usage: countCablesUsingType(t.key), systems: getSystemsFor("cable_type_systems", "cable_type_key", t.key) }));
   res.json({ cableTypes: types });
 });
 
@@ -315,6 +336,7 @@ router.delete("/cable-types/:key", (req, res) => {
   if (usage > 0) return res.status(409).json({ error: "in_use", detail: "cable_type_assigned_to_cables", count: usage });
   const result = db.prepare("DELETE FROM cable_types WHERE key = ?").run(key);
   if (!result.changes) return res.status(404).json({ error: "not_found" });
+  db.prepare("DELETE FROM cable_type_systems WHERE cable_type_key = ?").run(key);
   logAudit({ actor: req.user.username, action: "cable_type.delete", entityType: "cable_type", entityId: key, ip: req.ip });
   res.json({ ok: true });
 });
@@ -327,7 +349,13 @@ router.get("/equipment-shapes", (req, res) => {
       "SELECT key, label, default_color AS defaultColor, geometry, monitorable, selectable, sort_order AS sortOrder FROM equipment_shapes ORDER BY sort_order"
     )
     .all()
-    .map((s) => ({ ...s, monitorable: !!s.monitorable, selectable: !!s.selectable, usage: countEquipmentUsingShape(s.key) }));
+    .map((s) => ({
+      ...s,
+      monitorable: !!s.monitorable,
+      selectable: !!s.selectable,
+      usage: countEquipmentUsingShape(s.key),
+      systems: getSystemsFor("equipment_shape_systems", "shape_key", s.key),
+    }));
   res.json({ shapes });
 });
 
@@ -376,7 +404,89 @@ router.delete("/equipment-shapes/:key", (req, res) => {
   if (usage > 0) return res.status(409).json({ error: "in_use", detail: "shape_assigned_to_equipment", count: usage });
   const result = db.prepare("DELETE FROM equipment_shapes WHERE key = ?").run(key);
   if (!result.changes) return res.status(404).json({ error: "not_found" });
+  db.prepare("DELETE FROM equipment_shape_systems WHERE shape_key = ?").run(key);
   logAudit({ actor: req.user.username, action: "equipment_shape.delete", entityType: "equipment_shape", entityId: key, ip: req.ip });
+  res.json({ ok: true });
+});
+
+/* ================= Системы мониторинга ================= */
+// key = отображаемое название (как и было в хардкоде MONITOR_SYSTEMS) —
+// отдельного человекочитаемого label не заводим, сущностей всего 5.
+
+router.get("/monitor-systems", (req, res) => {
+  const systems = db
+    .prepare("SELECT key, sort_order AS sortOrder FROM monitor_systems ORDER BY sort_order")
+    .all()
+    .map((s) => ({
+      ...s,
+      cableTypeUsage: db.prepare("SELECT COUNT(*) AS n FROM cable_type_systems WHERE system_key = ?").get(s.key).n,
+      shapeUsage: db.prepare("SELECT COUNT(*) AS n FROM equipment_shape_systems WHERE system_key = ?").get(s.key).n,
+    }));
+  res.json({ systems });
+});
+
+router.post("/monitor-systems", (req, res) => {
+  const { key } = req.body || {};
+  if (!key || !String(key).trim()) return res.status(400).json({ error: "missing_label" });
+  const trimmedKey = String(key).trim();
+  const exists = db.prepare("SELECT 1 FROM monitor_systems WHERE key = ?").get(trimmedKey);
+  if (exists) return res.status(409).json({ error: "already_exists" });
+  const maxOrder = db.prepare("SELECT COALESCE(MAX(sort_order), -1) AS m FROM monitor_systems").get().m;
+  db.prepare("INSERT INTO monitor_systems (key, sort_order) VALUES (?, ?)").run(trimmedKey, maxOrder + 1);
+  logAudit({ actor: req.user.username, action: "monitor_system.create", entityType: "monitor_system", entityId: trimmedKey, ip: req.ip });
+  res.status(201).json({ ok: true });
+});
+
+router.delete("/monitor-systems/:key", (req, res) => {
+  const { key } = req.params;
+  const cableUsage = db.prepare("SELECT COUNT(*) AS n FROM cable_type_systems WHERE system_key = ?").get(key).n;
+  const shapeUsage = db.prepare("SELECT COUNT(*) AS n FROM equipment_shape_systems WHERE system_key = ?").get(key).n;
+  if (cableUsage > 0 || shapeUsage > 0) {
+    return res.status(409).json({ error: "in_use", detail: "system_assigned_to_types", count: cableUsage + shapeUsage });
+  }
+  const result = db.prepare("DELETE FROM monitor_systems WHERE key = ?").run(key);
+  if (!result.changes) return res.status(404).json({ error: "not_found" });
+  logAudit({ actor: req.user.username, action: "monitor_system.delete", entityType: "monitor_system", entityId: key, ip: req.ip });
+  res.json({ ok: true });
+});
+
+// Связи типа кабеля/формы оборудования с системами — заменяем набор целиком
+// (проще для чекбокс-матрицы в UI, чем эндпоинты на каждую пару отдельно).
+router.put("/cable-types/:key/systems", (req, res) => {
+  const { key } = req.params;
+  const exists = db.prepare("SELECT 1 FROM cable_types WHERE key = ?").get(key);
+  if (!exists) return res.status(404).json({ error: "not_found" });
+  const systems = Array.isArray(req.body?.systems) ? req.body.systems : [];
+  const validSystems = new Set(db.prepare("SELECT key FROM monitor_systems").all().map((s) => s.key));
+  for (const s of systems) {
+    if (!validSystems.has(s)) return res.status(400).json({ error: "invalid_system", detail: s });
+  }
+  const tx = db.transaction(() => {
+    db.prepare("DELETE FROM cable_type_systems WHERE cable_type_key = ?").run(key);
+    const insert = db.prepare("INSERT INTO cable_type_systems (cable_type_key, system_key) VALUES (?, ?)");
+    for (const s of systems) insert.run(key, s);
+  });
+  tx();
+  logAudit({ actor: req.user.username, action: "cable_type.set_systems", entityType: "cable_type", entityId: key, details: { systems }, ip: req.ip });
+  res.json({ ok: true });
+});
+
+router.put("/equipment-shapes/:key/systems", (req, res) => {
+  const { key } = req.params;
+  const exists = db.prepare("SELECT 1 FROM equipment_shapes WHERE key = ?").get(key);
+  if (!exists) return res.status(404).json({ error: "not_found" });
+  const systems = Array.isArray(req.body?.systems) ? req.body.systems : [];
+  const validSystems = new Set(db.prepare("SELECT key FROM monitor_systems").all().map((s) => s.key));
+  for (const s of systems) {
+    if (!validSystems.has(s)) return res.status(400).json({ error: "invalid_system", detail: s });
+  }
+  const tx = db.transaction(() => {
+    db.prepare("DELETE FROM equipment_shape_systems WHERE shape_key = ?").run(key);
+    const insert = db.prepare("INSERT INTO equipment_shape_systems (shape_key, system_key) VALUES (?, ?)");
+    for (const s of systems) insert.run(key, s);
+  });
+  tx();
+  logAudit({ actor: req.user.username, action: "equipment_shape.set_systems", entityType: "equipment_shape", entityId: key, details: { systems }, ip: req.ip });
   res.json({ ok: true });
 });
 
