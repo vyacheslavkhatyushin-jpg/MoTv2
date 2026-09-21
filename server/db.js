@@ -85,9 +85,10 @@ CREATE TABLE IF NOT EXISTS monitor_events (
 CREATE INDEX IF NOT EXISTS idx_monitor_events_project
   ON monitor_events(project_id, started_at DESC);
 
--- Эфемерная очередь "новая метка зарегистрировалась на считывателе"
--- (Этап 4, SPPD/SBeacon). Ряды тут живут секунды: sppd-worker пишет по
--- одному на каждый замеченный рост счётчика меток, server.js на очередном
+-- Эфемерная очередь "новая метка зарегистрировалась на считывателе".
+-- Ряды тут живут секунды: custom-monitor-worker.js (через
+-- server/lib/monitorShared.js emitTagPulse) пишет по одному на каждое
+-- событие tagPulseEvent из настроенного источника, server.js на очередном
 -- цикле рассылки читает свежие (см. lastTagPulseSent) и шлёт клиентам
 -- разовую белую вспышку (spawnMonitorTagPulse), затем сам подчищает
 -- старые ряды таймером — состояние тут не нужно хранить долго.
@@ -100,35 +101,18 @@ CREATE TABLE IF NOT EXISTS monitor_tag_pulses (
 CREATE INDEX IF NOT EXISTS idx_monitor_tag_pulses_project
   ON monitor_tag_pulses(project_id, created_at);
 
--- Подключение к SPPD для этого проекта (Этап 4). У каждой шахты (apk/ipk/
--- opk) — свой физический сервер SPPD с собственным логином/паролем, поэтому
--- это не общие переменные окружения одного воркера, а настройка на проект,
--- задаётся через UI админом (см. server/routes/projects.js). Пароль хранится
--- как есть (без хеширования) — он нужен воркеру для живого логина на SPPD,
--- не для проверки; отдаётся клиенту только сам факт настройки, не значение
--- (см. GET .../monitor/sppd-config).
-CREATE TABLE IF NOT EXISTS project_sppd_config (
-  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
-  base_url TEXT NOT NULL,
-  username TEXT NOT NULL,
-  password TEXT NOT NULL,
-  updated_by TEXT,
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
 -- Пороги фиксации аварии — per-project (у шахт разная сеть/оборудование,
 -- глобальные env-переменные воркеров одни на все проекты сразу).
 --
 -- Статус на дашборде/3D-модели всегда живой (сырой результат последнего
--- пинга/SPPD-сигнала) — красим сразу, без задержки. А вот "авария" как
+-- пинга/сигнала) — красим сразу, без задержки. А вот "авария" как
 -- событие в monitor_events (то, что считает аптайм/длительности) фиксируется
 -- только после ...fail_duration_sec непрерывного простоя — одиночный
 -- потерянный пакет или короткий флап не должен создавать запись в истории
--- аварий. Для SPPD это применимо к обоим путям обнаружения "down" —
--- и явному push OnLine:false от считывателя, и обнаруженной тишине
--- (sppd_stale_after_sec — отдельный порог, ЗА СКОЛЬКО тишины мы вообще
--- решаем, что связи нет; sppd_fail_duration_sec — ПОСЛЕ обнаружения "down"
--- любым из двух путей, сколько ещё ждать до записи в историю).
+-- аварий. custom_stale_after_sec/custom_fail_duration_sec (добавляются
+-- миграцией ниже) — тот же принцип для custom-monitor-worker.js: отдельный
+-- порог, ЗА СКОЛЬКО тишины мы вообще решаем, что связи нет, и отдельный —
+-- ПОСЛЕ обнаружения "down", сколько ещё ждать до записи в историю.
 -- Отсутствие строки для проекта = дефолты воркеров ниже; так что добавление
 -- этой таблицы само по себе ничего не меняет для проектов, которые никто не
 -- настраивал через UI (кнопка "⚙ Пороги", см. server/routes/projects.js).
@@ -136,12 +120,27 @@ CREATE TABLE IF NOT EXISTS project_monitor_thresholds (
   project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
   ping_timeout_sec INTEGER NOT NULL DEFAULT 1,
   ping_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
-  sppd_stale_after_sec INTEGER NOT NULL DEFAULT 120,
-  sppd_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
-  fs_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
   lamp_fail_after_hours INTEGER NOT NULL DEFAULT 24,
   updated_by TEXT,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Пер-формные переопределения порогов (модуль "Настройки" → Пороги) —
+-- необязательные, per (project_id, shape). NULL в любой из колонок значит
+-- "использовать дефолт проекта" (project_monitor_thresholds.ping_fail_duration_sec
+-- для оборудования с monitorMethod:"ping", .custom_stale_after_sec/
+-- .custom_fail_duration_sec — для monitorMethod:"custom"). shape — не
+-- конкретный метод мониторинга: одна и та же форма (например, IILB) в
+-- разных проектах может быть настроена и как ping, и как custom, поэтому
+-- воркеры сами выбирают нужную колонку под свой метод, а не эта таблица.
+CREATE TABLE IF NOT EXISTS project_shape_thresholds (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  shape TEXT NOT NULL,
+  stale_after_sec INTEGER,
+  fail_duration_sec INTEGER,
+  updated_by TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (project_id, shape)
 );
 
 -- Реестр ЗИП (склад запчастей) + заявки на выдачу — отдельный от 3D-модели
@@ -624,9 +623,9 @@ if (db.prepare("SELECT COUNT(*) AS n FROM monitor_systems").get().n === 0) {
     ticket_sla_medium_hours: 24,
     ticket_sla_low_hours: 72,
     // Пороги для custom-monitor-worker.js (project_data_sources) — та же
-    // логика stale-after/fail-duration, что у sppd_*/fs_* выше, но отдельные
+    // логика stale-after/fail-duration, что у ping_* выше, но отдельные
     // колонки: источники через конструктор парсера могут быть чем угодно,
-    // не только SPPD-подобным протоколом, поэтому не переиспользуем sppd_*.
+    // разный протокол на источник.
     custom_stale_after_sec: 120,
     custom_fail_duration_sec: 300,
   };
@@ -650,9 +649,6 @@ if (monitorThresholdsCols.some((c) => c.name === "ping_fail_threshold")) {
       project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
       ping_timeout_sec INTEGER NOT NULL DEFAULT 1,
       ping_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
-      sppd_stale_after_sec INTEGER NOT NULL DEFAULT 120,
-      sppd_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
-      fs_fail_duration_sec INTEGER NOT NULL DEFAULT 300,
       lamp_fail_after_hours INTEGER NOT NULL DEFAULT 24,
       updated_by TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -662,12 +658,6 @@ if (monitorThresholdsCols.some((c) => c.name === "ping_fail_threshold")) {
   // Чисто добавочные миграции (в отличие от переименования выше) — здесь
   // уже могли быть настоящие сохранённые пороги, поэтому ADD COLUMN с
   // дефолтом, а не пересоздание таблицы.
-  if (!monitorThresholdsCols.some((c) => c.name === "sppd_fail_duration_sec")) {
-    db.exec("ALTER TABLE project_monitor_thresholds ADD COLUMN sppd_fail_duration_sec INTEGER NOT NULL DEFAULT 300");
-  }
-  if (!monitorThresholdsCols.some((c) => c.name === "fs_fail_duration_sec")) {
-    db.exec("ALTER TABLE project_monitor_thresholds ADD COLUMN fs_fail_duration_sec INTEGER NOT NULL DEFAULT 300");
-  }
   if (!monitorThresholdsCols.some((c) => c.name === "lamp_fail_after_hours")) {
     db.exec("ALTER TABLE project_monitor_thresholds ADD COLUMN lamp_fail_after_hours INTEGER NOT NULL DEFAULT 24");
   }

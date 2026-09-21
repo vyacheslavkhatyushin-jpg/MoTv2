@@ -21,7 +21,7 @@ const { WebSocket } = require("ws");
 const db = require("../db");
 const { requireAuth, requireRole } = require("../auth");
 const { logAudit } = require("../lib/audit");
-const sppd = require("../monitor/sppd-worker");
+const shared = require("../lib/monitorShared");
 
 const router = express.Router();
 router.use(requireAuth, requireRole("admin"));
@@ -57,7 +57,7 @@ router.post("/connect", async (req, res) => {
   let sessionCookie = "";
   if (authType === "django-session-form") {
     try {
-      sessionCookie = await sppd.login({ baseUrl, username, password });
+      sessionCookie = await shared.login({ baseUrl, username, password });
     } catch (err) {
       return res.status(502).json({ error: "auth_failed", message: err.message });
     }

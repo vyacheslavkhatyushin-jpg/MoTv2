@@ -14,6 +14,7 @@ monitorMethod:"ping" и непустым IP, пингует параллельн
 */
 const { execFile } = require("child_process");
 const db = require("../db");
+const { loadShapeThresholds, resolveFailDurationSec } = require("../lib/monitorShared");
 
 const INTERVAL_MS = parseInt(process.env.PING_INTERVAL_MS || "60000", 10);
 const CONCURRENCY = parseInt(process.env.PING_CONCURRENCY || "20", 10);
@@ -21,9 +22,10 @@ const PING_TIMEOUT_SEC = parseInt(process.env.PING_TIMEOUT_SEC || "1", 10);
 const PING_FAIL_DURATION_SEC = parseInt(process.env.PING_FAIL_DURATION_SEC || "300", 10);
 
 // Пороги — per-project (см. project_monitor_thresholds в db.js, настраивается
-// админом через "⚙ Пороги" в UI). Отсутствие строки для проекта = дефолты из
-// env выше, поэтому существующие проекты без явной настройки ведут себя
-// как раньше.
+// админом в модуле "Настройки" → Пороги). Отсутствие строки для проекта =
+// дефолты из env выше, поэтому существующие проекты без явной настройки
+// ведут себя как раньше. failDurationSec дополнительно может быть
+// переопределён per-shape (project_shape_thresholds, см. collectPingTargets).
 const stmtGetThresholds = db.prepare(
   "SELECT ping_timeout_sec, ping_fail_duration_sec FROM project_monitor_thresholds WHERE project_id = ?"
 );
@@ -74,11 +76,13 @@ function collectPingTargets() {
       continue;
     }
     const thresholds = loadProjectThresholds(projectId);
+    const shapeOverrides = loadShapeThresholds(projectId);
     for (const eq of snapshot.equipment || []) {
       if (eq.monitorMethod === "ping" && eq.ip) {
         targets.push({
           projectId, equipmentId: eq.id, label: eq.label, ip: eq.ip,
-          pingTimeoutSec: thresholds.pingTimeoutSec, failDurationSec: thresholds.failDurationSec,
+          pingTimeoutSec: thresholds.pingTimeoutSec,
+          failDurationSec: resolveFailDurationSec(shapeOverrides, eq.shape, thresholds.failDurationSec),
         });
       }
     }

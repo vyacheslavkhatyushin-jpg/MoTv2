@@ -529,93 +529,20 @@ router.get("/:id/monitor/events", (req, res) => {
   res.json({ range, system: system || "all", events });
 });
 
-// Настройка подключения к SPPD для этого проекта (Этап 4, см.
-// docs/monitoring-plan.md) — у каждой шахты свой сервер SPPD, поэтому это
-// per-project настройка, а не общая переменная окружения одного воркера.
-// Пароль отдаём только на запись: GET сообщает лишь факт, что что-то
-// настроено (не значение), чтобы не светить его в ответе каждому админу,
-// который просто открыл форму.
-router.get("/:id/monitor/sppd-config", requireRole("admin"), (req, res) => {
-  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
-  if (!project) return res.status(404).json({ error: "project_not_found" });
-
-  const row = db
-    .prepare("SELECT base_url, username, updated_by, updated_at FROM project_sppd_config WHERE project_id = ?")
-    .get(req.params.id);
-  if (!row) return res.json({ configured: false, baseUrl: null, username: null });
-  res.json({
-    configured: true,
-    baseUrl: row.base_url,
-    username: row.username,
-    updatedBy: row.updated_by,
-    updatedAt: row.updated_at,
-  });
-});
-
-router.put("/:id/monitor/sppd-config", requireRole("admin"), (req, res) => {
-  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
-  if (!project) return res.status(404).json({ error: "project_not_found" });
-
-  const { baseUrl, username, password } = req.body || {};
-  if (!baseUrl || !/^https?:\/\/\S+$/.test(baseUrl)) {
-    return res.status(400).json({ error: "invalid_base_url" });
-  }
-  if (!username || !username.trim()) {
-    return res.status(400).json({ error: "missing_username" });
-  }
-  const existing = db.prepare("SELECT password FROM project_sppd_config WHERE project_id = ?").get(req.params.id);
-  // Пароль необязателен при обновлении — пустое поле в форме означает
-  // "оставить как есть", а не "стереть пароль". Обязателен только при
-  // первой настройке, когда сохранять нечего.
-  const nextPassword = password || (existing && existing.password);
-  if (!nextPassword) {
-    return res.status(400).json({ error: "missing_password" });
-  }
-
-  db.prepare(
-    `INSERT INTO project_sppd_config (project_id, base_url, username, password, updated_by, updated_at)
-     VALUES (@id, @baseUrl, @username, @password, @by, datetime('now'))
-     ON CONFLICT(project_id) DO UPDATE SET
-       base_url = @baseUrl, username = @username, password = @password,
-       updated_by = @by, updated_at = datetime('now')`
-  ).run({
-    id: req.params.id,
-    baseUrl: baseUrl.trim(),
-    username: username.trim(),
-    password: nextPassword,
-    by: req.user.username,
-  });
-  logAudit({
-    actor: req.user.username, projectId: req.params.id, action: "sppd_config.update",
-    entityType: "sppd_config", details: { baseUrl: baseUrl.trim(), username: username.trim() }, ip: req.ip,
-  });
-
-  res.json({ ok: true });
-});
-
-router.delete("/:id/monitor/sppd-config", requireRole("admin"), (req, res) => {
-  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
-  if (!project) return res.status(404).json({ error: "project_not_found" });
-
-  db.prepare("DELETE FROM project_sppd_config WHERE project_id = ?").run(req.params.id);
-  logAudit({ actor: req.user.username, projectId: req.params.id, action: "sppd_config.remove", entityType: "sppd_config", ip: req.ip });
-  res.json({ ok: true });
-});
-
 // Пороги фиксации аварии — per-project (см. project_monitor_thresholds в
 // db.js). Статус на дашборде/3D всегда живой (сырой пинг/SPPD-сигнал);
 // pingFailDurationSec — сколько секунд непрерывного простоя нужно набрать,
 // прежде чем это запишется как авария в monitor_events (а не просто мигнёт
 // красным на один пропавший пакет). Отсутствие строки означает "используются
 // дефолты воркеров", поэтому GET всегда возвращает конкретные числа (дефолт,
-// если не настроено), а не null — ping-worker.js/sppd-worker.js читают эту
-// же таблицу напрямую и точно так же откатываются к дефолтам.
+// если не настроено), а не null — воркеры (ping-worker.js,
+// custom-monitor-worker.js) читают эту же таблицу напрямую и точно так же
+// откатываются к дефолтам.
 const THRESHOLD_DEFAULTS = {
   pingTimeoutSec: 1,
   pingFailDurationSec: 300,
-  sppdStaleAfterSec: 120,
-  sppdFailDurationSec: 300,
-  fsFailDurationSec: 300,
+  customStaleAfterSec: 120,
+  customFailDurationSec: 300,
   lampFailAfterHours: 24,
   ticketSlaCriticalHours: 2,
   ticketSlaHighHours: 8,
@@ -629,9 +556,8 @@ function serializeThresholds(row) {
     configured: true,
     pingTimeoutSec: row.ping_timeout_sec,
     pingFailDurationSec: row.ping_fail_duration_sec,
-    sppdStaleAfterSec: row.sppd_stale_after_sec,
-    sppdFailDurationSec: row.sppd_fail_duration_sec,
-    fsFailDurationSec: row.fs_fail_duration_sec,
+    customStaleAfterSec: row.custom_stale_after_sec,
+    customFailDurationSec: row.custom_fail_duration_sec,
     lampFailAfterHours: row.lamp_fail_after_hours,
     ticketSlaCriticalHours: row.ticket_sla_critical_hours,
     ticketSlaHighHours: row.ticket_sla_high_hours,
@@ -655,7 +581,7 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
   const {
-    pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec, lampFailAfterHours,
+    pingTimeoutSec, pingFailDurationSec, customStaleAfterSec, customFailDurationSec, lampFailAfterHours,
     ticketSlaCriticalHours, ticketSlaHighHours, ticketSlaMediumHours, ticketSlaLowHours,
   } = req.body || {};
   if (!Number.isInteger(pingTimeoutSec) || pingTimeoutSec < 1 || pingTimeoutSec > 10) {
@@ -666,14 +592,11 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   if (!Number.isInteger(pingFailDurationSec) || pingFailDurationSec < 0 || pingFailDurationSec > 3600) {
     return res.status(400).json({ error: "invalid_ping_fail_duration_sec" });
   }
-  if (!Number.isInteger(sppdStaleAfterSec) || sppdStaleAfterSec < 30 || sppdStaleAfterSec > 3600) {
-    return res.status(400).json({ error: "invalid_sppd_stale_after_sec" });
+  if (!Number.isInteger(customStaleAfterSec) || customStaleAfterSec < 30 || customStaleAfterSec > 3600) {
+    return res.status(400).json({ error: "invalid_custom_stale_after_sec" });
   }
-  if (!Number.isInteger(sppdFailDurationSec) || sppdFailDurationSec < 0 || sppdFailDurationSec > 3600) {
-    return res.status(400).json({ error: "invalid_sppd_fail_duration_sec" });
-  }
-  if (!Number.isInteger(fsFailDurationSec) || fsFailDurationSec < 0 || fsFailDurationSec > 3600) {
-    return res.status(400).json({ error: "invalid_fs_fail_duration_sec" });
+  if (!Number.isInteger(customFailDurationSec) || customFailDurationSec < 0 || customFailDurationSec > 3600) {
+    return res.status(400).json({ error: "invalid_custom_fail_duration_sec" });
   }
   if (!Number.isInteger(lampFailAfterHours) || lampFailAfterHours < 1 || lampFailAfterHours > 336) {
     return res.status(400).json({ error: "invalid_lamp_fail_after_hours" });
@@ -686,20 +609,20 @@ router.put("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
 
   db.prepare(
     `INSERT INTO project_monitor_thresholds
-       (project_id, ping_timeout_sec, ping_fail_duration_sec, sppd_stale_after_sec, sppd_fail_duration_sec, fs_fail_duration_sec, lamp_fail_after_hours,
+       (project_id, ping_timeout_sec, ping_fail_duration_sec, custom_stale_after_sec, custom_fail_duration_sec, lamp_fail_after_hours,
         ticket_sla_critical_hours, ticket_sla_high_hours, ticket_sla_medium_hours, ticket_sla_low_hours, updated_by, updated_at)
-     VALUES (@id, @pingTimeoutSec, @pingFailDurationSec, @sppdStaleAfterSec, @sppdFailDurationSec, @fsFailDurationSec, @lampFailAfterHours,
+     VALUES (@id, @pingTimeoutSec, @pingFailDurationSec, @customStaleAfterSec, @customFailDurationSec, @lampFailAfterHours,
              @ticketSlaCriticalHours, @ticketSlaHighHours, @ticketSlaMediumHours, @ticketSlaLowHours, @by, datetime('now'))
      ON CONFLICT(project_id) DO UPDATE SET
        ping_timeout_sec = @pingTimeoutSec, ping_fail_duration_sec = @pingFailDurationSec,
-       sppd_stale_after_sec = @sppdStaleAfterSec, sppd_fail_duration_sec = @sppdFailDurationSec,
-       fs_fail_duration_sec = @fsFailDurationSec, lamp_fail_after_hours = @lampFailAfterHours,
+       custom_stale_after_sec = @customStaleAfterSec, custom_fail_duration_sec = @customFailDurationSec,
+       lamp_fail_after_hours = @lampFailAfterHours,
        ticket_sla_critical_hours = @ticketSlaCriticalHours, ticket_sla_high_hours = @ticketSlaHighHours,
        ticket_sla_medium_hours = @ticketSlaMediumHours, ticket_sla_low_hours = @ticketSlaLowHours,
        updated_by = @by, updated_at = datetime('now')`
   ).run({
     id: req.params.id,
-    pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec, lampFailAfterHours,
+    pingTimeoutSec, pingFailDurationSec, customStaleAfterSec, customFailDurationSec, lampFailAfterHours,
     ticketSlaCriticalHours, ticketSlaHighHours, ticketSlaMediumHours, ticketSlaLowHours,
     by: req.user.username,
   });
@@ -719,6 +642,67 @@ router.delete("/:id/monitor/thresholds", requireRole("admin"), (req, res) => {
   db.prepare("DELETE FROM project_monitor_thresholds WHERE project_id = ?").run(req.params.id);
   logAudit({ actor: req.user.username, projectId: req.params.id, action: "thresholds.reset", entityType: "thresholds", ip: req.ip });
   res.json(serializeThresholds(null));
+});
+
+// Пер-формные переопределения порогов (модуль "Настройки" → Пороги, см.
+// project_shape_thresholds в db.js) — необязательные overrides на (project,
+// shape), null-поле значит "использовать дефолт проекта". Ping-worker.js и
+// custom-monitor-worker.js читают эту таблицу напрямую (server/lib/
+// monitorShared.js), эти роуты — только для UI.
+router.get("/:id/monitor/shape-thresholds", requireRole("admin"), (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const rows = db
+    .prepare("SELECT shape, stale_after_sec, fail_duration_sec, updated_by, updated_at FROM project_shape_thresholds WHERE project_id = ? ORDER BY shape")
+    .all(req.params.id);
+  res.json({
+    overrides: rows.map((r) => ({
+      shape: r.shape,
+      staleAfterSec: r.stale_after_sec,
+      failDurationSec: r.fail_duration_sec,
+      updatedBy: r.updated_by,
+      updatedAt: r.updated_at,
+    })),
+  });
+});
+
+router.put("/:id/monitor/shape-thresholds/:shape", requireRole("admin"), (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const { staleAfterSec, failDurationSec } = req.body || {};
+  // Оба поля необязательны — null/undefined означает "не переопределять",
+  // используется дефолт проекта. Если оба пустые, проще удалить строку.
+  const staleVal = staleAfterSec === null || staleAfterSec === undefined || staleAfterSec === "" ? null : parseInt(staleAfterSec, 10);
+  const failVal = failDurationSec === null || failDurationSec === undefined || failDurationSec === "" ? null : parseInt(failDurationSec, 10);
+  if (staleVal !== null && (!Number.isInteger(staleVal) || staleVal < 30 || staleVal > 3600)) {
+    return res.status(400).json({ error: "invalid_stale_after_sec" });
+  }
+  if (failVal !== null && (!Number.isInteger(failVal) || failVal < 0 || failVal > 3600)) {
+    return res.status(400).json({ error: "invalid_fail_duration_sec" });
+  }
+  if (staleVal === null && failVal === null) {
+    db.prepare("DELETE FROM project_shape_thresholds WHERE project_id = ? AND shape = ?").run(req.params.id, req.params.shape);
+    logAudit({
+      actor: req.user.username, projectId: req.params.id, action: "shape_thresholds.reset",
+      entityType: "shape_thresholds", entityId: req.params.shape, ip: req.ip,
+    });
+    return res.json({ ok: true, cleared: true });
+  }
+
+  db.prepare(
+    `INSERT INTO project_shape_thresholds (project_id, shape, stale_after_sec, fail_duration_sec, updated_by, updated_at)
+     VALUES (@projectId, @shape, @staleVal, @failVal, @by, datetime('now'))
+     ON CONFLICT(project_id, shape) DO UPDATE SET
+       stale_after_sec = @staleVal, fail_duration_sec = @failVal, updated_by = @by, updated_at = datetime('now')`
+  ).run({ projectId: req.params.id, shape: req.params.shape, staleVal, failVal, by: req.user.username });
+  logAudit({
+    actor: req.user.username, projectId: req.params.id, action: "shape_thresholds.update",
+    entityType: "shape_thresholds", entityId: req.params.shape,
+    details: { staleAfterSec: staleVal, failDurationSec: failVal }, ip: req.ip,
+  });
+  res.json({ ok: true });
 });
 
 module.exports = router;

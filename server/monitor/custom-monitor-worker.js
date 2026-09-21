@@ -1,18 +1,16 @@
 /*
 Универсальный коллектор мониторинга для настраиваемых источников данных
 (project_data_sources, см. db.js и server/routes/parsing.js) — в отличие
-от sppd-worker.js/fieldsense-worker.js (один захардкоженный протокол каждый),
-этот воркер ничего не знает заранее о формате сообщений: вся логика разбора —
+от захардкоженных протокол-специфичных воркеров, этот воркер ничего не
+знает заранее о формате сообщений: вся логика разбора —
 конфигурация в БД (parser_json), проверенная заранее интерактивно на
 странице /parsing, см. server/lib/streamParserEngine.js.
 
 Низкоуровневая часть (логин, WebSocket с реконнектом, запись в
 monitor_status/monitor_events через applyOnlineState/applyMetricsOnly)
-переиспользуется из sppd-worker.js как есть — она уже общая, тем же
-способом её уже переиспользует fieldsense-worker.js. Своя (не переиспользуемая)
+переиспользуется из server/lib/monitorShared.js. Своя (не переиспользуемая)
 часть — только staleness по отдельным custom_stale_after_sec/
-custom_fail_duration_sec порогам, т.к. семантически это не то же самое,
-что sppd_stale_after_sec/sppd_fail_duration_sec.
+custom_fail_duration_sec порогам.
 
 Оборудование привязывается к источнику через equipment.monitorMethod === "custom",
 equipment.dataSourceId (id из project_data_sources) и equipment.sourceAddress —
@@ -20,7 +18,7 @@ equipment.dataSourceId (id из project_data_sources) и equipment.sourceAddress
 профиль извлекают из сообщения), а не общий sppdAddress/fsAddress.
 */
 const db = require("../db");
-const sppd = require("./sppd-worker");
+const shared = require("../lib/monitorShared");
 const engine = require("../lib/streamParserEngine");
 
 const CONFIG_REFRESH_MS = parseInt(process.env.CUSTOM_CONFIG_REFRESH_MS || "60000", 10);
@@ -32,13 +30,20 @@ const DEBUG = process.env.CUSTOM_MONITOR_DEBUG === "1";
 const stmtGetThresholds = db.prepare(
   "SELECT custom_stale_after_sec, custom_fail_duration_sec FROM project_monitor_thresholds WHERE project_id = ?"
 );
-function getStaleAfterMs(projectId) {
+// shape — необязательный override (project_shape_thresholds, модуль
+// "Настройки" → Пороги, см. server/lib/monitorShared.js), например разный
+// stale-after для газоанализатора и для считывателя IILB в одном проекте.
+function getStaleAfterMs(projectId, shape) {
   const row = stmtGetThresholds.get(projectId);
-  return (row ? row.custom_stale_after_sec : 120) * 1000;
+  const projectDefault = row ? row.custom_stale_after_sec : 120;
+  const overrides = shared.loadShapeThresholds(projectId);
+  return shared.resolveStaleAfterSec(overrides, shape, projectDefault) * 1000;
 }
-function getFailDurationMs(projectId) {
+function getFailDurationMs(projectId, shape) {
   const row = stmtGetThresholds.get(projectId);
-  return (row ? row.custom_fail_duration_sec : 300) * 1000;
+  const projectDefault = row ? row.custom_fail_duration_sec : 300;
+  const overrides = shared.loadShapeThresholds(projectId);
+  return shared.resolveFailDurationSec(overrides, shape, projectDefault) * 1000;
 }
 
 const stmtGetLastChecked = db.prepare(
@@ -92,7 +97,7 @@ function collectCustomTargets(projectId, sourceId) {
     if (eq.monitorMethod !== "custom" || eq.dataSourceId !== sourceId || !eq.sourceAddress) continue;
     const addr = String(eq.sourceAddress);
     if (!byAddr.has(addr)) byAddr.set(addr, []);
-    byAddr.get(addr).push({ projectId, equipmentId: eq.id, label: eq.label });
+    byAddr.get(addr).push({ projectId, equipmentId: eq.id, label: eq.label, shape: eq.shape });
   }
   return byAddr;
 }
@@ -104,9 +109,9 @@ function markStaleAsDown(target) {
 
 function checkStaleness(projectId, targetsByAddr, siteStartedAtMs) {
   const nowMs = Date.now();
-  const staleAfterMs = getStaleAfterMs(projectId);
   for (const targets of targetsByAddr.values()) {
     for (const target of targets) {
+      const staleAfterMs = getStaleAfterMs(projectId, target.shape);
       const row = stmtGetLastChecked.get(target.projectId, target.equipmentId);
       const lastSeenMs = row && row.last_checked_at ? Date.parse(row.last_checked_at) : siteStartedAtMs;
       if (nowMs - lastSeenMs > staleAfterMs) {
@@ -126,13 +131,13 @@ function applyParsedResult(projectId, targetsByAddr, parsed) {
 
   const onlineAttr = parsed.attributes.find((a) => a.key === "online");
   // tagPulseEvent — не метрика, а разовое событие ("метка зарегистрирована"):
-  // в проде это INSERT в monitor_tag_pulses (см. sppd-worker.emitTagPulse),
+  // в проде это INSERT в monitor_tag_pulses (см. shared.emitTagPulse),
   // который server.js рассылает по WS для вспышки в 3D-редакторе
   // (spawnMonitorTagPulse). Значение атрибута тут неважно, важен сам факт —
   // поэтому не кладём его в raw_metrics_json как обычную метрику.
   const hasTagPulse = parsed.attributes.some((a) => a.key === "tagPulseEvent");
   // personCount/vehicleCount — тоже не raw_metrics_json, а отдельные колонки
-  // monitor_status.person_count/vehicle_count (см. sppd-worker.applyCounts),
+  // monitor_status.person_count/vehicle_count (см. shared.applyCounts),
   // которые UI читает напрямую (monitorCountsBadgeEl), а не через metrics.
   const personCountAttr = parsed.attributes.find((a) => a.key === "personCount");
   const vehicleCountAttr = parsed.attributes.find((a) => a.key === "vehicleCount");
@@ -145,13 +150,13 @@ function applyParsedResult(projectId, targetsByAddr, parsed) {
 
   for (const target of targets) {
     if (onlineAttr) {
-      sppd.applyOnlineState(target, Boolean(onlineAttr.value), hasMetrics ? metricsPatch : null, getFailDurationMs(projectId));
+      shared.applyOnlineState(target, Boolean(onlineAttr.value), hasMetrics ? metricsPatch : null, getFailDurationMs(projectId, target.shape));
     } else if (hasMetrics) {
-      sppd.applyMetricsOnly(target, metricsPatch);
+      shared.applyMetricsOnly(target, metricsPatch);
     }
-    if (hasTagPulse) sppd.emitTagPulse(target);
+    if (hasTagPulse) shared.emitTagPulse(target);
     if (personCountAttr || vehicleCountAttr) {
-      sppd.applyCounts(target, personCountAttr && personCountAttr.value, vehicleCountAttr && vehicleCountAttr.value);
+      shared.applyCounts(target, personCountAttr && personCountAttr.value, vehicleCountAttr && vehicleCountAttr.value);
     }
   }
 }
@@ -182,7 +187,7 @@ function startSite(source) {
     let sessionCookie = "";
     if (connection.authType === "django-session-form") {
       try {
-        sessionCookie = await sppd.login(connection);
+        sessionCookie = await shared.login(connection);
         console.log(`[custom-monitor-worker] [${projectId}/${source.name}] logged in`);
       } catch (err) {
         console.error(`[custom-monitor-worker] [${projectId}/${source.name}] login failed:`, err.message, "— retry in", RECONNECT_BASE_MS, "ms");
@@ -191,7 +196,7 @@ function startSite(source) {
       }
     }
     conns.forEach((c) => c.close());
-    // sppd.connectStream разбирает JSON и (если есть) разворачивает
+    // shared.connectStream разбирает JSON и (если есть) разворачивает
     // WSM_DATA-как-строку ДО вызова onMessage — отдаёт уже объект, не
     // сырую строку. engine.parseMessage ожидает строку (сам делает
     // JSON.parse внутри), поэтому здесь просто сериализуем обратно —
@@ -200,7 +205,7 @@ function startSite(source) {
     conns = (connection.endpoints || [])
       .filter((ep) => ep && ep.path)
       .map((ep) =>
-        sppd.connectStream(`${projectId}/${source.name}/${ep.name || ep.path}`, wsBase, ep.path, sessionCookie, (msg) => {
+        shared.connectStream(`${projectId}/${source.name}/${ep.name || ep.path}`, wsBase, ep.path, sessionCookie, (msg) => {
           try {
             const results = engine.parseMessage(JSON.stringify(msg), parser);
             for (const result of results) applyParsedResult(projectId, targetsByAddr, result);

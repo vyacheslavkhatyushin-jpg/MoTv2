@@ -62,6 +62,13 @@ app.get(/^\/[^/]+\/tickets\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "tickets.html"));
 });
 
+// Настройки — единый раздел админки (Пользователи/Пороги/Справочники/
+// Источники данных), см. модуль "Настройки" в docs/monitoring-plan.md.
+// Project-scoped, как Лог/Фонари выше (Пользователи/Пороги — per-project).
+app.get(/^\/[^/]+\/settings\/?$/, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "settings.html"));
+});
+
 // Конструктор/тестер парсера потоков — не привязан к проекту, только admin.
 // См. server/routes/parsing.js и docs.
 app.get(/^\/parsing\/?$/, (req, res) => {
@@ -110,9 +117,10 @@ function sendStatus(ws, projectId) {
   ws.send(JSON.stringify({ type: "status", status: getMonitorStatus(projectId) }));
 }
 
-// Разовая белая вспышка "новая метка на считывателе" (Этап 4, SPPD/
-// SBeacon) — sppd-worker.js пишет ряды в monitor_tag_pulses по мере
-// обнаружения, этот процесс на каждом цикле рассылки подбирает свежие
+// Разовая белая вспышка "новая метка на считывателе" — воркеры мониторинга
+// (custom-monitor-worker.js через shared.emitTagPulse) пишут ряды в
+// monitor_tag_pulses по мере обнаружения, этот процесс на каждом цикле
+// рассылки подбирает свежие
 // (после lastTagPulseSent для проекта) и шлёт клиентам. Курсор берём из
 // SQLite (`datetime('now')`), а не из JS Date().toISOString() — форматы
 // разные ("YYYY-MM-DD HH:MM:SS" против "...THH:MM:SS.sssZ"), и обычное

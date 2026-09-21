@@ -483,93 +483,8 @@
   #authCard #btnAuthSubmit:hover{ filter:brightness(1.08); }
   #authCard .authHint{ margin-top:14px; font-size:10.5px; color:var(--text-faint); text-align:center; line-height:1.5; }
 
-  /* ---- панель управления пользователями (admin) ---- */
-  #userAdminOverlay{
-    position:fixed; inset:0; z-index:900; display:flex; align-items:center; justify-content:center;
-    background:rgba(0,0,0,.55);
-  }
-  #userAdminOverlay.hidden{ display:none; }
-  #userAdminCard{
-    width:420px; max-width:92vw; max-height:82vh; overflow-y:auto; background:var(--panel);
-    border:1px solid var(--border); border-radius:10px; padding:18px 20px; box-shadow:0 20px 60px rgba(0,0,0,.5);
-  }
-  #userAdminCard h3{ margin:0 0 12px; font-size:14px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between; }
-  #userAdminCard h3 button{ background:none; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; line-height:1; padding:2px 6px; }
-  #userAdminCard h3 button:hover{ color:var(--text); }
-  .ua-add-row{ display:flex; gap:6px; margin-bottom:14px; }
-  .ua-add-row input[type="text"], .ua-add-row input[type="password"]{
-    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
-    border-radius:5px; padding:6px 8px; font-size:12px; font-family:inherit; width:0; flex:1 1 0;
-  }
-  .ua-add-row select{
-    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
-    border-radius:5px; padding:6px 4px; font-size:12px; font-family:inherit;
-  }
-  .ua-add-row button{
-    background:var(--accent); border:1px solid var(--accent); color:#14171a; border-radius:5px;
-    width:30px; flex-shrink:0; font-size:15px; font-weight:700; cursor:pointer;
-  }
-  .ua-add-row button:hover{ filter:brightness(1.08); }
-  #userAdminError{ min-height:14px; font-size:11px; color:var(--danger); margin:-8px 0 10px; }
-  .ua-row{
-    display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px solid var(--border-soft); font-size:12px; color:var(--text-dim);
-  }
-  .ua-row .ua-name{ flex:1 1 auto; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .ua-row select{
-    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
-    border-radius:4px; padding:3px; font-size:11px; font-family:inherit;
-  }
-  .ua-row .ua-dots{ letter-spacing:2px; color:var(--text-faint); }
-  .ua-row button{
-    background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px;
-    width:26px; height:24px; cursor:pointer; font-size:12px; flex-shrink:0;
-  }
-  .ua-row button:hover{ border-color:var(--accent); color:var(--accent); }
-  .ua-row button.ua-delete:hover{ border-color:var(--danger); color:var(--danger); }
-
-  /* ---- панель подключения к SPPD для проекта (admin), Этап 4 ---- */
-  #sppdConfigOverlay, #thresholdsOverlay{
-    position:fixed; inset:0; z-index:900; display:flex; align-items:center; justify-content:center;
-    background:rgba(0,0,0,.55);
-  }
-  #sppdConfigOverlay.hidden, #thresholdsOverlay.hidden{ display:none; }
-  #sppdConfigCard, #thresholdsCard{
-    width:360px; max-width:92vw; background:var(--panel);
-    border:1px solid var(--border); border-radius:10px; padding:18px 20px; box-shadow:0 20px 60px rgba(0,0,0,.5);
-  }
-  #sppdConfigCard h3, #thresholdsCard h3{ margin:0 0 12px; font-size:14px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between; }
-  #sppdConfigCard h3 button, #thresholdsCard h3 button{ background:none; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; line-height:1; padding:2px 6px; }
-  #sppdConfigCard h3 button:hover, #thresholdsCard h3 button:hover{ color:var(--text); }
-  #sppdConfigStatus, #thresholdsStatus{ font-size:11px; color:var(--text-faint); margin:-6px 0 12px; }
-  .sc-field{ margin-bottom:10px; }
-  .sc-field label{ display:block; font-size:11px; color:var(--text-dim); margin-bottom:4px; }
-  .sc-field input{
-    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
-    border-radius:5px; padding:7px 8px; font-size:12.5px; font-family:inherit;
-  }
-  #sppdConfigError{ min-height:14px; font-size:11px; color:var(--danger); margin:4px 0 10px; }
-  .sc-actions{ display:flex; justify-content:space-between; gap:8px; margin-top:6px; }
-  .sc-actions button{
-    border-radius:5px; padding:7px 14px; font-size:12.5px; font-family:inherit; cursor:pointer;
-  }
-  .sc-actions .sc-btn-primary{
-    background:var(--accent); border:1px solid var(--accent); color:#14171a; font-weight:600;
-  }
-  .sc-actions .sc-btn-primary:hover{ filter:brightness(1.08); }
-  .sc-actions .sc-btn-secondary{
-    background:none; border:1px solid var(--border); color:var(--text-dim);
-  }
-  .sc-actions .sc-btn-secondary:hover{ border-color:var(--danger); color:var(--danger); }
-  .ua-reset-row{ display:none; gap:6px; margin:4px 0 8px; }
-  .ua-reset-row.open{ display:flex; }
-  .ua-reset-row input{
-    flex:1; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
-    border-radius:4px; padding:4px 6px; font-size:11.5px; font-family:inherit;
-  }
-  .ua-reset-row button{
-    background:var(--accent); border:1px solid var(--accent); color:#14171a; border-radius:4px;
-    padding:0 10px; font-size:11px; cursor:pointer; font-weight:600;
-  }
+  /* Пользователи/Пороги переехали в /settings (единый раздел админки) —
+     соответствующие панели и CSS удалены отсюда. */
 </style>
 
 <!--[if gte mso 9]><xml>
@@ -711,110 +626,11 @@
       <a id="navToRegistry" title="Реестр ЗИП" style="text-decoration:none; display:inline-flex; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" /><path d="M12 12l8 -4.5" /><path d="M12 12l0 9" /><path d="M12 12l-8 -4.5" /><path d="M16 5.25l-8 4.5" /></svg> ЗИП</a>
       <a id="navToLamps" title="Фонари" style="text-decoration:none; display:inline-flex; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3" /><path d="M9.7 17l4.6 0" /></svg> Фонари</a>
       <a id="navToLog" title="Журнал действий" style="display:none; text-decoration:none; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8l0 4l2 2" /><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 -4l1.75 -4.5l3.22 2.5m-4.97 2l4.5 1.5" /></svg> Лог</a>
-      <button id="btnUserAdmin" title="Управление пользователями" style="display:none; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M21 21v-2a4 4 0 0 0 -3 -3.85" /></svg> Пользователи</button>
-      <button id="btnSppdConfig" title="Подключение к SPPD для этого проекта" style="display:none; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.785 6l8.215 8.215l-2.054 2.054a5.81 5.81 0 1 1 -8.215 -8.215l2.054 -2.054" /><path d="M4 20l3.5 -3.5" /><path d="M15 4l-3.5 3.5" /><path d="M20 9l-3.5 3.5" /></svg> SPPD</button>
-      <button id="btnThresholds" title="Пороги фиксации аварии для этого проекта" style="display:none; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M13.41 10.59l2.59 -2.59" /><path d="M7 12a5 5 0 0 1 5 -5" /></svg> Пороги</button>
+      <a id="navToSettings" title="Настройки" style="display:none; text-decoration:none; align-items:center; gap:5px; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" /><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /></svg> Настройки</a>
       <button id="btnLogout" title="Выйти" style="background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;">Выйти</button>
     </div>
     <div class="brand-copyright">© 2026 MoT<br>Все права защищены</div>
   </header>
-<div id="userAdminOverlay" class="hidden">
-  <div id="userAdminCard">
-    <h3>Пользователи <button id="btnUserAdminClose" title="Закрыть"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
-    <div class="ua-add-row">
-      <input type="text" id="uaNewLogin" placeholder="Логин" autocomplete="off">
-      <input type="password" id="uaNewPassword" placeholder="Пароль" autocomplete="off">
-      <select id="uaNewRole">
-        <option value="viewer">viewer</option>
-        <option value="editor" selected>editor</option>
-        <option value="admin">admin</option>
-      </select>
-      <button id="btnUaAdd" title="Добавить пользователя">+</button>
-    </div>
-    <div id="userAdminError"></div>
-    <div id="userAdminList"></div>
-  </div>
-</div>
-<div id="sppdConfigOverlay" class="hidden">
-  <div id="sppdConfigCard">
-    <h3>Подключение к SPPD <button id="btnSppdConfigClose" title="Закрыть"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
-    <div id="sppdConfigStatus"></div>
-    <div class="sc-field">
-      <label for="scBaseUrl">Адрес сервера</label>
-      <input type="text" id="scBaseUrl" placeholder="http://10.20.99.7" autocomplete="off">
-    </div>
-    <div class="sc-field">
-      <label for="scUsername">Логин (сервисный аккаунт)</label>
-      <input type="text" id="scUsername" placeholder="Логин" autocomplete="off">
-    </div>
-    <div class="sc-field">
-      <label for="scPassword">Пароль</label>
-      <input type="password" id="scPassword" placeholder="Оставить как есть" autocomplete="off">
-    </div>
-    <div id="sppdConfigError"></div>
-    <div class="sc-actions">
-      <button id="btnSppdConfigRemove" class="sc-btn-secondary">Отключить</button>
-      <button id="btnSppdConfigSave" class="sc-btn-primary">Сохранить</button>
-    </div>
-  </div>
-</div>
-<div id="thresholdsOverlay" class="hidden">
-  <div id="thresholdsCard">
-    <h3>Пороги фиксации аварии <button id="btnThresholdsClose" title="Закрыть"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg></button></h3>
-    <div id="thresholdsStatus"></div>
-    <div style="font-size:11px; color:var(--text-faint); line-height:1.5; margin:-4px 0 12px;">
-      Статус на дашборде/3D-модели красится сразу по факту пинга/сигнала — эти пороги влияют только на то, когда простой запишется как авария в историю.
-    </div>
-    <div class="sc-field">
-      <label for="thPingTimeout">Таймаут пинга, сек (MAP/CAM/TEL/WiFi)</label>
-      <input type="number" id="thPingTimeout" min="1" max="10" step="1">
-    </div>
-    <div class="sc-field">
-      <label for="thPingFails">Простой до фиксации аварии, мин — ping (0 — сразу)</label>
-      <input type="number" id="thPingFails" min="0" max="60" step="0.5">
-    </div>
-    <div class="sc-field">
-      <label for="thSppdStale">Молчание SPPD до "Нет связи", сек (IILB/ISIB)</label>
-      <input type="number" id="thSppdStale" min="30" max="3600" step="10">
-    </div>
-    <div class="sc-field">
-      <label for="thSppdFails">Простой до фиксации аварии, мин — SPPD (0 — сразу)</label>
-      <input type="number" id="thSppdFails" min="0" max="60" step="0.5">
-    </div>
-    <div class="sc-field">
-      <label for="thFsFails">Простой до фиксации аварии, мин — FieldSense/FS (0 — сразу)</label>
-      <input type="number" id="thFsFails" min="0" max="60" step="0.5">
-    </div>
-    <div class="sc-field">
-      <label for="thLampFails">Фонарь неисправен после молчания, ч</label>
-      <input type="number" id="thLampFails" min="1" max="336" step="1">
-    </div>
-    <div style="font-size:11px; color:var(--text-faint); line-height:1.5; margin:14px 0 4px;">
-      SLA-сроки тикетов (модуль «Тикеты») — время на устранение по приоритету, отсчитывается с момента назначения исполнителя.
-    </div>
-    <div class="sc-field">
-      <label for="thSlaCritical">Срок устранения — критичный, ч</label>
-      <input type="number" id="thSlaCritical" min="1" max="720" step="1">
-    </div>
-    <div class="sc-field">
-      <label for="thSlaHigh">Срок устранения — высокий, ч</label>
-      <input type="number" id="thSlaHigh" min="1" max="720" step="1">
-    </div>
-    <div class="sc-field">
-      <label for="thSlaMedium">Срок устранения — средний, ч</label>
-      <input type="number" id="thSlaMedium" min="1" max="720" step="1">
-    </div>
-    <div class="sc-field">
-      <label for="thSlaLow">Срок устранения — низкий, ч</label>
-      <input type="number" id="thSlaLow" min="1" max="720" step="1">
-    </div>
-    <div id="thresholdsError"></div>
-    <div class="sc-actions">
-      <button id="btnThresholdsRemove" class="sc-btn-secondary">Сбросить на умолчания</button>
-      <button id="btnThresholdsSave" class="sc-btn-primary">Сохранить</button>
-    </div>
-  </div>
-</div>
 <div id="app">
   <div id="viewport">
     <canvas id="glcanvas"></canvas>
@@ -1049,21 +865,13 @@
               <option value="none">Не мониторится</option>
               <option value="ping">Ping</option>
               <option value="snmp">SNMP</option>
-              <option value="sppd" id="equipDMonitorSppdOption">SPPD (позиционирование)</option>
-              <option value="fs" id="equipDMonitorFsOption">FieldSense (обрыв кабеля)</option>
               <option value="custom">Настраиваемый источник</option>
             </select>
           </div>
           <div class="drow" id="equipDSnmpCommunityRow" style="display:none;"><span>SNMP community</span><input type="text" id="equipDSnmpCommunity" placeholder="public"></div>
           <div class="drow" id="equipDSnmpProfileRow" style="display:none;"><span>SNMP профиль</span><input type="text" id="equipDSnmpProfile" placeholder="по умолчанию"></div>
-          <div class="drow" id="equipDSppdAddressRow" style="display:none;"><span>Адрес SPPD</span><input type="text" id="equipDSppdAddress" placeholder="напр. 3934"></div>
           <div class="drow" id="equipDDataSourceRow" style="display:none;"><span>Источник данных</span><select id="equipDDataSource" style="background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 6px; font-family:inherit;"><option value="">— выбрать —</option></select></div>
           <div class="drow" id="equipDSourceAddressRow" style="display:none;"><span>Адрес в источнике</span><input type="text" id="equipDSourceAddress" placeholder="напр. 1234"></div>
-          <div class="drow" id="equipDVoltageRow" style="display:none;"><span>Напряжение (SPPD)</span><span id="equipDVoltage" class="mono" style="color:var(--text-dim);">—</span></div>
-          <div class="drow" id="equipDRssiRow" style="display:none;"><span>RSSI (SPPD)</span><span id="equipDRssi" class="mono" style="color:var(--text-dim);">—</span></div>
-          <div class="drow" id="equipDTxRxRow" style="display:none;"><span>Tx/Rx (SPPD)</span><span id="equipDTxRx" class="mono" style="color:var(--text-dim);">—</span></div>
-          <div class="drow" id="equipDFirmwareRow" style="display:none;"><span>Прошивка (SPPD)</span><span id="equipDFirmware" class="mono" style="color:var(--text-dim);">—</span></div>
-          <div class="drow" id="equipDFsAddressRow" style="display:none;"><span>Номер датчика FS</span><input type="text" id="equipDFsAddress" placeholder="напр. 3 (колонка # на странице fieldsense)"></div>
           <button id="equipDDelete" class="danger-btn">Удалить объект</button>
         </div>
       </div>
@@ -2011,28 +1819,14 @@ const dom = {
   equipDIdNumber: document.getElementById("equipDIdNumber"),
   equipDMonitorRow: document.getElementById("equipDMonitorRow"),
   equipDMonitorMethod: document.getElementById("equipDMonitorMethod"),
-  equipDMonitorSppdOption: document.getElementById("equipDMonitorSppdOption"),
-  equipDMonitorFsOption: document.getElementById("equipDMonitorFsOption"),
   equipDSnmpCommunityRow: document.getElementById("equipDSnmpCommunityRow"),
   equipDSnmpCommunity: document.getElementById("equipDSnmpCommunity"),
   equipDSnmpProfileRow: document.getElementById("equipDSnmpProfileRow"),
   equipDSnmpProfile: document.getElementById("equipDSnmpProfile"),
-  equipDSppdAddressRow: document.getElementById("equipDSppdAddressRow"),
-  equipDSppdAddress: document.getElementById("equipDSppdAddress"),
   equipDDataSourceRow: document.getElementById("equipDDataSourceRow"),
   equipDDataSource: document.getElementById("equipDDataSource"),
   equipDSourceAddressRow: document.getElementById("equipDSourceAddressRow"),
   equipDSourceAddress: document.getElementById("equipDSourceAddress"),
-  equipDVoltageRow: document.getElementById("equipDVoltageRow"),
-  equipDRssiRow: document.getElementById("equipDRssiRow"),
-  equipDRssi: document.getElementById("equipDRssi"),
-  equipDTxRxRow: document.getElementById("equipDTxRxRow"),
-  equipDTxRx: document.getElementById("equipDTxRx"),
-  equipDFirmwareRow: document.getElementById("equipDFirmwareRow"),
-  equipDFirmware: document.getElementById("equipDFirmware"),
-  equipDVoltage: document.getElementById("equipDVoltage"),
-  equipDFsAddressRow: document.getElementById("equipDFsAddressRow"),
-  equipDFsAddress: document.getElementById("equipDFsAddress"),
   equipDDelete: document.getElementById("equipDDelete"),
   btnEquipDClose: document.getElementById("btnEquipDClose"),
   equipLabelSize: document.getElementById("equipLabelSize"),
@@ -3348,9 +3142,9 @@ function updateHighlightPulse() {
    меш). "down" — красное вдвое крупнее, пульсирует. "unknown"/нет
    данных — подсветки нет вовсе.
    MONITOR_TAG_PULSE — короткая (0.5с) белая вспышка на регистрацию
-   бирки на считывателе IILB/ISIB; сама себя убирает. Подключается
-   позже, на этапе SPPD/SBeacon-коллектора (docs/monitoring-plan.md,
-   этап 4) — там, где появится сам источник событий регистрации.
+   бирки на считывателе; сама себя убирает. Событие приходит от
+   custom-monitor-worker.js (см. server/lib/monitorShared.js emitTagPulse)
+   для источника, настроенного как атрибут tagPulseEvent через /parsing.
 ============================================================ */
 const MONITOR_GLOW_UP = 0x2ecc71;
 const MONITOR_GLOW_DOWN = 0xe74c3c;
@@ -4454,14 +4248,12 @@ function placeEquipment(point, overrides, select = true) {
     location: overrides?.location ?? "",
     ip: overrides?.ip ?? "",
     idNumber: overrides?.idNumber ?? "",
-    // Мониторинг (см. docs/monitoring-plan.md): monitorMethod выбирает,
-    // каким способом опрашивать это конкретное устройство. "sppd" имеет
-    // смысл только для считывателей системы позиционирования (IILB/ISIB).
+    // Мониторинг: monitorMethod выбирает, каким способом опрашивать это
+    // конкретное устройство (ping/snmp/custom — источник настраивается
+    // через /parsing, см. docs/monitoring-plan.md).
     monitorMethod: overrides?.monitorMethod ?? "none",
     snmpCommunity: overrides?.snmpCommunity ?? "",
     snmpProfile: overrides?.snmpProfile ?? "",
-    sppdAddress: overrides?.sppdAddress ?? "",
-    fsAddress: overrides?.fsAddress ?? "",
     dataSourceId: overrides?.dataSourceId ?? "",
     sourceAddress: overrides?.sourceAddress ?? "",
     createdBy: overrides?.createdBy ?? currentUsername(),
@@ -4589,8 +4381,6 @@ function selectEquip(eq) {
   dom.equipDMonitorMethod.value = eq.monitorMethod || "none";
   dom.equipDSnmpCommunity.value = eq.snmpCommunity || "";
   dom.equipDSnmpProfile.value = eq.snmpProfile || "";
-  dom.equipDSppdAddress.value = eq.sppdAddress || "";
-  dom.equipDFsAddress.value = eq.fsAddress || "";
   dom.equipDSourceAddress.value = eq.sourceAddress || "";
   updateEquipMonitorRows(eq);
   dom.equipDDataSource.value = eq.dataSourceId || "";
@@ -4615,10 +4405,6 @@ async function loadCustomDataSourcesOnce() {
     // офлайн/сбой сети — оставляем список пустым, поле останется как есть
   }
 }
-// SPPD (система позиционирования HFT) имеет смысл только для считывателей
-// IILB/ISIB, FieldSense (поиск обрыва кабеля) — только для датчиков FS —
-// для остальных типов оборудования эти варианты в выпадающем списке
-// скрываются, чтобы не вводить в заблуждение (см. docs/monitoring-plan.md).
 function updateEquipMonitorRows(eq) {
   const canMonitor = MONITORABLE_SHAPES.has(eq.shape);
   dom.equipDMonitorRow.style.display = canMonitor ? "" : "none";
@@ -4626,72 +4412,13 @@ function updateEquipMonitorRows(eq) {
     dom.equipDMonitorMethod.value = "none";
     eq.monitorMethod = "none";
   }
-  const canSppd = canMonitor && (eq.shape === "iilb" || eq.shape === "isib");
-  dom.equipDMonitorSppdOption.disabled = !canSppd;
-  dom.equipDMonitorSppdOption.hidden = !canSppd;
-  if (!canSppd && dom.equipDMonitorMethod.value === "sppd") {
-    dom.equipDMonitorMethod.value = "none";
-    eq.monitorMethod = "none";
-  }
-  const canFs = eq.shape === "fs";
-  dom.equipDMonitorFsOption.disabled = !canFs;
-  dom.equipDMonitorFsOption.hidden = !canFs;
-  if (!canFs && dom.equipDMonitorMethod.value === "fs") {
-    dom.equipDMonitorMethod.value = "none";
-    eq.monitorMethod = "none";
-  }
   const method = dom.equipDMonitorMethod.value;
   dom.equipDSnmpCommunityRow.style.display = method === "snmp" ? "" : "none";
   dom.equipDSnmpProfileRow.style.display = method === "snmp" ? "" : "none";
-  dom.equipDSppdAddressRow.style.display = method === "sppd" ? "" : "none";
-  dom.equipDFsAddressRow.style.display = method === "fs" ? "" : "none";
-  dom.equipDVoltageRow.style.display = method === "sppd" ? "" : "none";
-  dom.equipDRssiRow.style.display = method === "sppd" ? "" : "none";
-  dom.equipDTxRxRow.style.display = method === "sppd" ? "" : "none";
-  dom.equipDFirmwareRow.style.display = method === "sppd" ? "" : "none";
   dom.equipDDataSourceRow.style.display = method === "custom" ? "" : "none";
   dom.equipDSourceAddressRow.style.display = method === "custom" ? "" : "none";
   if (method === "custom") loadCustomDataSourcesOnce();
-  refreshEquipDetailVoltage();
 }
-// Живое значение — обновляется и при выборе объекта, и на каждом тике
-// WS-статуса мониторинга (см. applyMonitorStatus), пока карточка открыта.
-// На странице Мониторинга живой статус уже льётся по WS в monitorStatusById
-// (см. applyMonitorStatus), но карточка оборудования открывается только со
-// страницы Редактора, где этот WS не подключён (см. connectMonitorWS —
-// вызывается только для IS_MONITORING_PAGE) — там просто раз в 10 сек
-// опрашиваем REST-эндпоинт напрямую, только пока карточка sppd-оборудования
-// открыта.
-function renderEquipDetailMetrics(metrics) {
-  const m = metrics || {};
-  dom.equipDVoltage.textContent = typeof m.voltage === "number" ? `U=${m.voltage.toFixed(2)} В` : "—";
-  dom.equipDRssi.textContent = typeof m.rssi === "number" ? String(m.rssi) : "—";
-  dom.equipDTxRx.textContent = m.txRx ? `Rx: ${m.txRx.Rx ?? "—"} / Tx: ${m.txRx.Tx ?? "—"}` : "—";
-  dom.equipDFirmware.textContent = m.firmware && m.firmware.Firmware ? m.firmware.Firmware : "—";
-}
-async function refreshEquipDetailVoltage() {
-  if (!selectedEquip || selectedEquip.monitorMethod !== "sppd" || !dom.equipDetails.classList.contains("open")) return;
-  if (IS_MONITORING_PAGE) {
-    const row = monitorStatusById.get(selectedEquip.id);
-    let metrics = null;
-    if (row && row.raw_metrics_json) {
-      try { metrics = JSON.parse(row.raw_metrics_json); } catch (e) {}
-    }
-    renderEquipDetailMetrics(metrics);
-    return;
-  }
-  try {
-    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/status`);
-    const data = await resp.json();
-    const row = (data.status || []).find((r) => r.equipment_id === selectedEquip.id);
-    let metrics = null;
-    if (row && row.raw_metrics_json) {
-      try { metrics = JSON.parse(row.raw_metrics_json); } catch (e) {}
-    }
-    renderEquipDetailMetrics(metrics);
-  } catch (e) {}
-}
-setInterval(refreshEquipDetailVoltage, 10000);
 document.getElementById("equipShapeSelect").addEventListener("change", (e) => {
   equipShape = e.target.value;
 });
@@ -4756,14 +4483,6 @@ dom.equipDSnmpCommunity.addEventListener("input", () => {
 dom.equipDSnmpProfile.addEventListener("input", () => {
   if (!selectedEquip) return;
   selectedEquip.snmpProfile = dom.equipDSnmpProfile.value;
-});
-dom.equipDSppdAddress.addEventListener("input", () => {
-  if (!selectedEquip) return;
-  selectedEquip.sppdAddress = dom.equipDSppdAddress.value;
-});
-dom.equipDFsAddress.addEventListener("input", () => {
-  if (!selectedEquip) return;
-  selectedEquip.fsAddress = dom.equipDFsAddress.value;
 });
 dom.equipDDataSource.addEventListener("change", () => {
   if (!selectedEquip) return;
@@ -5746,8 +5465,6 @@ function serializeEquip(eq) {
     monitorMethod: eq.monitorMethod || "none",
     snmpCommunity: eq.snmpCommunity || "",
     snmpProfile: eq.snmpProfile || "",
-    sppdAddress: eq.sppdAddress || "",
-    fsAddress: eq.fsAddress || "",
     dataSourceId: eq.dataSourceId || "",
     sourceAddress: eq.sourceAddress || "",
     createdBy: eq.createdBy, createdAt: eq.createdAt,
@@ -6164,9 +5881,10 @@ function monitorStatusDotEl(equipmentId) {
   span.className = "mon-status-dot " + cls;
   return span;
 }
-// Счётчик людей/техники (SBeacon, только на считывателях IILB/ISIB с
-// monitorMethod:"sppd") — null, если данных по этому объекту вообще нет
-// (не sppd-оборудование, или воркер ещё не прислал ни одного отсчёта).
+// Счётчик людей/техники — приходит через custom-monitor-worker.js как
+// атрибуты personCount/vehicleCount (см. server/lib/monitorShared.js
+// applyCounts) — null, если данных по этому объекту вообще нет (источник
+// не настроен, или воркер ещё не прислал ни одного отсчёта).
 function monitorCountsBadgeEl(equipmentId) {
   const row = monitorStatusById.get(equipmentId);
   if (!row) return null;
@@ -6179,12 +5897,12 @@ function monitorCountsBadgeEl(equipmentId) {
   if (hasPeople) parts.push(`${ICON_USER}${row.person_count}`);
   if (hasVehicles) parts.push(`${ICON_TRUCK}${row.vehicle_count}`);
   span.innerHTML = parts.join(" ");
-  span.title = "Людей/техники на считывателе (SBeacon)";
+  span.title = "Людей/техники на считывателе";
   return span;
 }
-// Напряжение считывателя (SPPD, поле VLine в SB_EVENT) — накапливается в
-// raw_metrics_json воркером (см. server/monitor/sppd-worker.js), уже
-// округлено до сотых на момент записи.
+// Напряжение считывателя — метрика voltage в raw_metrics_json, пишется
+// воркером мониторинга (см. server/lib/monitorShared.js), уже округлено
+// до сотых на момент записи.
 function equipVoltage(equipmentId) {
   const row = monitorStatusById.get(equipmentId);
   if (!row || !row.raw_metrics_json) return null;
@@ -6198,7 +5916,7 @@ function monitorVoltageBadgeEl(equipmentId) {
   const span = document.createElement("span");
   span.className = "mon-counts-badge";
   span.textContent = `U=${v}`;
-  span.title = "Напряжение (SPPD)";
+  span.title = "Напряжение";
   return span;
 }
 function renderMonitorCables() {
@@ -6426,14 +6144,14 @@ document.querySelectorAll(".mon-sec-head[data-mon-toggle]").forEach((head) => {
 });
 // SQLite's datetime('now') (использован как DEFAULT для нескольких колонок
 // на сервере — project_state.updated_at, deletion_log.deleted_at,
-// project_sppd_config.updated_at и т.п.) отдаёт UTC-время БЕЗ отметки
+// project_monitor_thresholds.updated_at и т.п.) отдаёт UTC-время БЕЗ отметки
 // таймзоны, в формате "YYYY-MM-DD HH:MM:SS" (пробел, не "T", без "Z").
 // new Date(...) на таких строках в браузере трактует их как ЛОКАЛЬНОЕ
 // время (а не UTC) — то есть на самом деле никакого пересчёта в локальную
 // зону не происходит, и отображаемое время отстаёт от настоящего ровно на
 // смещение таймзоны (например, на 5 часов для UTC+5). Нормализуем такие
 // строки в ISO+Z перед парсингом; строки, уже пришедшие с явным "Z"/смещением
-// (из JS Date().toISOString() — так пишут ping-worker/sppd-worker и сам
+// (из JS Date().toISOString() — так пишут воркеры мониторинга и сам
 // клиент), проходят без изменений.
 function parseServerDate(s) {
   if (!s) return null;
@@ -6480,7 +6198,7 @@ function renderMonitorActiveList(rows) {
   }
 }
 
-const MONITOR_METHOD_LABELS = { ping: "Пинг", snmp: "SNMP", sppd: "SPPD", fs: "FieldSense", custom: "Настраиваемый источник" };
+const MONITOR_METHOD_LABELS = { ping: "Пинг", snmp: "SNMP", custom: "Настраиваемый источник" };
 
 // Компактная сводка по объекту в нижней панели "Инфо" — по клику на строку
 // в списке (и в редакторе, и в мониторинге), без открытия полной формы
@@ -6500,11 +6218,10 @@ function showQuickInfoCable(c) {
   rows.push(qiRow("Узлов", c.nodes.length));
   dom.quickInfoBody.innerHTML = `<div class="qi-title">${esc(c.label)}</div>${rows.join("")}`;
 }
-// Живые метрики SPPD (напряжение/RSSI/Tx-Rx/прошивка, см. server/monitor/sppd-worker.js)
-// показываются только для оборудования с monitorMethod:"sppd" (по факту — IILB/ISIB,
-// см. canSppd в updateEquipMonitorRows). На странице Мониторинга берём из WS-кэша
-// monitorStatusById, в Редакторе — опрашиваем REST раз в 10 сек, пока эта карточка
-// открыта в панели "Инфо" (тот же источник, что и у equipDetails, см. fetchEquipMetrics).
+// Живые метрики (см. server/lib/monitorShared.js/custom-monitor-worker.js)
+// показываются только для оборудования с monitorMethod:"custom". На странице
+// Мониторинга берём из WS-кэша monitorStatusById, в Редакторе — опрашиваем
+// REST раз в 10 сек, пока эта карточка открыта в панели "Инфо" (см. fetchEquipMetrics).
 let currentQuickInfoEquip = null;
 const quickInfoMetricsCache = new Map(); // equipmentId -> metrics|null
 
@@ -6531,14 +6248,14 @@ function formatMetricNumber(value, unit) {
   const rounded = Math.round(value * 100) / 100;
   return unit ? `${rounded} ${unit}` : String(rounded);
 }
-// Живые метрики оборудования (SPPD или настраиваемый источник, см.
-// server/monitor/sppd-worker.js и server/monitor/custom-monitor-worker.js) —
-// generic-список всех ключей raw_metrics_json, название/единицу берём из
-// attributeCatalogByKey, чтобы новый тип оборудования/источника (газоанализ,
-// Статив АО и т.п.) не требовал правок этой панели под каждый новый ключ.
-// Tx/Rx — особый случай: у sppd-worker.js это один вложенный объект
-// ({Rx,Tx,UTime}), у кастомных источников — два плоских ключа (rx/tx) без
-// UTime (см. обсуждение АГС/IILB) — оба варианта сводим к одной строке.
+// Живые метрики оборудования (настраиваемый источник, см.
+// server/monitor/custom-monitor-worker.js) — generic-список всех ключей
+// raw_metrics_json, название/единицу берём из attributeCatalogByKey, чтобы
+// новый тип оборудования/источника (газоанализ, Статив АО и т.п.) не
+// требовал правок этой панели под каждый новый ключ.
+// Tx/Rx — особый случай: старые записи (ещё от удалённого sppd-worker.js)
+// хранят один вложенный объект ({Rx,Tx,UTime}), кастомные источники пишут
+// два плоских ключа (rx/tx) без UTime — оба варианта сводим к одной строке.
 function metricsRowsHtml(metrics) {
   const m = metrics || {};
   const keys = Object.keys(m);
@@ -6587,10 +6304,8 @@ function showQuickInfoEquip(eq) {
   rows.push(qiRow("Мониторинг", eq.monitorMethod && eq.monitorMethod !== "none" ? (MONITOR_METHOD_LABELS[eq.monitorMethod] || eq.monitorMethod) : "Не мониторится"));
   if (eq.monitorMethod === "snmp" && eq.snmpCommunity) rows.push(qiRow("SNMP community", eq.snmpCommunity));
   if (eq.monitorMethod === "snmp" && eq.snmpProfile) rows.push(qiRow("SNMP профиль", eq.snmpProfile));
-  if (eq.monitorMethod === "sppd" && eq.sppdAddress) rows.push(qiRow("SPPD адрес", eq.sppdAddress));
-  if (eq.monitorMethod === "fs" && eq.fsAddress) rows.push(qiRow("FieldSense адрес", eq.fsAddress));
   if (eq.monitorMethod === "custom" && eq.sourceAddress) rows.push(qiRow("Адрес в источнике", eq.sourceAddress));
-  const metricsHtml = (eq.monitorMethod === "sppd" || eq.monitorMethod === "custom") ? metricsRowsHtml(quickInfoMetricsCache.get(eq.id)) : "";
+  const metricsHtml = eq.monitorMethod === "custom" ? metricsRowsHtml(quickInfoMetricsCache.get(eq.id)) : "";
   dom.quickInfoBody.innerHTML = `<div class="qi-title">${esc(eq.label)}</div>${rows.join("")}${metricsHtml}`;
 }
 async function fetchEquipMetrics(eq) {
@@ -6609,7 +6324,7 @@ async function fetchEquipMetrics(eq) {
 }
 async function refreshQuickInfoMetrics() {
   const eq = currentQuickInfoEquip;
-  if (!eq || (eq.monitorMethod !== "sppd" && eq.monitorMethod !== "custom")) return;
+  if (!eq || eq.monitorMethod !== "custom") return;
   const metrics = await fetchEquipMetrics(eq);
   quickInfoMetricsCache.set(eq.id, metrics);
   if (currentQuickInfoEquip === eq) showQuickInfoEquip(eq);
@@ -6684,9 +6399,8 @@ function applyMonitorStatus(rows) {
   monitorStatusById.clear();
   let up = 0, down = 0, unknown = 0;
   // Суммы по людям/технике — только по тем строкам, где счётчик реально
-  // пришёл (не null): SBeacon сам решает, у скольких считывателей он
-  // сейчас есть данные, остальное (кабели/оборудование без SPPD) в сумму
-  // не подмешивается.
+  // пришёл (не null): источник сам решает, у скольких считывателей он
+  // сейчас прислал данные, остальное оборудование в сумму не подмешивается.
   let peopleTotal = 0, vehiclesTotal = 0, hasPeopleData = false, hasVehiclesData = false;
   for (const row of rows) {
     if (row.state === "up") up++;
@@ -6757,12 +6471,11 @@ function applyRoleToUI() {
     navToLogEl.href = `/${CURRENT_PROJECT_ID}/log`;
     navToLogEl.style.display = isAdmin ? "inline-flex" : "none";
   }
-  const btnUserAdminEl = document.getElementById("btnUserAdmin");
-  if (btnUserAdminEl) btnUserAdminEl.style.display = isAdmin ? "inline-flex" : "none";
-  const btnSppdConfigEl = document.getElementById("btnSppdConfig");
-  if (btnSppdConfigEl) btnSppdConfigEl.style.display = isAdmin ? "inline-flex" : "none";
-  const btnThresholdsEl = document.getElementById("btnThresholds");
-  if (btnThresholdsEl) btnThresholdsEl.style.display = isAdmin ? "inline-flex" : "none";
+  const navToSettingsEl = document.getElementById("navToSettings");
+  if (navToSettingsEl) {
+    navToSettingsEl.href = `/${CURRENT_PROJECT_ID}/settings`;
+    navToSettingsEl.style.display = isAdmin ? "inline-flex" : "none";
+  }
 
   // Кабели/оборудование/метки/сохранение — доступны editor и admin.
   const editButtonIds = ["btnAddCable", "btnAddEquip", "btnAddMark", "btnSaveAll", "cableDExtend", "btnImportObjects"];
@@ -6779,10 +6492,10 @@ function applyRoleToUI() {
     if (el) el.style.display = isAdmin ? "" : "none";
   }
 
-  // Настройка мониторинга (метод опроса, SNMP-community, адрес SPPD) —
+  // Настройка мониторинга (метод опроса, SNMP-community, источник) —
   // тоже только admin: это инфраструктурная привязка устройства, а не
   // повседневное редактирование карточки оборудования.
-  const monitorFieldIds = ["equipDMonitorMethod", "equipDSnmpCommunity", "equipDSnmpProfile", "equipDSppdAddress", "equipDFsAddress", "equipDDataSource", "equipDSourceAddress"];
+  const monitorFieldIds = ["equipDMonitorMethod", "equipDSnmpCommunity", "equipDSnmpProfile", "equipDDataSource", "equipDSourceAddress"];
   for (const id of monitorFieldIds) {
     const el = document.getElementById(id);
     if (el) el.disabled = !isAdmin;
@@ -6806,9 +6519,7 @@ function applyRoleToUI() {
     if (sessionProjectEl) sessionProjectEl.textContent = "Локальная резервная копия";
     if (sessionUserEl) sessionUserEl.textContent = "";
     if (navToLogEl) navToLogEl.style.display = "none";
-    if (btnUserAdminEl) btnUserAdminEl.style.display = "none";
-    if (btnSppdConfigEl) btnSppdConfigEl.style.display = "none";
-    if (btnThresholdsEl) btnThresholdsEl.style.display = "none";
+    if (navToSettingsEl) navToSettingsEl.style.display = "none";
     const btnLogoutEl = document.getElementById("btnLogout");
     if (btnLogoutEl) btnLogoutEl.style.display = "none";
     const btnSaveAllEl = document.getElementById("btnSaveAll");
@@ -6943,336 +6654,6 @@ async function saveToServer() {
 
 document.getElementById("btnLogout").addEventListener("click", () => {
   if (window.__kzmLogout) window.__kzmLogout();
-});
-
-/* ---------- панель управления пользователями (admin) ----------
-   Пароль в базе хранится как bcrypt-хеш — "посмотреть" исходный пароль
-   невозможно ни при каком UI. Кнопка с иконкой глаза вместо этого задаёт
-   новый пароль (по сути сброс). */
-const uaOverlay = document.getElementById("userAdminOverlay");
-const uaList = document.getElementById("userAdminList");
-const uaError = document.getElementById("userAdminError");
-function openUserAdminPanel() {
-  uaOverlay.classList.remove("hidden");
-  uaError.textContent = "";
-  loadUserAdminList();
-}
-function closeUserAdminPanel() {
-  uaOverlay.classList.add("hidden");
-}
-document.getElementById("btnUserAdmin").addEventListener("click", openUserAdminPanel);
-document.getElementById("btnUserAdminClose").addEventListener("click", closeUserAdminPanel);
-uaOverlay.addEventListener("click", (e) => { if (e.target === uaOverlay) closeUserAdminPanel(); });
-
-async function loadUserAdminList() {
-  try {
-    const resp = await apiFetch("/api/users");
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const data = await resp.json();
-    renderUserAdminList(data.users || []);
-  } catch (err) {
-    uaError.textContent = "Не удалось загрузить список пользователей: " + err.message;
-  }
-}
-function renderUserAdminList(users) {
-  uaList.innerHTML = "";
-  const myUsername = window.__auth && window.__auth.username;
-  for (const u of users) {
-    const row = document.createElement("div");
-    row.className = "ua-row";
-    const name = document.createElement("span");
-    name.className = "ua-name";
-    name.textContent = u.username;
-    const roleSelect = document.createElement("select");
-    for (const r of ["viewer", "editor", "admin"]) {
-      const opt = document.createElement("option");
-      opt.value = r; opt.textContent = r;
-      if (r === u.role) opt.selected = true;
-      roleSelect.appendChild(opt);
-    }
-    const dots = document.createElement("span");
-    dots.className = "ua-dots";
-    dots.textContent = "••••••••";
-    const btnReveal = document.createElement("button");
-    btnReveal.innerHTML = ICON_EYE;
-    btnReveal.title = "Пароль хранится в зашифрованном виде и его нельзя посмотреть — нажмите, чтобы задать новый";
-    const btnDelete = document.createElement("button");
-    btnDelete.className = "ua-delete";
-    btnDelete.innerHTML = ICON_X;
-    btnDelete.title = "Удалить пользователя";
-    if (u.username === myUsername) btnDelete.disabled = true;
-    row.appendChild(name); row.appendChild(roleSelect); row.appendChild(dots);
-    row.appendChild(btnReveal); row.appendChild(btnDelete);
-    uaList.appendChild(row);
-
-    const resetRow = document.createElement("div");
-    resetRow.className = "ua-reset-row";
-    const resetInput = document.createElement("input");
-    resetInput.type = "password";
-    resetInput.placeholder = "Новый пароль";
-    const btnResetSave = document.createElement("button");
-    btnResetSave.textContent = "Сохранить";
-    resetRow.appendChild(resetInput); resetRow.appendChild(btnResetSave);
-    uaList.appendChild(resetRow);
-
-    roleSelect.addEventListener("change", async () => {
-      uaError.textContent = "";
-      try {
-        const resp = await apiFetch(`/api/users/${encodeURIComponent(u.username)}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ role: roleSelect.value }),
-        });
-        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
-      } catch (err) {
-        uaError.textContent = "Не удалось сменить роль: " + err.message;
-        roleSelect.value = u.role;
-      }
-    });
-    btnReveal.addEventListener("click", () => {
-      resetRow.classList.toggle("open");
-      resetInput.value = "";
-      if (resetRow.classList.contains("open")) resetInput.focus();
-    });
-    btnResetSave.addEventListener("click", async () => {
-      uaError.textContent = "";
-      const pass = resetInput.value;
-      if (!pass || pass.length < 4) {
-        uaError.textContent = "Пароль должен быть не короче 4 символов.";
-        return;
-      }
-      try {
-        const resp = await apiFetch(`/api/users/${encodeURIComponent(u.username)}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password: pass }),
-        });
-        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
-        resetRow.classList.remove("open");
-        resetInput.value = "";
-      } catch (err) {
-        uaError.textContent = "Не удалось сменить пароль: " + err.message;
-      }
-    });
-    btnDelete.addEventListener("click", async () => {
-      if (u.username === myUsername) return;
-      if (!confirm(`Удалить пользователя «${u.username}»?`)) return;
-      uaError.textContent = "";
-      try {
-        const resp = await apiFetch(`/api/users/${encodeURIComponent(u.username)}`, { method: "DELETE" });
-        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
-        loadUserAdminList();
-      } catch (err) {
-        uaError.textContent = "Не удалось удалить пользователя: " + err.message;
-      }
-    });
-  }
-}
-document.getElementById("btnUaAdd").addEventListener("click", async () => {
-  const loginEl = document.getElementById("uaNewLogin");
-  const passEl = document.getElementById("uaNewPassword");
-  const roleEl = document.getElementById("uaNewRole");
-  const login = loginEl.value.trim();
-  const password = passEl.value;
-  uaError.textContent = "";
-  if (!login) { uaError.textContent = "Введите логин."; return; }
-  if (!password || password.length < 4) { uaError.textContent = "Пароль должен быть не короче 4 символов."; return; }
-  try {
-    const resp = await apiFetch("/api/users", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: login, password, role: roleEl.value }),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error === "already_exists" ? "Такой логин уже существует." : (err.error || ("HTTP " + resp.status)));
-    }
-    loginEl.value = ""; passEl.value = "";
-    loadUserAdminList();
-  } catch (err) {
-    uaError.textContent = "Не удалось добавить пользователя: " + err.message;
-  }
-});
-
-/* ---------- подключение к SPPD для этого проекта (admin), Этап 4 ----------
-   У каждой шахты (проекта) свой сервер SPPD со своим логином/паролем —
-   настраивается тут, а не общими переменными окружения одного воркера
-   (см. server/monitor/sppd-worker.js и docs/monitoring-plan.md). Пароль
-   сервер на GET никогда не отдаёт — только факт, что он задан; поле
-   остаётся пустым с подсказкой "оставить как есть", и пустое значение при
-   сохранении не затирает уже сохранённый пароль. */
-const scOverlay = document.getElementById("sppdConfigOverlay");
-const scStatus = document.getElementById("sppdConfigStatus");
-const scError = document.getElementById("sppdConfigError");
-function openSppdConfigPanel() {
-  scOverlay.classList.remove("hidden");
-  scError.textContent = "";
-  loadSppdConfig();
-}
-function closeSppdConfigPanel() {
-  scOverlay.classList.add("hidden");
-}
-document.getElementById("btnSppdConfig").addEventListener("click", openSppdConfigPanel);
-document.getElementById("btnSppdConfigClose").addEventListener("click", closeSppdConfigPanel);
-scOverlay.addEventListener("click", (e) => { if (e.target === scOverlay) closeSppdConfigPanel(); });
-
-async function loadSppdConfig() {
-  const urlEl = document.getElementById("scBaseUrl");
-  const userEl = document.getElementById("scUsername");
-  const passEl = document.getElementById("scPassword");
-  passEl.value = "";
-  try {
-    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/sppd-config`);
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const data = await resp.json();
-    urlEl.value = data.baseUrl || "";
-    userEl.value = data.username || "";
-    passEl.placeholder = data.configured ? "Оставить как есть" : "Пароль";
-    scStatus.textContent = data.configured
-      ? `Настроено${data.updatedBy ? " — " + data.updatedBy : ""}${data.updatedAt ? ", " + parseServerDate(data.updatedAt).toLocaleString() : ""}`
-      : "Пока не настроено — этот проект не будет опрашиваться sppd-worker.";
-  } catch (err) {
-    scStatus.textContent = "";
-    scError.textContent = "Не удалось загрузить настройку: " + err.message;
-  }
-}
-document.getElementById("btnSppdConfigSave").addEventListener("click", async () => {
-  const baseUrl = document.getElementById("scBaseUrl").value.trim();
-  const username = document.getElementById("scUsername").value.trim();
-  const password = document.getElementById("scPassword").value;
-  scError.textContent = "";
-  if (!/^https?:\/\/\S+$/.test(baseUrl)) { scError.textContent = "Укажите адрес вида http://10.20.99.7."; return; }
-  if (!username) { scError.textContent = "Введите логин сервисного аккаунта."; return; }
-  try {
-    const body = { baseUrl, username };
-    if (password) body.password = password;
-    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/sppd-config`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error || ("HTTP " + resp.status));
-    }
-    loadSppdConfig();
-  } catch (err) {
-    scError.textContent = "Не удалось сохранить: " + err.message;
-  }
-});
-document.getElementById("btnSppdConfigRemove").addEventListener("click", async () => {
-  if (!confirm(`Отключить мониторинг SPPD для проекта «${CURRENT_PROJECT_ID}»?`)) return;
-  scError.textContent = "";
-  try {
-    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/sppd-config`, { method: "DELETE" });
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    loadSppdConfig();
-  } catch (err) {
-    scError.textContent = "Не удалось отключить: " + err.message;
-  }
-});
-
-/* ---------- пороги фиксации аварии (Кабели/Оборуд. — ping; IILB/ISIB —
-   SPPD), per-project. Отсутствие настройки на сервере = используются
-   старые дефолты воркеров (см. project_monitor_thresholds в db.js). */
-const thOverlay = document.getElementById("thresholdsOverlay");
-const thStatus = document.getElementById("thresholdsStatus");
-const thError = document.getElementById("thresholdsError");
-function openThresholdsPanel() {
-  thOverlay.classList.remove("hidden");
-  thError.textContent = "";
-  loadThresholds();
-}
-function closeThresholdsPanel() {
-  thOverlay.classList.add("hidden");
-}
-document.getElementById("btnThresholds").addEventListener("click", openThresholdsPanel);
-document.getElementById("btnThresholdsClose").addEventListener("click", closeThresholdsPanel);
-thOverlay.addEventListener("click", (e) => { if (e.target === thOverlay) closeThresholdsPanel(); });
-
-async function loadThresholds() {
-  try {
-    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`);
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const data = await resp.json();
-    document.getElementById("thPingTimeout").value = data.pingTimeoutSec;
-    document.getElementById("thPingFails").value = data.pingFailDurationSec / 60;
-    document.getElementById("thSppdStale").value = data.sppdStaleAfterSec;
-    document.getElementById("thSppdFails").value = data.sppdFailDurationSec / 60;
-    document.getElementById("thFsFails").value = data.fsFailDurationSec / 60;
-    document.getElementById("thLampFails").value = data.lampFailAfterHours;
-    document.getElementById("thSlaCritical").value = data.ticketSlaCriticalHours;
-    document.getElementById("thSlaHigh").value = data.ticketSlaHighHours;
-    document.getElementById("thSlaMedium").value = data.ticketSlaMediumHours;
-    document.getElementById("thSlaLow").value = data.ticketSlaLowHours;
-    thStatus.textContent = data.configured
-      ? `Настроено${data.updatedBy ? " — " + data.updatedBy : ""}${data.updatedAt ? ", " + parseServerDate(data.updatedAt).toLocaleString() : ""}`
-      : "Используются значения по умолчанию (ничего явно не настроено).";
-  } catch (err) {
-    thStatus.textContent = "";
-    thError.textContent = "Не удалось загрузить пороги: " + err.message;
-  }
-}
-document.getElementById("btnThresholdsSave").addEventListener("click", async () => {
-  const pingTimeoutSec = parseInt(document.getElementById("thPingTimeout").value, 10);
-  const pingFailMinutes = parseFloat(document.getElementById("thPingFails").value);
-  const sppdStaleAfterSec = parseInt(document.getElementById("thSppdStale").value, 10);
-  const sppdFailMinutes = parseFloat(document.getElementById("thSppdFails").value);
-  thError.textContent = "";
-  if (!Number.isInteger(pingTimeoutSec) || pingTimeoutSec < 1 || pingTimeoutSec > 10) {
-    thError.textContent = "Таймаут пинга — целое число от 1 до 10 сек."; return;
-  }
-  if (!Number.isFinite(pingFailMinutes) || pingFailMinutes < 0 || pingFailMinutes > 60) {
-    thError.textContent = "Простой до аварии (ping) — число от 0 до 60 мин."; return;
-  }
-  const pingFailDurationSec = Math.round(pingFailMinutes * 60);
-  if (!Number.isInteger(sppdStaleAfterSec) || sppdStaleAfterSec < 30 || sppdStaleAfterSec > 3600) {
-    thError.textContent = "Молчание SPPD — целое число от 30 до 3600 сек."; return;
-  }
-  if (!Number.isFinite(sppdFailMinutes) || sppdFailMinutes < 0 || sppdFailMinutes > 60) {
-    thError.textContent = "Простой до аварии (SPPD) — число от 0 до 60 мин."; return;
-  }
-  const sppdFailDurationSec = Math.round(sppdFailMinutes * 60);
-  const fsFailMinutes = parseFloat(document.getElementById("thFsFails").value);
-  if (!Number.isFinite(fsFailMinutes) || fsFailMinutes < 0 || fsFailMinutes > 60) {
-    thError.textContent = "Простой до аварии (FieldSense) — число от 0 до 60 мин."; return;
-  }
-  const fsFailDurationSec = Math.round(fsFailMinutes * 60);
-  const lampFailAfterHours = parseInt(document.getElementById("thLampFails").value, 10);
-  if (!Number.isInteger(lampFailAfterHours) || lampFailAfterHours < 1 || lampFailAfterHours > 336) {
-    thError.textContent = "Молчание фонаря до «неисправен» — целое число от 1 до 336 ч."; return;
-  }
-  const ticketSlaCriticalHours = parseInt(document.getElementById("thSlaCritical").value, 10);
-  const ticketSlaHighHours = parseInt(document.getElementById("thSlaHigh").value, 10);
-  const ticketSlaMediumHours = parseInt(document.getElementById("thSlaMedium").value, 10);
-  const ticketSlaLowHours = parseInt(document.getElementById("thSlaLow").value, 10);
-  for (const [label, val] of [["критичный", ticketSlaCriticalHours], ["высокий", ticketSlaHighHours], ["средний", ticketSlaMediumHours], ["низкий", ticketSlaLowHours]]) {
-    if (!Number.isInteger(val) || val < 1 || val > 720) {
-      thError.textContent = `Срок устранения (${label}) — целое число от 1 до 720 ч.`; return;
-    }
-  }
-  try {
-    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pingTimeoutSec, pingFailDurationSec, sppdStaleAfterSec, sppdFailDurationSec, fsFailDurationSec, lampFailAfterHours,
-        ticketSlaCriticalHours, ticketSlaHighHours, ticketSlaMediumHours, ticketSlaLowHours,
-      }),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error || ("HTTP " + resp.status));
-    }
-    loadThresholds();
-  } catch (err) {
-    thError.textContent = "Не удалось сохранить: " + err.message;
-  }
-});
-document.getElementById("btnThresholdsRemove").addEventListener("click", async () => {
-  if (!confirm(`Сбросить пороги проекта «${CURRENT_PROJECT_ID}» на значения по умолчанию?`)) return;
-  thError.textContent = "";
-  try {
-    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/thresholds`, { method: "DELETE" });
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    loadThresholds();
-  } catch (err) {
-    thError.textContent = "Не удалось сбросить: " + err.message;
-  }
 });
 
 async function restoreFromSnapshot(state) {
@@ -7509,15 +6890,6 @@ animate();
     await new Promise((r) => setTimeout(r, 150));
   }
   applyRoleToUI();
-  // Кнопки "Пользователи"/"SPPD"/"Пороги" с остальных страниц (Фонари/ЗИП/
-  // Статистика) ведут сюда с ?panel=…, а не дублируют сами модалки —
-  // открываем нужную сразу после входа.
-  const panelParam = new URLSearchParams(location.search).get("panel");
-  if (panelParam && window.__auth.role === "admin") {
-    if (panelParam === "users") openUserAdminPanel();
-    else if (panelParam === "sppd") openSppdConfigPanel();
-    else if (panelParam === "thresholds") openThresholdsPanel();
-  }
   if (window.__auth.offline) {
     // Локальная резервная копия — снимок уже встроен в сам файл (см.
     // saveStandaloneCopy()/authGate выше), сервер тут не при чём.
