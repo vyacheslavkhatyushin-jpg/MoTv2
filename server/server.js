@@ -110,9 +110,10 @@ function sendStatus(ws, projectId) {
   ws.send(JSON.stringify({ type: "status", status: getMonitorStatus(projectId) }));
 }
 
-// Разовая белая вспышка "новая метка на считывателе" (Этап 4, SPPD/
-// SBeacon) — sppd-worker.js пишет ряды в monitor_tag_pulses по мере
-// обнаружения, этот процесс на каждом цикле рассылки подбирает свежие
+// Разовая белая вспышка "новая метка на считывателе" — воркеры мониторинга
+// (custom-monitor-worker.js через shared.emitTagPulse) пишут ряды в
+// monitor_tag_pulses по мере обнаружения, этот процесс на каждом цикле
+// рассылки подбирает свежие
 // (после lastTagPulseSent для проекта) и шлёт клиентам. Курсор берём из
 // SQLite (`datetime('now')`), а не из JS Date().toISOString() — форматы
 // разные ("YYYY-MM-DD HH:MM:SS" против "...THH:MM:SS.sssZ"), и обычное

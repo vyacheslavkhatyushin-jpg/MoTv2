@@ -27,44 +27,12 @@ services:
     volumes:
       - mine-ops-data:/app/server/data
 
-  # Мониторинг оборудования, Этап 4 — коллектор SPPD/SBeacon (система на
-  # шахте, изначально называли "FlexCom"): живой статус IILB/ISIB и счётчик
-  # людей/меток. У каждой шахты (проекта) свой сервер SPPD со своим логином
-  # /паролем, поэтому это не переменные окружения здесь, а настройка на
-  # проект в самой БД — задаётся админом в интерфейсе (вкладка "Шахта" →
-  # ⚙ SPPD, см. GET/PUT /api/projects/:id/monitor/sppd-config). Сервер SPPD
-  # доступен только из внутренней сети шахты, поэтому этот сервис имеет
-  # смысл только на реальном сервере, не в облачной разработке.
-  sppd-worker:
-    build:
-      context: .
-      dockerfile: server/Dockerfile
-    command: ["node", "monitor/sppd-worker.js"]
-    restart: unless-stopped
-    volumes:
-      - mine-ops-data:/app/server/data
-
-  # FieldSense (FlexAlertTTE) — поиск обрыва кабеля, оборудование FS.
-  # Тот же физический сервер и тот же логин/пароль, что у SPPD
-  # (project_sppd_config переиспользуется, отдельной настройки нет), но
-  # это не WebSocket, а обычная HTML-страница — коллектор просто опрашивает
-  # её по таймеру, поэтому вынесен в отдельный процесс, а не довешен на
-  # sppd-worker.
-  fieldsense-worker:
-    build:
-      context: .
-      dockerfile: server/Dockerfile
-    command: ["node", "monitor/fieldsense-worker.js"]
-    restart: unless-stopped
-    volumes:
-      - mine-ops-data:/app/server/data
-
   # Универсальный коллектор для настраиваемых источников (project_data_sources,
   # см. /parsing и server/routes/parsing.js) — читает parser_json из БД, а не
-  # захардкоженный протокол, как ping/sppd/fieldsense-worker выше. Пока эта
-  # таблица пуста (никто не "опубликовал" источник через /parsing), сервис
-  # просто ничего не делает — включение нового источника не требует
-  # передеплоя, только запись в БД через API.
+  # захардкоженный протокол на источник. Пока эта таблица пуста (никто не
+  # "опубликовал" источник через /parsing), сервис просто ничего не делает —
+  # включение нового источника не требует передеплоя, только запись в БД
+  # через API.
   custom-monitor-worker:
     build:
       context: .
