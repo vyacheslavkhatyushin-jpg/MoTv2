@@ -80,6 +80,48 @@ function triangulate(points) {
   return indices;
 }
 
+// Лёгкий разбор .glb без сторонних библиотек — чтобы показать в UI реальное
+// число вершин/треугольников/bbox для DXF-пути так же, как для CSV
+// (pointCount/triangleCount). Без этого "Готово" означало только то, что
+// assimp завершился с кодом 0 — а он может завершиться успешно, но не
+// извлечь ни одной грани (например, если поверхность в DXF задана не
+// 3DFACE, а POLYLINE/polyface mesh, которые эта сборка assimp не
+// поддерживает) — тогда получится пустой, но "успешный" .glb.
+// GLB: 12-байтный заголовок (magic/version/length), затем чанки —
+// первый всегда JSON (сам glTF-документ), из его accessors[].min/max по
+// POSITION-атрибуту берём bbox без похода в бинарный BIN-чанк вообще.
+function inspectGlb(buffer) {
+  if (buffer.length < 20 || buffer.toString("ascii", 0, 4) !== "glTF") {
+    throw new Error("Не похоже на валидный .glb (нет magic-заголовка)");
+  }
+  const jsonChunkLength = buffer.readUInt32LE(12);
+  const jsonChunkType = buffer.toString("ascii", 16, 20);
+  if (jsonChunkType !== "JSON") throw new Error("Первый чанк .glb — не JSON");
+  const json = JSON.parse(buffer.toString("utf8", 20, 20 + jsonChunkLength));
+
+  const meshes = json.meshes || [];
+  const accessors = json.accessors || [];
+  let primitiveCount = 0, vertexCount = 0, triangleCount = 0;
+  let bboxMin = null, bboxMax = null;
+  for (const mesh of meshes) {
+    for (const prim of mesh.primitives || []) {
+      primitiveCount++;
+      const posAcc = accessors[prim.attributes && prim.attributes.POSITION];
+      if (posAcc) {
+        vertexCount += posAcc.count || 0;
+        if (posAcc.min && posAcc.max) {
+          bboxMin = bboxMin ? bboxMin.map((v, i) => Math.min(v, posAcc.min[i])) : posAcc.min.slice();
+          bboxMax = bboxMax ? bboxMax.map((v, i) => Math.max(v, posAcc.max[i])) : posAcc.max.slice();
+        }
+      }
+      const idxAcc = accessors[prim.indices];
+      if (idxAcc) triangleCount += Math.floor((idxAcc.count || 0) / 3);
+      else if (posAcc) triangleCount += Math.floor((posAcc.count || 0) / 3); // без indices — плоский triangle list
+    }
+  }
+  return { meshCount: meshes.length, primitiveCount, vertexCount, triangleCount, bboxMin, bboxMax };
+}
+
 // Метаданные текущей поверхности — в памяти процесса, осознанно: это
 // экспериментальный однопользовательский инструмент, не продакшен-сервис.
 let currentSurface = null; // { format: "mesh"|"glb", uploadedAt, sourceName, file }
@@ -118,8 +160,10 @@ router.post("/api/upload", upload.single("file"), async (req, res) => {
           resolve();
         });
       });
+      const glbStats = inspectGlb(fs.readFileSync(outPath));
       currentSurface = {
         format: "glb", file: outName, sourceName: req.file.originalname, uploadedAt: new Date().toISOString(),
+        ...glbStats,
       };
       res.json({ surface: currentSurface });
     } else {
