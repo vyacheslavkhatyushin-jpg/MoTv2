@@ -1,0 +1,16 @@
+{
+  "name": "openpit-test",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Изолированный MVP-спайк: загрузка CSV/DXF поверхности карьера и просмотр в CesiumJS. Не связан с основным приложением MoTv2 — своя БД (её нет), свой сервер, свой порт.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "delaunator": "^5.0.1",
+    "express": "^4.19.2",
+    "multer": "^2.0.0"
+  }
+}

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>open-pit-test — MVP-спайк</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Widgets/widgets.css">
+<style>
+  :root{
+    --bg:#14171a; --panel:#1b1f23; --panel-alt:#22272b; --border:#31373d;
+    --text:#e4e8eb; --text-dim:#8d979f; --text-faint:#5f6a71;
+    --accent:#ff9f1c; --danger:#e6553d; --ok:#2ecc71;
+  }
+  *{box-sizing:border-box;}
+  html,body{ margin:0; padding:0; width:100%; height:100%; background:var(--bg); color:var(--text);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:13px; }
+  #shell{ display:flex; flex-direction:column; width:100vw; height:100vh; }
+  #topBar{
+    flex:0 0 auto; height:52px; display:flex; align-items:center; gap:14px; padding:0 16px;
+    background:linear-gradient(180deg,#1c2126,#14171a); border-bottom:1px solid var(--border);
+  }
+  #topBar h1{ font-size:14px; margin:0; font-weight:700; }
+  #topBar .tagline{ font-size:11px; color:var(--text-faint); }
+  #main{ flex:1 1 auto; display:flex; min-height:0; }
+  #sidebar{ width:280px; flex:0 0 auto; border-right:1px solid var(--border); background:var(--panel); padding:16px; overflow-y:auto; }
+  #cesiumContainer{ flex:1 1 auto; min-width:0; }
+  h2{ font-size:12.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim); margin:0 0 10px; }
+  .card{ background:var(--panel-alt); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:14px; }
+  .hint{ font-size:11px; color:var(--text-faint); line-height:1.5; margin-bottom:10px; }
+  input[type=file]{ width:100%; font-size:11.5px; color:var(--text-dim); margin-bottom:10px; }
+  button{
+    width:100%; background:var(--accent); border:1px solid var(--accent); color:#14171a; font-weight:700;
+    padding:8px; border-radius:6px; cursor:pointer; font-family:inherit; font-size:12.5px;
+  }
+  button:disabled{ opacity:.5; cursor:default; }
+  #status{ font-size:11.5px; margin-top:10px; line-height:1.5; }
+  #status.err{ color:var(--danger); }
+  #status.ok{ color:var(--ok); }
+  #surfaceInfo{ font-size:11.5px; color:var(--text-dim); line-height:1.6; }
+  #surfaceInfo .row{ display:flex; justify-content:space-between; gap:8px; }
+  #surfaceInfo .k{ color:var(--text-faint); }
+</style>
+</head>
+<body>
+<div id="shell">
+  <header id="topBar">
+    <div>
+      <h1>open-pit-test</h1>
+      <div class="tagline">Изолированный MVP-спайк — CesiumJS + реальные данные карьера</div>
+    </div>
+  </header>
+  <div id="main">
+    <div id="sidebar">
+      <h2>Загрузить поверхность</h2>
+      <div class="card">
+        <div class="hint">CSV — as-built выгрузка "lat;lon;height" (запятая — десятичный разделитель). DXF — с 3DFACE-сущностями (триангулированная поверхность), конвертируется через assimp.</div>
+        <input type="file" id="fileInput" accept=".csv,.dxf">
+        <button id="btnUpload">Загрузить и построить</button>
+        <div id="status"></div>
+      </div>
+      <h2>Текущая поверхность</h2>
+      <div class="card">
+        <div id="surfaceInfo">Ничего не загружено</div>
+      </div>
+    </div>
+    <div id="cesiumContainer"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/Cesium.js"></script>
+<script>
+Cesium.Ion.defaultAccessToken = undefined;
+
+const viewer = new Cesium.Viewer("cesiumContainer", {
+  baseLayerPicker: false, imageryProvider: false,
+  terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+  animation: false, timeline: false, geocoder: false, homeButton: false,
+  sceneModePicker: false, navigationHelpButton: false, fullscreenButton: false,
+});
+viewer.scene.globe.show = false;
+viewer.scene.skyBox.show = false;
+viewer.scene.skyAtmosphere.show = false;
+viewer.scene.backgroundColor = Cesium.Color.fromCssColorString("#0d0f11");
+
+let currentPrimitive = null;
+let currentModel = null;
+
+function clearScene() {
+  if (currentPrimitive) { viewer.scene.primitives.remove(currentPrimitive); currentPrimitive = null; }
+  if (currentModel) { viewer.scene.primitives.remove(currentModel); currentModel = null; }
+}
+
+async function loadMeshSurface() {
+  const { points, indices } = await (await fetch("api/surface/file")).json();
+  const flatLLH = [];
+  for (const [lon, lat, h] of points) flatLLH.push(lon, lat, h);
+  const cartesians = Cesium.Cartesian3.fromDegreesArrayHeights(flatLLH);
+  const positions = new Float64Array(cartesians.length * 3);
+  for (let i = 0; i < cartesians.length; i++) {
+    positions[i * 3] = cartesians[i].x; positions[i * 3 + 1] = cartesians[i].y; positions[i * 3 + 2] = cartesians[i].z;
+  }
+  const geometry = new Cesium.Geometry({
+    attributes: { position: new Cesium.GeometryAttribute({ componentDatatype: Cesium.ComponentDatatype.DOUBLE, componentsPerAttribute: 3, values: positions }) },
+    indices: new Uint32Array(indices),
+    primitiveType: Cesium.PrimitiveType.TRIANGLES,
+    boundingSphere: Cesium.BoundingSphere.fromVertices(positions),
+  });
+  const geometryWithNormals = Cesium.GeometryPipeline.computeNormal(geometry);
+  const instance = new Cesium.GeometryInstance({
+    geometry: geometryWithNormals,
+    attributes: { color: Cesium.ColorGeometryInstanceAttribute.fromColor(Cesium.Color.fromCssColorString("#c9a876")) },
+  });
+  currentPrimitive = viewer.scene.primitives.add(new Cesium.Primitive({
+    geometryInstances: instance,
+    appearance: new Cesium.PerInstanceColorAppearance({ flat: false, translucent: false }),
+    asynchronous: false,
+  }));
+
+  let sumLon = 0, sumLat = 0, sumH = 0;
+  for (const [lon, lat, h] of points) { sumLon += lon; sumLat += lat; sumH += h; }
+  const centerLon = sumLon / points.length, centerLat = sumLat / points.length, centerH = sumH / points.length;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat - 0.01, centerH + 900),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-45), roll: 0 },
+    duration: 1,
+  });
+}
+
+async function loadGlbSurface() {
+  const model = await Cesium.Model.fromGltfAsync({ url: "api/surface/file" });
+  currentModel = viewer.scene.primitives.add(model);
+  model.readyEvent.addEventListener(() => viewer.zoomTo(model));
+}
+
+async function refreshSurfaceInfo() {
+  const data = await (await fetch("api/surface")).json();
+  const el = document.getElementById("surfaceInfo");
+  const s = data.surface;
+  if (!s) { el.textContent = "Ничего не загружено"; return; }
+  el.innerHTML = [
+    ["Файл", s.sourceName],
+    ["Формат", s.format === "mesh" ? "CSV → mesh" : "DXF → glb"],
+    s.pointCount ? ["Точек", s.pointCount.toLocaleString("ru-RU")] : null,
+    s.triangleCount ? ["Треугольников", s.triangleCount.toLocaleString("ru-RU")] : null,
+    ["Загружено", new Date(s.uploadedAt).toLocaleString("ru-RU")],
+  ].filter(Boolean).map(([k, v]) => `<div class="row"><span class="k">${k}</span><span>${v}</span></div>`).join("");
+
+  clearScene();
+  if (s.format === "mesh") await loadMeshSurface();
+  else await loadGlbSurface();
+}
+
+document.getElementById("btnUpload").addEventListener("click", async () => {
+  const input = document.getElementById("fileInput");
+  const statusEl = document.getElementById("status");
+  const btn = document.getElementById("btnUpload");
+  if (!input.files.length) { statusEl.className = "err"; statusEl.textContent = "Выберите файл."; return; }
+  const fd = new FormData();
+  fd.append("file", input.files[0]);
+  btn.disabled = true;
+  statusEl.className = ""; statusEl.textContent = "Обрабатываю…";
+  try {
+    const resp = await fetch("api/upload", { method: "POST", body: fd });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.message || data.error || ("HTTP " + resp.status));
+    statusEl.className = "ok"; statusEl.textContent = "Готово.";
+    await refreshSurfaceInfo();
+  } catch (e) {
+    statusEl.className = "err"; statusEl.textContent = "Ошибка: " + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+refreshSurfaceInfo();
+</script>
+</body>
+</html>
