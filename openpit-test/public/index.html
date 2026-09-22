@@ -126,10 +126,46 @@ async function loadMeshSurface() {
   });
 }
 
-async function loadGlbSurface() {
-  const model = await Cesium.Model.fromGltfAsync({ url: "api/surface/file" });
+async function loadGlbSurface(surface) {
+  // DXF почти всегда в локальной/проекционной системе координат съёмки
+  // (метры, крупные числа), не в геодезической lon/lat — без привязки
+  // Cesium подставит эти числа как координаты от центра Земли, и модель
+  // окажется буквально нигде (или без bbox вообще не будет видно, куда
+  // смотреть). Центрируем по bbox из inspectGlb() на сервере и привязываем
+  // центр к произвольной опорной точке (пока не решаем вопрос реальной
+  // геопривязки — это отдельная задача, здесь только "чтобы было видно").
+  let modelMatrix;
+  if (surface.bboxMin && surface.bboxMax) {
+    const center = surface.bboxMin.map((v, i) => (v + surface.bboxMax[i]) / 2);
+    const anchor = Cesium.Cartesian3.fromDegrees(74.30, 51.857, 100);
+    const enu = Cesium.Transforms.eastNorthUpToFixedFrame(anchor);
+    const recenter = Cesium.Matrix4.fromTranslation(new Cesium.Cartesian3(-center[0], -center[1], -center[2]));
+    modelMatrix = Cesium.Matrix4.multiply(enu, recenter, new Cesium.Matrix4());
+  }
+  // assimp не пишет в DXF→glTF ни NORMAL, ни стабильный порядок обхода
+  // вершин — с включённым backface culling (дефолт) грани стабильно
+  // невидимы с "внешней" стороны, экран остаётся пустым без единой ошибки.
+  const model = await Cesium.Model.fromGltfAsync({ url: "api/surface/file", modelMatrix, backFaceCulling: false });
+  // fromGltfAsync резолвится уже с готовой моделью (ready === true) — к этому
+  // моменту readyEvent уже отстрелялся, и подписка на него после add() никогда
+  // не срабатывает. Отдельно от этого: viewer.zoomTo() вообще не принимает
+  // Cesium.Model как цель (только Entity/DataSource/Cesium3DTileset и т.п.) —
+  // он молча резолвится без ошибки и без единого движения камеры. Нужен
+  // camera.flyToBoundingSphere(), который работает с любым BoundingSphere.
   currentModel = viewer.scene.primitives.add(model);
-  model.readyEvent.addEventListener(() => viewer.zoomTo(model));
+  // model.boundingSphere считается во время update() сцены — сразу после
+  // add() его обычно ещё нет, и обращение к геттеру до готовности не просто
+  // возвращает undefined, а бросает исключение изнутри Cesium. Опрашиваем
+  // через postRender, глотая ошибку, пока геттер не станет доступен.
+  let boundingSphere;
+  for (let i = 0; i < 60 && !boundingSphere; i++) {
+    await new Promise((resolve) => {
+      const remove = viewer.scene.postRender.addEventListener(() => { remove(); resolve(); });
+    });
+    try { boundingSphere = model.boundingSphere; } catch { /* ещё не готово */ }
+  }
+  if (!boundingSphere) throw new Error("Не удалось получить boundingSphere модели");
+  viewer.camera.flyToBoundingSphere(boundingSphere, { duration: 1 });
 }
 
 async function refreshSurfaceInfo() {
@@ -141,13 +177,17 @@ async function refreshSurfaceInfo() {
     ["Файл", s.sourceName],
     ["Формат", s.format === "mesh" ? "CSV → mesh" : "DXF → glb"],
     s.pointCount ? ["Точек", s.pointCount.toLocaleString("ru-RU")] : null,
+    s.vertexCount ? ["Вершин", s.vertexCount.toLocaleString("ru-RU")] : null,
     s.triangleCount ? ["Треугольников", s.triangleCount.toLocaleString("ru-RU")] : null,
     ["Загружено", new Date(s.uploadedAt).toLocaleString("ru-RU")],
   ].filter(Boolean).map(([k, v]) => `<div class="row"><span class="k">${k}</span><span>${v}</span></div>`).join("");
+  if (s.format === "glb" && !s.triangleCount) {
+    el.innerHTML += `<div class="row" style="color:var(--danger);">assimp не извлёк ни одной грани — DXF, похоже, не в 3DFACE, а в другом типе сущностей (POLYLINE/polyface mesh?)</div>`;
+  }
 
   clearScene();
   if (s.format === "mesh") await loadMeshSurface();
-  else await loadGlbSurface();
+  else if (s.triangleCount) await loadGlbSurface(s);
 }
 
 document.getElementById("btnUpload").addEventListener("click", async () => {
