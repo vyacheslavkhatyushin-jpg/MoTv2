@@ -486,11 +486,23 @@ if (new URLSearchParams(location.search).get("embed") === "1") {
   // Сообщаем settings.html реальную высоту контента, чтобы iframe не имел
   // своей прокрутки (см. body.embedded #app/.wrap выше) — settings.html
   // слушает это сообщение и выставляет высоту iframe.
+  // ResizeObserver тут не подходит: он следит за собственным layout-размером
+  // #app, а тот зафиксирован флексом на высоту самого iframe (#shell{height:
+  // 100vh}) и не меняется, когда содержимое "вылезает" за счёт
+  // overflow-y:visible — так высота iframe не обновлялась при переключении
+  // вкладок на более высокий контент (пропала бы не сразу, а появлялась
+  // внутренняя прокрутка). MutationObserver + scrollHeight отслеживает
+  // реальный контент, а не размер контейнера.
   const appEl = document.getElementById("app");
+  let reportedHeight = -1;
   const reportHeight = () => {
-    window.parent.postMessage({ type: "mot-references-height", height: appEl.scrollHeight }, location.origin);
+    const h = appEl.scrollHeight;
+    if (h === reportedHeight) return;
+    reportedHeight = h;
+    window.parent.postMessage({ type: "mot-references-height", height: h }, location.origin);
   };
-  new ResizeObserver(reportHeight).observe(appEl);
+  new MutationObserver(reportHeight).observe(appEl, { childList: true, subtree: true, attributes: true });
+  window.addEventListener("resize", reportHeight);
   reportHeight();
 }
 
