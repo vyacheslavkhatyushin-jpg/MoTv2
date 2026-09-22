@@ -1,0 +1,14 @@
+# Полностью отдельный от основного docker-compose.yml проекта — свой
+# контейнер, свой порт, никак не пересекается с сервисами MoTv2.
+# Запуск: cd openpit-test && docker compose up -d --build
+services:
+  openpit-test:
+    build: .
+    ports:
+      - "3100:3100"
+    volumes:
+      - openpit-test-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  openpit-test-data:
