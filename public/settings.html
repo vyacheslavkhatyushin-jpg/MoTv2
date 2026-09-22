@@ -115,6 +115,13 @@
   .settings-nav-btn svg{ width:16px; height:16px; flex-shrink:0; }
   .settings-content{ flex:1 1 auto; min-width:0; overflow-y:auto; padding:26px 32px 60px; }
   .settings-panel{ display:none; max-width:1400px; }
+  /* Справочники — таблицы-матрицы "Формы оборудования × Системы" и т.п.,
+     которым тесно в общем max-width:1400px (пустой отступ справа на
+     широких экранах, на более узких — сама таблица упирается и появляется
+     горизонтальная прокрутка). Ширину внутри уже растягивает сам
+     references.html (.wrap{max-width:none} в embed-режиме) — здесь просто
+     не ограничиваем контейнер снаружи. */
+  #panel-references{ max-width:none; }
   .settings-panel.active{ display:block; }
   .settings-panel h2{ margin:0 0 4px; font-size:18px; font-weight:700; }
   .settings-panel .subtitle{ margin:0 0 20px; font-size:12px; color:var(--text-faint); line-height:1.6; }
