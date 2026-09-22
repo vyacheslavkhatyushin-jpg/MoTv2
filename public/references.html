@@ -34,6 +34,14 @@
      admin-only на уровне settings.html). */
   body.embedded #topBar{ display:none; }
   body.embedded .top{ display:none; }
+  /* Встроено — своя внутренняя прокрутка (#app) и узкая центрированная
+     колонка (.wrap, max-width:1240px) вместе с прокруткой самой Настроек
+     давали вторую полосу прокрутки и пустые поля по бокам, хотя в
+     остальных вкладках Настроек контент занимает всю доступную ширину и
+     прокручивается только сама страница Настроек. Высоту iframe теперь
+     выставляет родитель по сообщению postMessage ниже (см. ResizeObserver). */
+  body.embedded #app{ overflow-y:visible; }
+  body.embedded .wrap{ max-width:none; }
   #topBar{
     flex:0 0 auto; height:56px; display:flex; align-items:center; gap:14px;
     padding:0 18px; background:linear-gradient(180deg,#1c2126,#14171a);
@@ -475,6 +483,15 @@ document.getElementById("navToParsing").href = "/parsing";
 
 if (new URLSearchParams(location.search).get("embed") === "1") {
   document.body.classList.add("embedded");
+  // Сообщаем settings.html реальную высоту контента, чтобы iframe не имел
+  // своей прокрутки (см. body.embedded #app/.wrap выше) — settings.html
+  // слушает это сообщение и выставляет высоту iframe.
+  const appEl = document.getElementById("app");
+  const reportHeight = () => {
+    window.parent.postMessage({ type: "mot-references-height", height: appEl.scrollHeight }, location.origin);
+  };
+  new ResizeObserver(reportHeight).observe(appEl);
+  reportHeight();
 }
 
 function boot(){
