@@ -401,11 +401,15 @@
   .nav-dpad{
     display:grid; grid-template-columns:26px 26px 26px; grid-template-rows:26px 26px 26px; gap:2px;
   }
+  .dpad-tl{ grid-column:1; grid-row:1; }
   .dpad-up{ grid-column:2; grid-row:1; }
+  .dpad-tr{ grid-column:3; grid-row:1; }
   .dpad-left{ grid-column:1; grid-row:2; }
   .dpad-home{ grid-column:2; grid-row:2; font-size:14px; }
   .dpad-right{ grid-column:3; grid-row:2; }
+  .dpad-bl{ grid-column:1; grid-row:3; }
   .dpad-down{ grid-column:2; grid-row:3; }
+  .dpad-br{ grid-column:3; grid-row:3; }
   .nav-axes{ align-items:stretch; }
   .axis-row{ display:flex; align-items:center; gap:4px; }
   .axis-row .nav-btn{ width:22px; height:22px; }
@@ -653,17 +657,16 @@
     <div id="vpStats"></div>
     <div id="coordReadout" class="mono"></div>
     <div id="navToolbar">
-      <div class="nav-group">
-        <button class="nav-btn" id="btnZoomIn" title="Приблизить">+</button>
-        <button class="nav-btn" id="btnZoomOut" title="Отдалить">–</button>
-      </div>
-      <div class="nav-divider"></div>
       <div class="nav-group nav-dpad">
+        <button class="nav-btn dpad-tl" id="btnZoomIn" title="Приблизить">+</button>
         <button class="nav-btn dpad-up" id="btnRotUp" title="Повернуть вверх">▲</button>
+        <button class="nav-btn dpad-tr" id="btnZoomOut" title="Отдалить">–</button>
         <button class="nav-btn dpad-left" id="btnRotLeft" title="Повернуть влево">◀</button>
         <button class="nav-btn dpad-home" id="btnFrameAll" title="Показать всю модель">⌂</button>
         <button class="nav-btn dpad-right" id="btnRotRight" title="Повернуть вправо">▶</button>
+        <button class="nav-btn nav-btn-pivot dpad-bl" id="btnPivotMode" title="Выбрать точку вращения: включить и кликнуть по модели">⊕</button>
         <button class="nav-btn dpad-down" id="btnRotDown" title="Повернуть вниз">▼</button>
+        <button class="nav-btn dpad-br" id="btnTopView" title="Вид сверху">⬒</button>
       </div>
       <div class="nav-divider"></div>
       <div class="nav-group nav-axes">
@@ -682,10 +685,6 @@
           <button class="nav-btn" data-axis="z" data-sign="-1" title="Сдвиг −Z">–</button>
           <button class="nav-btn" data-axis="z" data-sign="1" title="Сдвиг +Z">+</button>
         </div>
-      </div>
-      <div class="nav-divider"></div>
-      <div class="nav-group">
-        <button class="nav-btn nav-btn-pivot" id="btnPivotMode" title="Выбрать точку вращения: включить и кликнуть по модели">⊕</button>
       </div>
     </div>
     <div id="quickInfoPanel" class="collapsed">
@@ -2992,6 +2991,28 @@ function frameAll() {
   }
   if (!any) return;
   flyTo(box, true);
+}
+// "Вид сверху" — камера строго над центром модели, смотрит вниз по Y (вверх
+// в этой сцене, см. Y+ "вверх" в панели навигации). Небольшой сдвиг по Z
+// (0.001*dist) — иначе camera.position и controls.target совпадают по X/Z
+// с up-вектором OrbitControls, что даёт вырожденный (gimbal lock) поворот.
+function topView() {
+  const box = new THREE.Box3();
+  let any = false;
+  for (const layer of layers.values()) {
+    for (const h of layer.horizons.values()) {
+      for (const leaf of h.leaves.values()) {
+        if (leaf.bbox) { box.union(leaf.bbox); any = true; }
+      }
+    }
+  }
+  if (!any) return;
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
+  const dist = maxDim * 1.6 + 20;
+  const pos = center.clone().add(new THREE.Vector3(0, dist, dist * 0.001));
+  animateCamera(pos, center);
 }
 /* ---------- неоновая подсветка выбранного объекта ----------
    Кабели/заплатки строятся в мировых координатах (геометрия сама по себе —
@@ -6826,6 +6847,7 @@ try {
   navBtn("btnRotLeft")?.addEventListener("click", () => rotateStep(-ROT_STEP, 0));
   navBtn("btnRotRight")?.addEventListener("click", () => rotateStep(ROT_STEP, 0));
   navBtn("btnFrameAll")?.addEventListener("click", () => { if (modelLoaded) frameAll(); });
+  navBtn("btnTopView")?.addEventListener("click", () => { if (modelLoaded) topView(); });
   navBtn("btnPivotMode")?.addEventListener("click", () => setPivotPickMode(!pivotPickMode));
   document.querySelectorAll(".axis-row .nav-btn").forEach((btn) => {
     btn.addEventListener("click", () => panAxisStep(btn.dataset.axis, parseFloat(btn.dataset.sign)));
