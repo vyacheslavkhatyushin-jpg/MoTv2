@@ -914,20 +914,46 @@ function renderInventoryList(elId, rows, unit) {
   `;
   }).join("");
 }
-// Метки типов кабелей/форм оборудования дублируют CABLE_TYPES/EQUIP_SHAPE_LABELS
-// из index.html — эта страница не грузит редактор целиком, только /state.
-const INV_CABLE_LABELS = { vols: "ВОЛС", lfc: "LFC", kao: "КАО", tk: "ТК", power: "Силовой", ftp: "FTP" };
-const INV_CABLE_ORDER = ["vols", "lfc", "kao", "tk", "power", "ftp"];
-const INV_EQUIP_LABELS = {
-  mla: "MLA", map: "MAP", odf: "Муфта ODF", iilb: "IILB", isib: "ISIB", cam: "CAM",
-  mps: "MPS", mpc: "MPC", mtu: "MTU", mvsa: "MVSA", wifi: "WiFi", mbu: "MBU",
-  fs: "FS", tel: "TEL", stativ_lfc: "Статив LFC", stativ_ao: "Статив АО", poe: "PoE", go: "ГО",
-  stativ: "Статив (устар.)", custom: "Другое",
-};
-const INV_EQUIP_ORDER = ["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "go", "stativ", "custom"];
-// Формы, для которых физически возможен опрос (см. MONITORABLE_SHAPES в index.html) —
-// только для них в плитке показываются две цифры (мониторится/всего).
-const INV_MONITORABLE_SHAPES = new Set(["map", "iilb", "isib", "wifi", "cam", "fs", "tel", "stativ_lfc", "stativ_ao", "go", "custom"]);
+// Метки/порядок типов кабелей и форм оборудования — раньше были захардкожены
+// здесь (копия CABLE_TYPES/EQUIP_SHAPE_LABELS из index.html на момент
+// написания), из-за чего новый тип кабеля или форма, заведённые через
+// Настройки → Справочники, в этой сводке проваливались в общую кучу
+// "Другое" вместо своего настоящего имени. Теперь грузим из того же
+// справочника (см. loadInventoryCatalogMeta), что и Пороги/Справочники.
+let INV_CABLE_LABELS = {};
+let INV_CABLE_ORDER = [];
+let INV_EQUIP_LABELS = {};
+let INV_EQUIP_ORDER = [];
+// Формы, для которых физически возможен опрос (было MONITORABLE_SHAPES в
+// index.html, тоже захардкожено) — только для них в плитке показываются
+// две цифры (мониторится/всего).
+let INV_MONITORABLE_SHAPES = new Set();
+async function loadInventoryCatalogMeta() {
+  try {
+    const [cableResp, shapeResp] = await Promise.all([
+      apiFetch("/api/references/cable-types/public"),
+      apiFetch("/api/references/equipment-shapes/public"),
+    ]);
+    if (cableResp.ok) {
+      const data = await cableResp.json();
+      for (const c of data.cableTypes || []) {
+        INV_CABLE_LABELS[c.key] = c.label;
+        INV_CABLE_ORDER.push(c.key);
+      }
+    }
+    if (shapeResp.ok) {
+      const data = await shapeResp.json();
+      for (const s of data.shapes || []) {
+        INV_EQUIP_LABELS[s.key] = s.label;
+        INV_EQUIP_ORDER.push(s.key);
+        if (s.monitorable) INV_MONITORABLE_SHAPES.add(s.key);
+      }
+    }
+  } catch (e) {
+    // сеть недоступна — сводка кабелей/оборудования просто не покажет строк
+    // (loadInventorySummary фильтрует по INV_*_ORDER), остальная страница не ломается
+  }
+}
 function cablePathLen(nodes) {
   let len = 0;
   for (let i = 1; i < (nodes || []).length; i++) {
@@ -993,8 +1019,8 @@ async function boot() {
   applyRoleUI();
   updateTicketsBadge();
   loadProjectSwitcher();
+  await Promise.all([loadMonitorSystemsMeta(), loadInventoryCatalogMeta()]);
   loadInventorySummary();
-  await loadMonitorSystemsMeta();
   const urlSystem = new URL(location.href).searchParams.get("system");
   if (urlSystem && (urlSystem === "all" || MONITOR_SYSTEMS_LIST.includes(urlSystem))) {
     showTableView(urlSystem);
