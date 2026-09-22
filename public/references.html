@@ -27,8 +27,13 @@
   #shell{ display:flex; flex-direction:column; width:100vw; height:100vh; }
   /* Встроено в iframe модуля "Настройки" (?embed=1, см. settings.html) —
      у Настроек уже есть свой топбар снаружи, второй здесь только дублирует
-     его и делает страницу похожей на "вложенную". */
+     его и делает страницу похожей на "вложенную". По той же причине
+     скрываем .top: у settings.html уже есть свой <h2>Справочники</h2> +
+     подзаголовок над iframe (см. panel-references) — здесь это дублирование
+     плюс неуместный тут бейдж "Только для admin" (доступ к вкладке и так
+     admin-only на уровне settings.html). */
   body.embedded #topBar{ display:none; }
+  body.embedded .top{ display:none; }
   #topBar{
     flex:0 0 auto; height:56px; display:flex; align-items:center; gap:14px;
     padding:0 18px; background:linear-gradient(180deg,#1c2126,#14171a);
