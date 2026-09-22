@@ -3507,10 +3507,23 @@ function buildCableGeometry(nodes, radius, lineType) {
   if (!dashGeoms.length) return buildSolidTubeGeometry(nodes, radius);
   return BufferGeometryUtils.mergeGeometries(dashGeoms);
 }
+// Геометрия маркера узла зависит только от радиуса (толщина кабеля ×
+// nodeScale) — одинаковых кабелей в проекте обычно много, а SphereGeometry
+// раньше создавалась заново на КАЖДЫЙ узел КАЖДОГО кабеля при любой правке
+// трассы. Кэшируем по округлённому радиусу; материал НЕ шарим — его цвет
+// мутируется напрямую при выделении кабеля (см. selectCable), общий
+// материал перекрасил бы маркеры всех кабелей разом.
+const cableMarkerGeoCache = new Map();
+function getCableMarkerGeometry(radius) {
+  const key = Math.round(radius * 1000);
+  let geo = cableMarkerGeoCache.get(key);
+  if (!geo) { geo = new THREE.SphereGeometry(radius, 8, 8); cableMarkerGeoCache.set(key, geo); }
+  return geo;
+}
 function buildCableNodeMarkers(nodes, radius, color, nodeScale) {
   const group = new THREE.Group();
+  const geo = getCableMarkerGeometry(radius * 1.7 * (nodeScale ?? 1));
   const markers = nodes.map((p) => {
-    const geo = new THREE.SphereGeometry(radius * 1.7 * (nodeScale ?? 1), 8, 8);
     const mat = new THREE.MeshBasicMaterial({ color });
     const s = new THREE.Mesh(geo, mat);
     s.position.copy(p);
@@ -3617,8 +3630,10 @@ function rebuildCableMesh(c) {
   syncHighlightGeometry(c.mesh);
   c.length = cablePathLength(c.nodes);
   while (c.nodeGroup.children.length) {
+    // geometry — из общего кэша (getCableMarkerGeometry), диспозить нельзя:
+    // её используют маркеры других кабелей/узлов того же радиуса.
     const m = c.nodeGroup.children.pop();
-    m.geometry.dispose(); m.material.dispose();
+    m.material.dispose();
   }
   const { markers } = buildCableNodeMarkers(c.nodes, c.radius, c.color, c.nodeScale);
   markers.forEach((m) => c.nodeGroup.add(m));
@@ -3638,7 +3653,8 @@ function deleteCable(id) {
   if (highlightState && highlightState.key === "cable:" + id) clearHighlight();
   scene.remove(c.mesh); c.mesh.geometry.dispose(); c.mesh.material.dispose();
   scene.remove(c.nodeGroup);
-  c.nodeGroup.children.forEach((m) => { m.geometry.dispose(); m.material.dispose(); });
+  // geometry — общая (кэш по радиусу), диспозить нельзя, см. getCableMarkerGeometry.
+  c.nodeGroup.children.forEach((m) => { m.material.dispose(); });
   if (c.labelObj) { scene.remove(c.labelObj); c.labelObj.element.remove(); }
   cables.delete(id);
   recordDeletion("cable", c);
