@@ -236,8 +236,85 @@
   .ds-row .ds-toggle{ display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-dim); cursor:pointer; }
   .ds-empty, .card .empty{ text-align:center; color:var(--text-faint); padding:24px 10px; font-size:12px; }
 
-  /* ---- справочники: встроенная страница /references ---- */
-  #referencesFrame{ width:100%; height:calc(100vh - 140px); border:1px solid var(--border); border-radius:10px; background:var(--panel); }
+  /* ---- справочники: перенесено напрямую из references.html (раньше —
+     iframe на /references?embed=1; три захода патчить синхронизацию
+     размеров/скролла показали, что "страница в странице" лечится только
+     тем, что это вообще не отдельная страница — см. git-историю). Стили
+     ниже — то, чего не было в settings.html: .card/.btn/input переиспользуют
+     уже существующие выше, только добавляем недостающее, ограничивая
+     #panel-references, чтобы не задеть остальные вкладки. ---- */
+  #panel-references .tabs{ display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:20px; flex-wrap:wrap; }
+  #panel-references .tab-btn{
+    appearance:none; background:none; border:none; color:var(--text-dim); font-family:inherit;
+    font-size:13.5px; font-weight:600; padding:11px 16px; cursor:pointer; border-bottom:2px solid transparent;
+    margin-bottom:-1px; transition:color .15s;
+  }
+  #panel-references .tab-btn:hover{ color:var(--text); }
+  #panel-references .tab-btn.active{ color:var(--text); border-bottom-color:var(--accent-2); }
+  #panel-references .ref-panel{ display:none; }
+  #panel-references .ref-panel.active{ display:block; }
+  #panel-references .card-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+  #panel-references .card-head h3{ font-size:15px; margin:0; }
+  #panel-references .card-head .hint{ font-size:12px; color:var(--text-dim); }
+  #panel-references input[type=text], #panel-references select{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    font-family:inherit; font-size:13px; padding:7px 9px; border-radius:6px; outline:none;
+  }
+  #panel-references input:focus, #panel-references select:focus{ border-color:var(--accent-2); }
+  #panel-references select{ cursor:pointer; }
+  #panel-references .btn.sm{ padding:6px 10px; font-size:12px; }
+  #panel-references .btn.ghost{ background:transparent; border-color:transparent; color:var(--text-dim); }
+  #panel-references .btn.ghost:hover{ color:var(--danger); background:rgba(230,85,61,0.08); border-color:transparent; }
+  #panel-references .btn svg{ width:14px; height:14px; }
+  #panel-references table.data-table{ width:100%; border-collapse:collapse; }
+  #panel-references table.data-table th{
+    text-align:left; font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;
+    font-weight:600; padding:0 10px 8px; border-bottom:1px solid var(--border);
+  }
+  #panel-references table.data-table td{ padding:8px 10px 8px 0; vertical-align:middle; }
+  #panel-references table.data-table td:first-child{ padding-left:0; }
+  #panel-references table.data-table tr + tr td{ border-top:1px solid var(--border); }
+  #panel-references table.data-table tr td{ padding-top:10px; padding-bottom:10px; }
+  #panel-references .key-cell{ font-family:ui-monospace,monospace; color:var(--text-dim); }
+  #panel-references .group-header{ display:flex; align-items:center; gap:10px; padding:14px 0 8px; margin-top:6px; }
+  #panel-references .group-header:first-child{ margin-top:0; }
+  #panel-references .group-header .dot{ width:8px; height:8px; border-radius:50%; background:var(--accent-2); }
+  #panel-references .group-header .name{ font-weight:700; font-size:12.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--text); }
+  #panel-references .group-header .count{ font-size:11.5px; color:var(--text-dim); }
+  #panel-references .add-form{ display:none; gap:10px; align-items:center; flex-wrap:wrap; padding:14px; margin-bottom:16px; background:var(--panel-alt); border:1px solid var(--border); border-radius:8px; }
+  #panel-references .add-form.open{ display:flex; }
+  #panel-references .add-form input, #panel-references .add-form select{ min-width:110px; }
+  #panel-references .check-inline{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-dim); white-space:nowrap; cursor:pointer; }
+  #panel-references .check-inline input{ min-width:0; width:auto; }
+  #panel-references .profile-card{ border:1px solid var(--border); border-radius:10px; background:var(--panel-alt); padding:20px; margin-bottom:14px; }
+  #panel-references .profile-card:last-child{ margin-bottom:0; }
+  #panel-references .profile-head{ display:flex; align-items:center; gap:14px; margin-bottom:14px; flex-wrap:wrap; }
+  #panel-references .profile-head input{ flex:1; min-width:200px; font-weight:700; font-size:15px; background:transparent; border:none; padding:2px 0; }
+  #panel-references .profile-head input:focus{ border:none; outline:none; }
+  #panel-references .profile-chips{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+  #panel-references .attr-chip{
+    display:inline-flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--border);
+    border-radius:999px; padding:5px 6px 5px 12px; font-size:12.5px;
+  }
+  #panel-references .attr-chip .k{ font-family:ui-monospace,monospace; color:var(--text-dim); }
+  #panel-references .attr-chip button{
+    appearance:none; border:none; background:var(--border); color:var(--text-dim); width:18px; height:18px;
+    border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:11px; line-height:1;
+  }
+  #panel-references .attr-chip button:hover{ background:var(--danger); color:#fff; }
+  #panel-references .add-attr-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  #panel-references .add-attr-row select{ max-width:260px; }
+  #panel-references .profile-usage{ margin-top:12px; font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:8px; }
+  #panel-references input[type=color]{ width:36px; height:28px; padding:2px; border-radius:6px; border:1px solid var(--border); background:var(--panel-alt); cursor:pointer; }
+  #panel-references .line-preview{ width:50px; height:0; border-top-width:3px; border-top-style:solid; display:inline-block; vertical-align:middle; }
+
+  .toast{
+    position:fixed; bottom:20px; right:20px; z-index:2000; max-width:360px; padding:12px 16px;
+    border-radius:8px; font-size:13px; line-height:1.5; box-shadow:0 12px 30px rgba(0,0,0,.4);
+    display:none; border:1px solid var(--border);
+  }
+  .toast.ok{ background:#173325; color:var(--ok); border-color:rgba(46,204,113,.4); }
+  .toast.err{ background:#3a1f1a; color:#ff8a75; border-color:rgba(230,85,61,.5); }
 
   #settingsError, #settingsForbidden{ text-align:center; color:var(--text-faint); padding:60px 20px; line-height:1.6; }
   #settingsError{ color:var(--danger); }
@@ -477,7 +554,165 @@
         <section class="settings-panel" id="panel-references">
           <h2>Справочники</h2>
           <p class="subtitle">Кабели, формы оборудования и системы мониторинга — общие для всех проектов. Изменения применяются сразу.</p>
-          <iframe id="referencesFrame" src="about:blank"></iframe>
+
+          <div class="tabs">
+            <button class="tab-btn active" data-reftab="attrs">Атрибуты</button>
+            <button class="tab-btn" data-reftab="profiles">Профили оборудования</button>
+            <button class="tab-btn" data-reftab="cables">Типы кабелей</button>
+            <button class="tab-btn" data-reftab="shapes">Формы оборудования</button>
+            <button class="tab-btn" data-reftab="systems">Системы мониторинга</button>
+          </div>
+
+          <!-- TAB 1: ATTRIBUTES -->
+          <div class="ref-panel active" id="refpanel-attrs">
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <h3>Каталог атрибутов</h3>
+                  <div class="hint" style="margin-top:4px;">Ключ нельзя изменить после создания — он уже может использоваться в сохранённых данных мониторинга</div>
+                </div>
+                <button class="btn primary sm" id="toggle-add-attr">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                  Новый атрибут
+                </button>
+              </div>
+              <div class="add-form" id="add-attr-form">
+                <input type="text" class="mono" id="new-attr-key" placeholder="ключ (напр. humidity)">
+                <input type="text" id="new-attr-label" placeholder="название">
+                <select id="new-attr-type">
+                  <option value="number">Число</option>
+                  <option value="boolean">Логическое</option>
+                  <option value="string">Строка</option>
+                </select>
+                <input type="text" id="new-attr-unit" placeholder="ед. изм. (необязательно)" style="max-width:140px;">
+                <input type="text" id="new-attr-group" placeholder="группа" style="max-width:140px;">
+                <button class="btn primary sm" id="submit-add-attr">Создать</button>
+              </div>
+              <div id="attrs-groups"></div>
+            </div>
+          </div>
+
+          <!-- TAB 2: EQUIPMENT PROFILES -->
+          <div class="ref-panel" id="refpanel-profiles">
+            <div class="card" style="margin-bottom:16px;">
+              <div class="card-head" style="margin-bottom:0;">
+                <div>
+                  <h3>Профили оборудования</h3>
+                  <div class="hint" style="margin-top:4px;">Набор атрибутов на класс устройства. У каждого объекта на модели будет ровно один профиль.</div>
+                </div>
+                <button class="btn primary sm" id="add-profile">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                  Новый профиль
+                </button>
+              </div>
+            </div>
+            <div id="profiles-list"></div>
+          </div>
+
+          <!-- TAB 3: CABLE TYPES -->
+          <div class="ref-panel" id="refpanel-cables">
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <h3>Типы кабелей</h3>
+                  <div class="hint" style="margin-top:4px;">Атрибуты кабелям не нужны — только вид на модели</div>
+                </div>
+                <button class="btn primary sm" id="toggle-add-cable">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                  Новый тип кабеля
+                </button>
+              </div>
+              <div class="add-form" id="add-cable-form">
+                <input type="text" class="mono" id="new-cable-key" placeholder="ключ (напр. optic2)">
+                <input type="text" id="new-cable-label" placeholder="название">
+                <input type="color" id="new-cable-color" value="#4fd6e0">
+                <input type="text" id="new-cable-thickness" placeholder="толщина" style="max-width:80px;">
+                <select id="new-cable-linetype">
+                  <option value="solid">Сплошная</option>
+                  <option value="dashed">Пунктир</option>
+                  <option value="dotted">Точки</option>
+                </select>
+                <button class="btn primary sm" id="submit-add-cable">Создать</button>
+              </div>
+              <table class="data-table">
+                <thead><tr><th style="width:14%;">Ключ</th><th style="width:22%;">Название</th><th style="width:14%;">Цвет</th><th style="width:14%;">Толщина</th><th style="width:18%;">Стиль линии</th><th style="width:10%;">Исп.</th><th></th></tr></thead>
+                <tbody id="cabletypes-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TAB 4: EQUIPMENT SHAPES -->
+          <div class="ref-panel" id="refpanel-shapes">
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <h3>Формы оборудования</h3>
+                  <div class="hint" style="margin-top:4px;">Новая форма получит обобщённую 3D-модель (сфера) — у 18 базовых форм своя, зашита в коде. "Доступна при создании" скрывает устаревшие формы из списка добавления новой единицы, не удаляя их из уже расставленного оборудования.</div>
+                </div>
+                <button class="btn primary sm" id="toggle-add-shape">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                  Новая форма
+                </button>
+              </div>
+              <div class="add-form" id="add-shape-form">
+                <input type="text" class="mono" id="new-shape-key" placeholder="ключ (напр. gas_station)">
+                <input type="text" id="new-shape-label" placeholder="название">
+                <input type="color" id="new-shape-color" value="#4fd6e0">
+                <select id="new-shape-geometry">
+                  <option value="sphere">Сфера</option>
+                  <option value="box">Куб</option>
+                  <option value="cylinder">Цилиндр</option>
+                  <option value="cone">Конус</option>
+                  <option value="capsule">Капсула</option>
+                  <option value="disc">Диск</option>
+                </select>
+                <label class="check-inline"><input type="checkbox" id="new-shape-monitorable" checked> Мониторится</label>
+                <label class="check-inline"><input type="checkbox" id="new-shape-selectable" checked> Доступна при создании</label>
+                <button class="btn primary sm" id="submit-add-shape">Создать</button>
+              </div>
+              <table class="data-table">
+                <thead><tr><th style="width:12%;">Ключ</th><th style="width:20%;">Название</th><th style="width:10%;">Цвет</th><th style="width:13%;">3D-модель</th><th style="width:12%;">Мониторится</th><th style="width:14%;">Доступна при создании</th><th style="width:9%;">Исп.</th><th></th></tr></thead>
+                <tbody id="equipshapes-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TAB 5: MONITOR SYSTEMS -->
+          <div class="ref-panel" id="refpanel-systems">
+            <div class="card" style="margin-bottom:16px;">
+              <div class="card-head">
+                <div>
+                  <h3>Системы связи/позиционирования</h3>
+                  <div class="hint" style="margin-top:4px;">Кнопки-фильтры на странице "Мониторинг" — кабель/оборудование может входить в несколько систем сразу</div>
+                </div>
+              </div>
+              <div class="add-form" id="add-system-form" style="display:flex;">
+                <input type="text" id="new-system-key" placeholder="название (напр. ВН)">
+                <button class="btn primary sm" id="submit-add-system">Добавить</button>
+              </div>
+              <div id="systems-list" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;"></div>
+            </div>
+
+            <div class="card" style="margin-bottom:16px;">
+              <div class="card-head">
+                <h3>Типы кабелей × Системы</h3>
+              </div>
+              <table class="data-table">
+                <thead><tr id="cable-systems-head"><th style="width:20%;">Тип кабеля</th></tr></thead>
+                <tbody id="cable-systems-body"></tbody>
+              </table>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <h3>Формы оборудования × Системы</h3>
+              </div>
+              <table class="data-table">
+                <thead><tr id="shape-systems-head"><th style="width:20%;">Форма</th></tr></thead>
+                <tbody id="shape-systems-body"></tbody>
+              </table>
+            </div>
+          </div>
         </section>
 
         <!-- ============ Источники данных ============ -->
@@ -497,6 +732,8 @@
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <script type="module">
 const CURRENT_PROJECT_ID = (location.pathname.split("/").filter(Boolean)[0] || "default").toLowerCase();
 
@@ -507,7 +744,11 @@ function apiHeaders(extra) {
   return headers;
 }
 async function apiFetch(url, options) {
-  const resp = await fetch(url, Object.assign({}, options, { headers: apiHeaders((options && options.headers) || {}) }));
+  // Content-Type по умолчанию — как было в apiFetch references.html: часть
+  // перенесённых оттуда вызовов (создание атрибутов/кабелей/форм и т.п.)
+  // полагается на этот дефолт и не проставляет заголовок сама. Явные
+  // headers в options (как у порогов/пользователей) переопределяют его.
+  const resp = await fetch(url, Object.assign({}, options, { headers: apiHeaders(Object.assign({ "Content-Type": "application/json" }, (options && options.headers) || {})) }));
   if (resp.status === 401) {
     if (window.__kzmLogout) window.__kzmLogout();
     throw new Error("Сессия истекла, требуется повторный вход.");
@@ -530,29 +771,21 @@ function parseServerDate(s) {
    /api/users и /api/references по роли независимо от того, что тут покажут. */
 const ADMIN_ONLY_SECTIONS = new Set(["users", "references"]);
 let isFullAdmin = false;
+let referencesLoaded = false;
 function showSection(name) {
   if (ADMIN_ONLY_SECTIONS.has(name) && !isFullAdmin) name = "thresholds";
   document.querySelectorAll(".settings-nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.section === name));
   document.querySelectorAll(".settings-panel").forEach((p) => p.classList.toggle("active", p.id === "panel-" + name));
-  if (name === "references") {
-    const frame = document.getElementById("referencesFrame");
-    if (frame.src === "about:blank") frame.src = "/references?embed=1";
+  if (name === "references" && !referencesLoaded) {
+    referencesLoaded = true;
+    loadAttrs().then(loadProfiles);
+    Promise.all([loadCableTypes(), loadEquipShapes()]).then(loadMonitorSystems);
   }
   if (name === "sources") loadDataSources();
   try { history.replaceState(null, "", `/${CURRENT_PROJECT_ID}/settings?section=${name}`); } catch (e) {}
 }
 document.querySelectorAll(".settings-nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => showSection(btn.dataset.section));
-});
-
-// Высота iframe подстраивается под реальный контент (сообщение от
-// references.html?embed=1, см. ResizeObserver там) — раньше высота была
-// фиксирована на calc(100vh - 140px), из-за чего при контенте выше этого
-// у самого iframe была своя прокрутка вдобавок к прокрутке .settings-content.
-window.addEventListener("message", (e) => {
-  if (e.origin !== location.origin || !e.data || e.data.type !== "mot-references-height") return;
-  const frame = document.getElementById("referencesFrame");
-  if (frame) frame.style.height = Math.max(200, e.data.height) + "px";
 });
 
 /* ================= Пользователи (та же логика, что была в index.html) ================= */
@@ -687,6 +920,419 @@ document.getElementById("btnUaAdd").addEventListener("click", async () => {
     uaError.textContent = "Не удалось добавить пользователя: " + err.message;
   }
 });
+
+/* ================= Справочники (перенесено из references.html — раньше
+   было отдельной страницей в iframe, см. комментарий у #panel-references
+   в CSS выше) ================= */
+function showToast(text, isError) {
+  const el = document.getElementById("toast");
+  el.textContent = text;
+  el.className = "toast " + (isError ? "err" : "ok");
+  el.style.display = "block";
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = "none"; }, 4000);
+}
+async function friendlyError(resp) {
+  let data = {};
+  try { data = await resp.json(); } catch (e) {}
+  if (data.error === "in_use") {
+    const n = data.count !== undefined ? " (используется на " + data.count + " объект(ах))" : "";
+    return "Нельзя удалить — уже используется" + n + ".";
+  }
+  if (data.error === "already_exists") return "Такой ключ уже существует.";
+  if (data.error === "invalid_key") return "Ключ должен начинаться с буквы и содержать только латиницу/цифры/подчёркивание.";
+  return data.message || data.error || ("Ошибка " + resp.status);
+}
+document.querySelectorAll("#panel-references .tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#panel-references .tab-btn").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll("#panel-references .ref-panel").forEach((p) => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("refpanel-" + btn.dataset.reftab).classList.add("active");
+  });
+});
+
+var REF_TYPE_LABELS = { number: "Число", boolean: "Логическое", string: "Строка" };
+var refAttrs = [];
+var refProfiles = [];
+var refCableTypes = [];
+var refEquipShapes = [];
+var refMonitorSystems = [];
+
+/* ---------- attributes ---------- */
+async function loadAttrs() {
+  const resp = await apiFetch("/api/references/attributes");
+  const data = await resp.json();
+  refAttrs = data.attributes || [];
+  renderAttrs();
+}
+function refAttrLabel(key) {
+  var a = refAttrs.find((x) => x.key === key);
+  return a ? a.label : key;
+}
+function renderAttrs() {
+  var el = document.getElementById("attrs-groups");
+  var groups = [];
+  refAttrs.forEach((a) => { if (groups.indexOf(a.groupName) === -1) groups.push(a.groupName); });
+  el.innerHTML = groups.map((g) => {
+    var rows = refAttrs.filter((a) => a.groupName === g).map((a) => {
+      return '<tr data-key="' + a.key + '">' +
+        '<td class="key-cell">' + a.key + '</td>' +
+        '<td><input type="text" data-af="label" value="' + a.label.replace(/"/g, "&quot;") + '"></td>' +
+        '<td><select data-af="dataType">' + Object.keys(REF_TYPE_LABELS).map((t) => '<option value="' + t + '"' + (t === a.dataType ? " selected" : "") + '>' + REF_TYPE_LABELS[t] + '</option>').join("") + '</select></td>' +
+        '<td><input type="text" data-af="unit" value="' + (a.unit || "").replace(/"/g, "&quot;") + '" placeholder="—" style="max-width:80px;"></td>' +
+        '<td><input type="text" data-af="groupName" value="' + a.groupName.replace(/"/g, "&quot;") + '" style="max-width:140px;"></td>' +
+        '<td><button class="btn ghost sm" data-del-attr="' + a.key + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></td>' +
+      '</tr>';
+    }).join("");
+    return '<div class="group-header"><span class="dot"></span><span class="name">' + g + '</span><span class="count">' + refAttrs.filter((a) => a.groupName === g).length + '</span></div>' +
+      '<table class="data-table"><thead><tr><th style="width:16%;">Ключ</th><th style="width:32%;">Название</th><th style="width:14%;">Тип</th><th style="width:12%;">Ед. изм.</th><th style="width:16%;">Группа</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }).join("") || '<div class="hint">Атрибутов пока нет</div>';
+
+  el.querySelectorAll("[data-af]").forEach((inp) => {
+    inp.addEventListener("change", async () => {
+      var key = inp.closest("tr").dataset.key;
+      try {
+        const resp = await apiFetch("/api/references/attributes/" + encodeURIComponent(key), {
+          method: "PATCH", body: JSON.stringify({ [inp.dataset.af]: inp.value }),
+        });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        showToast("Сохранено");
+        await loadAttrs();
+      } catch (e) { showToast(e.message, true); await loadAttrs(); }
+    });
+  });
+  el.querySelectorAll("[data-del-attr]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        const resp = await apiFetch("/api/references/attributes/" + encodeURIComponent(btn.dataset.delAttr), { method: "DELETE" });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        showToast("Атрибут удалён");
+        await loadAttrs();
+        await loadProfiles();
+      } catch (e) { showToast(e.message, true); }
+    });
+  });
+}
+document.getElementById("toggle-add-attr").addEventListener("click", () => {
+  document.getElementById("add-attr-form").classList.toggle("open");
+});
+document.getElementById("submit-add-attr").addEventListener("click", async () => {
+  var body = {
+    key: document.getElementById("new-attr-key").value.trim(),
+    label: document.getElementById("new-attr-label").value.trim(),
+    dataType: document.getElementById("new-attr-type").value,
+    unit: document.getElementById("new-attr-unit").value.trim(),
+    groupName: document.getElementById("new-attr-group").value.trim(),
+  };
+  try {
+    const resp = await apiFetch("/api/references/attributes", { method: "POST", body: JSON.stringify(body) });
+    if (!resp.ok) throw new Error(await friendlyError(resp));
+    showToast("Атрибут создан");
+    document.getElementById("add-attr-form").classList.remove("open");
+    ["new-attr-key", "new-attr-label", "new-attr-unit", "new-attr-group"].forEach((id) => { document.getElementById(id).value = ""; });
+    await loadAttrs();
+  } catch (e) { showToast(e.message, true); }
+});
+
+/* ---------- equipment profiles ---------- */
+async function loadProfiles() {
+  const resp = await apiFetch("/api/references/equipment-profiles");
+  const data = await resp.json();
+  refProfiles = data.profiles || [];
+  renderProfiles();
+}
+function renderProfiles() {
+  var el = document.getElementById("profiles-list");
+  el.innerHTML = refProfiles.map((p) => {
+    var chips = p.attributes.map((k) => {
+      return '<span class="attr-chip"><span class="k">' + k + '</span>' + refAttrLabel(k) +
+        '<button data-rm-attr="' + k + '">×</button></span>';
+    }).join("");
+    var available = refAttrs.filter((a) => p.attributes.indexOf(a.key) === -1);
+    var addSelect = available.length
+      ? '<select data-add-attr-select><option value="">Добавить атрибут…</option>' + available.map((a) => '<option value="' + a.key + '">' + a.label + ' (' + a.key + ')</option>').join("") + '</select>' +
+        '<button class="btn sm" data-add-attr-btn>Добавить</button>'
+      : '<span class="hint">Все атрибуты каталога уже добавлены</span>';
+    return '<div class="profile-card" data-profile="' + p.id + '">' +
+      '<div class="profile-head">' +
+        '<input type="text" data-pf-name value="' + p.name.replace(/"/g, "&quot;") + '">' +
+        '<button class="btn ghost sm" data-del-profile="' + p.id + '" style="margin-left:auto;">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></svg>' +
+          ' Удалить профиль' +
+        '</button>' +
+      '</div>' +
+      '<div class="profile-chips">' + (chips || '<span class="hint">Атрибуты не добавлены</span>') + '</div>' +
+      '<div class="add-attr-row">' + addSelect + '</div>' +
+      '<div class="profile-usage"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5"/></svg> Используется на ' + p.usage + ' объект(ах)</div>' +
+    '</div>';
+  }).join("") || '<div class="card"><div class="hint">Профилей пока нет</div></div>';
+
+  el.querySelectorAll("[data-pf-name]").forEach((inp) => {
+    inp.addEventListener("change", async () => {
+      var id = inp.closest("[data-profile]").dataset.profile;
+      try {
+        const resp = await apiFetch("/api/references/equipment-profiles/" + id, { method: "PATCH", body: JSON.stringify({ name: inp.value }) });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        showToast("Сохранено");
+      } catch (e) { showToast(e.message, true); await loadProfiles(); }
+    });
+  });
+  el.querySelectorAll("[data-del-profile]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        const resp = await apiFetch("/api/references/equipment-profiles/" + btn.dataset.delProfile, { method: "DELETE" });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        showToast("Профиль удалён");
+        await loadProfiles();
+      } catch (e) { showToast(e.message, true); }
+    });
+  });
+  el.querySelectorAll("[data-rm-attr]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      var id = btn.closest("[data-profile]").dataset.profile;
+      try {
+        const resp = await apiFetch("/api/references/equipment-profiles/" + id + "/attributes/" + encodeURIComponent(btn.dataset.rmAttr), { method: "DELETE" });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        await loadProfiles();
+      } catch (e) { showToast(e.message, true); }
+    });
+  });
+  el.querySelectorAll("[data-add-attr-btn]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      var card = btn.closest("[data-profile]");
+      var sel = card.querySelector("[data-add-attr-select]");
+      if (!sel.value) return;
+      try {
+        const resp = await apiFetch("/api/references/equipment-profiles/" + card.dataset.profile + "/attributes", { method: "POST", body: JSON.stringify({ attributeKey: sel.value }) });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        await loadProfiles();
+      } catch (e) { showToast(e.message, true); }
+    });
+  });
+}
+document.getElementById("add-profile").addEventListener("click", async () => {
+  try {
+    const resp = await apiFetch("/api/references/equipment-profiles", { method: "POST", body: JSON.stringify({ name: "Новый профиль" }) });
+    if (!resp.ok) throw new Error(await friendlyError(resp));
+    await loadProfiles();
+  } catch (e) { showToast(e.message, true); }
+});
+
+/* ---------- cable types ---------- */
+async function loadCableTypes() {
+  const resp = await apiFetch("/api/references/cable-types");
+  const data = await resp.json();
+  refCableTypes = data.cableTypes || [];
+  renderCableTypes();
+}
+function renderCableTypes() {
+  var body = document.getElementById("cabletypes-body");
+  body.innerHTML = refCableTypes.map((c) => {
+    return '<tr data-ctkey="' + c.key + '">' +
+      '<td class="key-cell">' + c.key + '</td>' +
+      '<td><input type="text" data-ct="label" value="' + c.label.replace(/"/g, "&quot;") + '"></td>' +
+      '<td><input type="color" data-ct="color" value="' + c.color + '"></td>' +
+      '<td><input type="text" data-ct="thickness" value="' + c.thickness + '" style="max-width:70px;"></td>' +
+      '<td><select data-ct="lineType"><option value="solid"' + (c.lineType === "solid" ? " selected" : "") + '>Сплошная</option><option value="dashed"' + (c.lineType === "dashed" ? " selected" : "") + '>Пунктир</option><option value="dotted"' + (c.lineType === "dotted" ? " selected" : "") + '>Точки</option></select> <span class="line-preview" style="border-top-color:' + c.color + '; border-top-style:' + c.lineType + ';"></span></td>' +
+      '<td class="hint">' + c.usage + '</td>' +
+      '<td><button class="btn ghost sm" data-del-ct="' + c.key + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></td>' +
+    '</tr>';
+  }).join("");
+  body.querySelectorAll("[data-ct]").forEach((inp) => {
+    inp.addEventListener("change", async () => {
+      var key = inp.closest("tr").dataset.ctkey;
+      try {
+        const resp = await apiFetch("/api/references/cable-types/" + encodeURIComponent(key), { method: "PATCH", body: JSON.stringify({ [inp.dataset.ct]: inp.value }) });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        showToast("Сохранено");
+        await loadCableTypes();
+      } catch (e) { showToast(e.message, true); await loadCableTypes(); }
+    });
+  });
+  body.querySelectorAll("[data-del-ct]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        const resp = await apiFetch("/api/references/cable-types/" + encodeURIComponent(btn.dataset.delCt), { method: "DELETE" });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        showToast("Тип кабеля удалён");
+        await loadCableTypes();
+      } catch (e) { showToast(e.message, true); }
+    });
+  });
+}
+document.getElementById("toggle-add-cable").addEventListener("click", () => {
+  document.getElementById("add-cable-form").classList.toggle("open");
+});
+document.getElementById("submit-add-cable").addEventListener("click", async () => {
+  var body = {
+    key: document.getElementById("new-cable-key").value.trim(),
+    label: document.getElementById("new-cable-label").value.trim(),
+    color: document.getElementById("new-cable-color").value,
+    thickness: parseFloat(document.getElementById("new-cable-thickness").value),
+    lineType: document.getElementById("new-cable-linetype").value,
+  };
+  try {
+    const resp = await apiFetch("/api/references/cable-types", { method: "POST", body: JSON.stringify(body) });
+    if (!resp.ok) throw new Error(await friendlyError(resp));
+    showToast("Тип кабеля создан");
+    document.getElementById("add-cable-form").classList.remove("open");
+    ["new-cable-key", "new-cable-label", "new-cable-thickness"].forEach((id) => { document.getElementById(id).value = ""; });
+    await loadCableTypes();
+  } catch (e) { showToast(e.message, true); }
+});
+
+/* ---------- equipment shapes ---------- */
+async function loadEquipShapes() {
+  const resp = await apiFetch("/api/references/equipment-shapes");
+  const data = await resp.json();
+  refEquipShapes = data.shapes || [];
+  renderEquipShapes();
+}
+var REF_GEOMETRY_LABELS = { sphere: "Сфера", box: "Куб", cylinder: "Цилиндр", cone: "Конус", capsule: "Капсула", disc: "Диск" };
+function refGeometrySelectHtml(current) {
+  return '<select data-shape="geometry">' + Object.keys(REF_GEOMETRY_LABELS).map((g) => {
+    return '<option value="' + g + '"' + (g === current ? " selected" : "") + '>' + REF_GEOMETRY_LABELS[g] + '</option>';
+  }).join("") + '</select>';
+}
+function renderEquipShapes() {
+  var body = document.getElementById("equipshapes-body");
+  body.innerHTML = refEquipShapes.map((s) => {
+    return '<tr data-shapekey="' + s.key + '">' +
+      '<td class="key-cell">' + s.key + '</td>' +
+      '<td><input type="text" data-shape="label" value="' + s.label.replace(/"/g, "&quot;") + '"></td>' +
+      '<td><input type="color" data-shape="defaultColor" value="' + (s.defaultColor || "#4fd6e0") + '"></td>' +
+      '<td>' + refGeometrySelectHtml(s.geometry) + '</td>' +
+      '<td><input type="checkbox" data-shape="monitorable"' + (s.monitorable ? " checked" : "") + '></td>' +
+      '<td><input type="checkbox" data-shape="selectable"' + (s.selectable ? " checked" : "") + '></td>' +
+      '<td class="hint">' + s.usage + '</td>' +
+      '<td><button class="btn ghost sm" data-del-shape="' + s.key + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></td>' +
+    '</tr>';
+  }).join("");
+  body.querySelectorAll("[data-shape]").forEach((inp) => {
+    inp.addEventListener("change", async () => {
+      var key = inp.closest("tr").dataset.shapekey;
+      var value = inp.type === "checkbox" ? inp.checked : inp.value;
+      try {
+        const resp = await apiFetch("/api/references/equipment-shapes/" + encodeURIComponent(key), { method: "PATCH", body: JSON.stringify({ [inp.dataset.shape]: value }) });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        showToast("Сохранено");
+        await loadEquipShapes();
+      } catch (e) { showToast(e.message, true); await loadEquipShapes(); }
+    });
+  });
+  body.querySelectorAll("[data-del-shape]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        const resp = await apiFetch("/api/references/equipment-shapes/" + encodeURIComponent(btn.dataset.delShape), { method: "DELETE" });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        showToast("Форма удалена");
+        await loadEquipShapes();
+      } catch (e) { showToast(e.message, true); }
+    });
+  });
+}
+document.getElementById("toggle-add-shape").addEventListener("click", () => {
+  document.getElementById("add-shape-form").classList.toggle("open");
+});
+document.getElementById("submit-add-shape").addEventListener("click", async () => {
+  var body = {
+    key: document.getElementById("new-shape-key").value.trim(),
+    label: document.getElementById("new-shape-label").value.trim(),
+    defaultColor: document.getElementById("new-shape-color").value,
+    geometry: document.getElementById("new-shape-geometry").value,
+    monitorable: document.getElementById("new-shape-monitorable").checked,
+    selectable: document.getElementById("new-shape-selectable").checked,
+  };
+  try {
+    const resp = await apiFetch("/api/references/equipment-shapes", { method: "POST", body: JSON.stringify(body) });
+    if (!resp.ok) throw new Error(await friendlyError(resp));
+    showToast("Форма создана");
+    document.getElementById("add-shape-form").classList.remove("open");
+    ["new-shape-key", "new-shape-label"].forEach((id) => { document.getElementById(id).value = ""; });
+    await loadEquipShapes();
+  } catch (e) { showToast(e.message, true); }
+});
+
+/* ---------- monitor systems ---------- */
+async function loadMonitorSystems() {
+  const resp = await apiFetch("/api/references/monitor-systems");
+  const data = await resp.json();
+  refMonitorSystems = data.systems || [];
+  renderSystemsList();
+  renderSystemsMatrices();
+}
+function renderSystemsList() {
+  var el = document.getElementById("systems-list");
+  el.innerHTML = refMonitorSystems.map((s) => {
+    return '<span style="display:inline-flex; align-items:center; gap:6px; background:var(--panel-alt); border:1px solid var(--border); border-radius:999px; padding:5px 6px 5px 12px; font-size:12.5px;">' +
+      s.key +
+      '<button class="btn ghost sm" data-del-system="' + s.key.replace(/"/g, "&quot;") + '" style="padding:2px 6px;" title="Удалить">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><path d="M18 6 6 18M6 6l12 12"/></svg>' +
+      '</button>' +
+    '</span>';
+  }).join("") || '<span class="hint">Систем пока нет</span>';
+  el.querySelectorAll("[data-del-system]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        const resp = await apiFetch("/api/references/monitor-systems/" + encodeURIComponent(btn.dataset.delSystem), { method: "DELETE" });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        showToast("Система удалена");
+        await loadMonitorSystems();
+      } catch (e) { showToast(e.message, true); }
+    });
+  });
+}
+document.getElementById("submit-add-system").addEventListener("click", async () => {
+  var key = document.getElementById("new-system-key").value.trim();
+  if (!key) return;
+  try {
+    const resp = await apiFetch("/api/references/monitor-systems", { method: "POST", body: JSON.stringify({ key }) });
+    if (!resp.ok) throw new Error(await friendlyError(resp));
+    showToast("Система добавлена");
+    document.getElementById("new-system-key").value = "";
+    await loadMonitorSystems();
+  } catch (e) { showToast(e.message, true); }
+});
+
+function renderSystemsMatrix(headEl, bodyEl, items, endpointBase) {
+  headEl.innerHTML = '<th style="width:20%;">' + headEl.dataset.rowLabel + '</th>' +
+    refMonitorSystems.map((s) => '<th class="hint" style="text-align:center;">' + s.key + '</th>').join("");
+  bodyEl.innerHTML = items.map((item) => {
+    return '<tr data-matrixkey="' + item.key + '">' +
+      '<td>' + item.label + '</td>' +
+      refMonitorSystems.map((s) => {
+        var checked = (item.systems || []).includes(s.key);
+        return '<td style="text-align:center;"><input type="checkbox" data-matrix-system="' + s.key.replace(/"/g, "&quot;") + '"' + (checked ? " checked" : "") + '></td>';
+      }).join("") +
+    '</tr>';
+  }).join("");
+  bodyEl.querySelectorAll("[data-matrix-system]").forEach((cb) => {
+    cb.addEventListener("change", async () => {
+      var tr = cb.closest("tr");
+      var itemKey = tr.dataset.matrixkey;
+      var systems = Array.from(tr.querySelectorAll("[data-matrix-system]:checked")).map((c) => c.dataset.matrixSystem);
+      try {
+        const resp = await apiFetch(endpointBase + "/" + encodeURIComponent(itemKey) + "/systems", { method: "PUT", body: JSON.stringify({ systems }) });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        showToast("Сохранено");
+      } catch (e) { showToast(e.message, true); cb.checked = !cb.checked; }
+    });
+  });
+}
+function renderSystemsMatrices() {
+  var cableHead = document.getElementById("cable-systems-head");
+  cableHead.dataset.rowLabel = "Тип кабеля";
+  renderSystemsMatrix(cableHead, document.getElementById("cable-systems-body"),
+    refCableTypes.map((c) => ({ key: c.key, label: c.label, systems: c.systems })),
+    "/api/references/cable-types");
+
+  var shapeHead = document.getElementById("shape-systems-head");
+  shapeHead.dataset.rowLabel = "Форма";
+  renderSystemsMatrix(shapeHead, document.getElementById("shape-systems-body"),
+    refEquipShapes.map((s) => ({ key: s.key, label: s.label, systems: s.systems })),
+    "/api/references/equipment-shapes");
+}
 
 /* ================= Пороги: общие + explicit save с diff-превью ================= */
 const TH_FIELD_SPECS = [
