@@ -4261,13 +4261,27 @@ function setEquipVisible(eq, visible) {
 function equipLabelOffset(eq) {
   return new THREE.Vector3(eq.mesh.position.x, eq.mesh.position.y + eq.size * 0.6 + 2, eq.mesh.position.z);
 }
+// buildEquipGeometry() раньше вызывалась напрямую на каждую расстановку
+// оборудования — при одинаковой форме и размере (обычный случай: одна и
+// та же модель ставится десятками/сотнями раз) это пересобирало
+// идентичную геометрию заново каждый раз. Кэшируем по форме + размеру
+// (округлённому, чтобы не плодить записи из-за долей единицы измерения).
+// Как и с cableMarkerGeoCache — материал не кэшируем, у оборудования он
+// per-object (свой цвет на объект).
+const equipGeoCache = new Map();
+function getEquipGeometry(shape, size) {
+  const key = shape + ":" + Math.round(size * 100);
+  let geo = equipGeoCache.get(key);
+  if (!geo) { geo = buildEquipGeometry(shape, size); equipGeoCache.set(key, geo); }
+  return geo;
+}
 function placeEquipment(point, overrides, select = true) {
   const id = overrides?.id ?? makeObjectId("equip");
   objSeq++;
   const shape = overrides?.shape ?? equipShape;
   const size = overrides?.size ?? 10;
   const color = overrides?.color ?? EQUIP_SHAPE_DEFAULT_COLOR[shape] ?? 0x4fd6e0;
-  const geo = buildEquipGeometry(shape, size);
+  const geo = getEquipGeometry(shape, size);
   const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.15 });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.copy(point);
@@ -4490,8 +4504,9 @@ dom.equipDLabel.addEventListener("input", () => {
 dom.equipDSize.addEventListener("input", () => {
   if (!selectedEquip) return;
   selectedEquip.size = parseFloat(dom.equipDSize.value);
-  selectedEquip.mesh.geometry.dispose();
-  selectedEquip.mesh.geometry = buildEquipGeometry(selectedEquip.shape, selectedEquip.size);
+  // geometry — из общего кэша (getEquipGeometry), диспозить нельзя: её
+  // может использовать другое оборудование той же формы и размера.
+  selectedEquip.mesh.geometry = getEquipGeometry(selectedEquip.shape, selectedEquip.size);
   syncHighlightGeometry(selectedEquip.mesh);
   if (selectedEquip.labelObj) selectedEquip.labelObj.position.copy(equipLabelOffset(selectedEquip));
 });
@@ -4540,7 +4555,8 @@ dom.equipDDelete.addEventListener("click", () => {
   if (!selectedEquip) return;
   if (highlightState && highlightState.key === "equipment:" + selectedEquip.id) clearHighlight();
   scene.remove(selectedEquip.mesh);
-  selectedEquip.mesh.geometry.dispose(); selectedEquip.mesh.material.dispose();
+  // geometry — общая (кэш по форме+размеру), диспозить нельзя, см. getEquipGeometry.
+  selectedEquip.mesh.material.dispose();
   if (selectedEquip.labelObj) { scene.remove(selectedEquip.labelObj); selectedEquip.labelObj.element.remove(); }
   equipment.delete(selectedEquip.id);
   recordDeletion("equipment", selectedEquip);
