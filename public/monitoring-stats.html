@@ -524,13 +524,12 @@ document.addEventListener("click", (e) => {
   if (btn) createTicketFromAlarm(btn);
 });
 
-const SYSTEM_SUBLABELS = {
-  "ВОЛС": "MAP · ODF · WiFi",
-  "LFC": "IILB · ISIB · Статив LFC",
-  "АО": "Статив АО · FS · ГО",
-  "Телефония": "MAP · TEL",
-  "ВН": "MAP · CAM · PoE",
-};
+// Подписи под названием системы ("MAP · ODF · WiFi") — раньше были
+// захардкожены здесь, теперь считаются из живого справочника (см.
+// loadMonitorSystemsMeta) — иначе система, заведённая через Настройки →
+// Справочники, вообще не появлялась бы на этом дашборде (как и любая
+// новая привязка формы оборудования к системе).
+let SYSTEM_SUBLABELS = {};
 
 function renderCard(sys, data) {
   const activeCount = data.activeAlarms.length;
@@ -775,7 +774,7 @@ async function loadStats() {
     document.getElementById("globalIncidents").textContent = data.totals.incidentsInRange;
     document.getElementById("globalUptime").textContent = data.totals.avgUptimePct == null ? "—" : data.totals.avgUptimePct + "%";
 
-    const order = ["ВОЛС", "LFC", "АО", "Телефония", "ВН"];
+    const order = data.systemsList || Object.keys(data.systems);
     grid.innerHTML = order.map((sys) => renderCard(sys, data.systems[sys])).join("");
   } catch (err) {
     if (mySeq !== loadSeq) return;
@@ -854,7 +853,31 @@ function applyRoleUI() {
   document.getElementById("navToSettings").href = `/${CURRENT_PROJECT_ID}/settings`;
   document.getElementById("navToSettings").style.display = isAdminLevel ? "inline-flex" : "none";
 }
-const MONITOR_SYSTEMS_LIST = ["ВОЛС", "LFC", "АО", "Телефония", "ВН"];
+// Раньше захардкожено ["ВОЛС","LFC","АО","Телефония","ВН"] — грузим из
+// справочника (см. SYSTEM_SUBLABELS выше и loadMonitorSystemsMeta ниже).
+let MONITOR_SYSTEMS_LIST = [];
+async function loadMonitorSystemsMeta() {
+  try {
+    const [sysResp, shapesResp] = await Promise.all([
+      apiFetch("/api/references/monitor-systems/public"),
+      apiFetch("/api/references/equipment-shapes/public"),
+    ]);
+    if (!sysResp.ok) return;
+    const sysData = await sysResp.json();
+    MONITOR_SYSTEMS_LIST = sysData.systems || [];
+    if (!shapesResp.ok) return;
+    const shapesData = await shapesResp.json();
+    const shapeSystems = sysData.equipmentShapeSystems || {};
+    for (const sys of MONITOR_SYSTEMS_LIST) {
+      const labels = (shapesData.shapes || [])
+        .filter((s) => s.monitorable && (shapeSystems[s.key] || []).includes(sys))
+        .map((s) => s.label);
+      SYSTEM_SUBLABELS[sys] = labels.join(" · ");
+    }
+  } catch (e) {
+    // сеть недоступна — карточки останутся без подписи снизу, не критично
+  }
+}
 async function updateTicketsBadge() {
   const auth = window.__auth;
   const badge = document.getElementById("ticketsBadge");
@@ -966,11 +989,12 @@ async function loadInventorySummary() {
   }
 }
 
-function boot() {
+async function boot() {
   applyRoleUI();
   updateTicketsBadge();
   loadProjectSwitcher();
   loadInventorySummary();
+  await loadMonitorSystemsMeta();
   const urlSystem = new URL(location.href).searchParams.get("system");
   if (urlSystem && (urlSystem === "all" || MONITOR_SYSTEMS_LIST.includes(urlSystem))) {
     showTableView(urlSystem);
