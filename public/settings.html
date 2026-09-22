@@ -1190,6 +1190,16 @@ async function loadEquipShapes() {
   renderEquipShapes();
 }
 var REF_GEOMETRY_LABELS = { sphere: "Сфера", box: "Куб", cylinder: "Цилиндр", cone: "Конус", capsule: "Капсула", disc: "Диск" };
+// Формы с собственной bespoke-моделью в buildEquipGeometry() (index.html) —
+// поле geometry в БД у них хранится (унаследовано от миграции), но никогда
+// не используется при рендере: своя модель зашита в коде и всегда в
+// приоритете. Список — все ключи EQUIP_SHAPE_ORDER кроме "custom": именно
+// "custom" — единственный из "родных" 19, у которого своей модели нет и
+// geometry реально выбирает 3D-примитив (общий fallback для форм, заведённых
+// через /references). Показывать живой (но фактически бесполезный) select
+// для остальных 18 вводило в заблуждение — выглядело редактируемым, но
+// изменение геометрии для них ни на что не влияет.
+var REF_BESPOKE_SHAPE_KEYS = new Set(["mla", "map", "odf", "iilb", "isib", "cam", "mps", "mpc", "mtu", "mvsa", "wifi", "mbu", "fs", "tel", "stativ_lfc", "stativ_ao", "poe", "go", "stativ"]);
 function refGeometrySelectHtml(current) {
   return '<select data-shape="geometry">' + Object.keys(REF_GEOMETRY_LABELS).map((g) => {
     return '<option value="' + g + '"' + (g === current ? " selected" : "") + '>' + REF_GEOMETRY_LABELS[g] + '</option>';
@@ -1198,11 +1208,14 @@ function refGeometrySelectHtml(current) {
 function renderEquipShapes() {
   var body = document.getElementById("equipshapes-body");
   body.innerHTML = refEquipShapes.map((s) => {
+    var geometryCell = REF_BESPOKE_SHAPE_KEYS.has(s.key)
+      ? '<span class="hint" title="У этой формы своя 3D-модель, зашита в коде — поле геометрии на неё не влияет">Своя модель</span>'
+      : refGeometrySelectHtml(s.geometry);
     return '<tr data-shapekey="' + s.key + '">' +
       '<td class="key-cell">' + s.key + '</td>' +
       '<td><input type="text" data-shape="label" value="' + s.label.replace(/"/g, "&quot;") + '"></td>' +
       '<td><input type="color" data-shape="defaultColor" value="' + (s.defaultColor || "#4fd6e0") + '"></td>' +
-      '<td>' + refGeometrySelectHtml(s.geometry) + '</td>' +
+      '<td>' + geometryCell + '</td>' +
       '<td><input type="checkbox" data-shape="monitorable"' + (s.monitorable ? " checked" : "") + '></td>' +
       '<td><input type="checkbox" data-shape="selectable"' + (s.selectable ? " checked" : "") + '></td>' +
       '<td class="hint">' + s.usage + '</td>' +
