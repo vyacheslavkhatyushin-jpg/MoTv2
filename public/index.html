@@ -144,7 +144,7 @@
   .tab-btn{
     background:none; border:none; color:var(--text-dim); font-size:11.5px;
     padding:8px 6px 7px; cursor:pointer; border-bottom:2px solid transparent;
-    font-family:inherit; white-space:nowrap;
+    font-family:inherit; white-space:nowrap; flex:1 1 0; text-align:center;
   }
   .tab-btn.active{ color:var(--text); border-bottom-color:var(--accent); }
   .tab-btn:disabled{ color:var(--text-faint); cursor:default; }
@@ -688,7 +688,7 @@
         <button class="nav-btn nav-btn-pivot" id="btnPivotMode" title="Выбрать точку вращения: включить и кликнуть по модели">⊕</button>
       </div>
     </div>
-    <div id="quickInfoPanel">
+    <div id="quickInfoPanel" class="collapsed">
       <div class="quick-info-head">
         <span>Инфо</span>
         <button id="quickInfoClose" title="Скрыть">×</button>
@@ -721,7 +721,6 @@
       <button class="tab-btn" data-tab="equip" title="Оборудование">Оборуд.</button>
       <button class="tab-btn" data-tab="marks">Метки</button>
       <button class="tab-btn" data-tab="patches" id="tabBtnPatches">Заплатки</button>
-      <button class="tab-btn" data-tab="deleted">Удалено</button>
     </div>
     <div id="tabpanels">
       <div class="tabpanel active" id="tab-shaft">
@@ -965,10 +964,6 @@
           </div>
           <button id="patchDDelete" class="danger-btn">Удалить заплатку</button>
         </div>
-      </div>
-      <div class="tabpanel" id="tab-deleted">
-        <div class="uo-list" id="deletionLogList"></div>
-        <div class="placeholder" id="deletionLogPlaceholder">Удалённых объектов пока нет.</div>
       </div>
       <div class="tabpanel" id="tab-monitor">
         <div style="padding:8px 12px 4px; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint);">Активные аварии</div>
@@ -1873,8 +1868,6 @@ const dom = {
   patchDFocus: document.getElementById("patchDFocus"),
   patchDHighlight: document.getElementById("patchDHighlight"),
   patchDDelete: document.getElementById("patchDDelete"),
-  deletionLogList: document.getElementById("deletionLogList"),
-  deletionLogPlaceholder: document.getElementById("deletionLogPlaceholder"),
   monitorCountUp: document.getElementById("monitorCountUp"),
   monitorCountDown: document.getElementById("monitorCountDown"),
   monitorCountUnknown: document.getElementById("monitorCountUnknown"),
@@ -2865,7 +2858,6 @@ dom.tabs.forEach((btn) => {
     dom.tabpanels.forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
-    if (btn.dataset.tab === "deleted") loadDeletionLog();
   });
 });
 /* ---------- file loading ---------- */
@@ -5754,40 +5746,6 @@ function recordDeletion(objectType, obj) {
     }),
   }).catch((err) => console.error("Не удалось записать удаление в лог:", err));
 }
-async function loadDeletionLog() {
-  try {
-    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/deletions`);
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const data = await resp.json();
-    renderDeletionLog(data.deletions || []);
-  } catch (err) {
-    console.error("Не удалось загрузить лог удалений:", err);
-  }
-}
-function renderDeletionLog(rows) {
-  dom.deletionLogList.innerHTML = "";
-  dom.deletionLogPlaceholder.style.display = rows.length ? "none" : "block";
-  for (const r of rows) {
-    const row = document.createElement("div");
-    row.className = "uo-row";
-    row.style.cssText = "flex-direction:column; align-items:flex-start; gap:2px; cursor:default;";
-    const title = document.createElement("div");
-    title.textContent = `${OBJECT_TYPE_LABELS[r.object_type] || r.object_type} — ${r.label || "(без названия)"}`;
-    title.style.fontWeight = "600";
-    const meta = document.createElement("div");
-    meta.style.cssText = "font-size:11px; color:var(--text-dim);";
-    let text = `Удалил: ${r.deleted_by}, ${parseServerDate(r.deleted_at).toLocaleString()}`;
-    if (r.created_by) {
-      text += ` · Создал: ${r.created_by}`;
-      if (r.created_at) text += `, ${parseServerDate(r.created_at).toLocaleString()}`;
-    }
-    meta.textContent = text;
-    row.appendChild(title);
-    row.appendChild(meta);
-    dom.deletionLogList.appendChild(row);
-  }
-}
-
 /* ---------- мониторинг оборудования: живой статус по WebSocket + история
    аварий (см. docs/monitoring-plan.md) ---------- */
 // Системы связи/позиционирования в шахте. Кабель/оборудование может
@@ -6538,8 +6496,6 @@ function applyRoleToUI() {
     if (btnSaveAllEl) {
       btnSaveAllEl.style.display = "none";
     }
-    const deletedTabBtn = document.querySelector('.tab-btn[data-tab="deleted"]');
-    if (deletedTabBtn) deletedTabBtn.style.display = "none";
     return;
   }
   if (sessionProjectEl) sessionProjectEl.textContent = "Проект:";
