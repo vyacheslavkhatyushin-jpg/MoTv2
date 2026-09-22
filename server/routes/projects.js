@@ -339,29 +339,30 @@ router.get("/:id/monitor/status", (req, res) => {
   res.json({ status: rows });
 });
 
-// Дашборд "История аварий" (/<project>/monitoring/stats) — сводка по пяти
-// системам (ВОЛС/LFC/АО/Телефония/ВН), та же группировка, что у кнопок
-// фильтра на странице мониторинга (EQUIP_SHAPE_SYSTEMS в index.html — этот
-// список продублирован здесь, т.к. страницы не делят JS-модули между собой).
+// Дашборд "История аварий" (/<project>/monitoring/stats) — сводка по системам
+// связи/позиционирования (справочник monitor_systems, см. server/routes/
+// references.js), та же группировка, что у кнопок фильтра на странице
+// мониторинга (EQUIP_SHAPE_SYSTEMS в index.html грузится оттуда же через
+// /api/references/monitor-systems/public). Раньше список систем и привязка
+// формы оборудования к системе были захардкожены прямо здесь — снимок с
+// тех времён, когда справочник ещё не завели в БД; из-за этого системы,
+// добавленные/переназначенные через Настройки → Справочники, сюда не
+// попадали. Теперь читаем monitor_systems/equipment_shape_systems напрямую.
 // Оборудование одной формы может входить сразу в несколько систем (MAP —
 // во все три), поэтому событие на нём учитывается в каждой из них; глобальные
 // итоги считаются по уникальным id оборудования/событий, чтобы не задваивались.
-const MONITOR_SYSTEMS_LIST = ["ВОЛС", "LFC", "АО", "Телефония", "ВН"];
-const MONITOR_EQUIP_SHAPE_SYSTEMS = {
-  map: ["ВОЛС", "Телефония", "ВН"],
-  odf: ["ВОЛС"],
-  wifi: ["ВОЛС"],
-  mla: ["LFC"], iilb: ["LFC"], isib: ["LFC"], mps: ["LFC"], mpc: ["LFC"],
-  mtu: ["LFC"], mvsa: ["LFC"], mbu: ["LFC"],
-  stativ_lfc: ["LFC"],
-  stativ_ao: ["АО"],
-  stativ: ["LFC", "АО"], // устаревшее значение — объекты до разделения на LFC/АО
-  fs: ["АО"],
-  go: ["АО"],
-  tel: ["Телефония"],
-  cam: ["ВН"],
-  poe: ["ВН"],
-};
+function loadMonitorSystemsList() {
+  return db.prepare("SELECT key FROM monitor_systems ORDER BY sort_order").all().map((r) => r.key);
+}
+function loadEquipShapeSystemsMap() {
+  const rows = db.prepare("SELECT shape_key, system_key FROM equipment_shape_systems").all();
+  const map = {};
+  for (const r of rows) {
+    if (!map[r.shape_key]) map[r.shape_key] = [];
+    map[r.shape_key].push(r.system_key);
+  }
+  return map;
+}
 const MONITOR_STATS_RANGE_MS = { "24h": 24 * 3600 * 1000, "7d": 7 * 24 * 3600 * 1000, "30d": 30 * 24 * 3600 * 1000 };
 const MONITOR_STATS_SPARK_MS = 7 * 24 * 3600 * 1000;
 
@@ -376,21 +377,24 @@ function parseMonitorDate(s) {
 
 // equipmentId -> ["ВОЛС", ...] + счётчик отслеживаемого оборудования на
 // систему — общее для /monitor/stats и /monitor/events (таблица одной
-// системы), поэтому вынесено в одну функцию.
+// системы), поэтому вынесено в одну функцию. systemsList — тоже отсюда,
+// чтобы не запрашивать monitor_systems дважды на один HTTP-запрос.
 function loadMonitorEquipSystems(projectId) {
+  const systemsList = loadMonitorSystemsList();
+  const shapeSystemsMap = loadEquipShapeSystemsMap();
   const stateRow = db.prepare("SELECT snapshot_json FROM project_state WHERE project_id = ?").get(projectId);
   const equipment = stateRow ? JSON.parse(stateRow.snapshot_json).equipment || [] : [];
   const equipSystems = new Map();
   const monitoredCountBySystem = {};
-  for (const sys of MONITOR_SYSTEMS_LIST) monitoredCountBySystem[sys] = 0;
+  for (const sys of systemsList) monitoredCountBySystem[sys] = 0;
   for (const eq of equipment) {
     if (!eq.monitorMethod || eq.monitorMethod === "none") continue;
-    const systems = MONITOR_EQUIP_SHAPE_SYSTEMS[eq.shape] || [];
+    const systems = shapeSystemsMap[eq.shape] || [];
     if (!systems.length) continue;
     equipSystems.set(eq.id, systems);
     for (const sys of systems) monitoredCountBySystem[sys]++;
   }
-  return { equipSystems, monitoredCountBySystem };
+  return { systemsList, equipSystems, monitoredCountBySystem };
 }
 
 router.get("/:id/monitor/stats", (req, res) => {
@@ -404,7 +408,7 @@ router.get("/:id/monitor/stats", (req, res) => {
   const sparkSinceMs = now - MONITOR_STATS_SPARK_MS;
   const fetchSinceMs = Math.min(sinceMs, sparkSinceMs);
 
-  const { equipSystems, monitoredCountBySystem } = loadMonitorEquipSystems(req.params.id);
+  const { systemsList, equipSystems, monitoredCountBySystem } = loadMonitorEquipSystems(req.params.id);
 
   // Только "down" — это и есть авария; "up" лишь закрывает уже открытую
   // запись (см. server/monitor/*-worker.js), отдельной строки не создаёт.
@@ -418,7 +422,7 @@ router.get("/:id/monitor/stats", (req, res) => {
     .all(req.params.id, new Date(fetchSinceMs).toISOString());
 
   const perSystem = {};
-  for (const sys of MONITOR_SYSTEMS_LIST) {
+  for (const sys of systemsList) {
     perSystem[sys] = { activeAlarms: [], recentEvents: [], incidentCount: 0, resolvedDurations: [], downtimeSec: 0, dailyCounts: new Array(7).fill(0) };
   }
   const dayMs = 24 * 3600 * 1000;
@@ -466,7 +470,7 @@ router.get("/:id/monitor/stats", (req, res) => {
   const rangeSec = rangeMs / 1000;
   const systemsOut = {};
   let uptimeSum = 0, uptimeCount = 0;
-  for (const sys of MONITOR_SYSTEMS_LIST) {
+  for (const sys of systemsList) {
     const b = perSystem[sys];
     const monitoredCount = monitoredCountBySystem[sys] || 0;
     const totalPossibleSec = monitoredCount * rangeSec;
@@ -491,6 +495,7 @@ router.get("/:id/monitor/stats", (req, res) => {
   res.json({
     range,
     since: new Date(sinceMs).toISOString(),
+    systemsList,
     systems: systemsOut,
     totals: {
       activeNow: activeIdsGlobal.size,
@@ -512,12 +517,11 @@ router.get("/:id/monitor/events", (req, res) => {
   const rangeMs = MONITOR_STATS_RANGE_MS[range];
   const now = Date.now();
   const sinceMs = now - rangeMs;
+  const { systemsList, equipSystems } = loadMonitorEquipSystems(req.params.id);
   const system = req.query.system && req.query.system !== "all" ? req.query.system : null;
-  if (system && !MONITOR_SYSTEMS_LIST.includes(system)) {
+  if (system && !systemsList.includes(system)) {
     return res.status(400).json({ error: "invalid_system" });
   }
-
-  const { equipSystems } = loadMonitorEquipSystems(req.params.id);
 
   const rows = db
     .prepare(
