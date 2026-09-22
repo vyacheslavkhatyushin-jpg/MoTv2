@@ -130,13 +130,19 @@ async function loadGlbSurface(surface) {
   // DXF почти всегда в локальной/проекционной системе координат съёмки
   // (метры, крупные числа), не в геодезической lon/lat — без привязки
   // Cesium подставит эти числа как координаты от центра Земли, и модель
-  // окажется буквально нигде (или без bbox вообще не будет видно, куда
-  // смотреть). Центрируем по bbox из inspectGlb() на сервере и привязываем
-  // центр к произвольной опорной точке (пока не решаем вопрос реальной
-  // геопривязки — это отдельная задача, здесь только "чтобы было видно").
+  // окажется буквально нигде. Центрируем и наводим камеру по robust-bbox
+  // (перцентиль 1–99, см. inspectGlb на сервере), а не по истинному
+  // min/max: реальные съёмочные DXF почти всегда тащат единичные выбросы
+  // (рамка штампа, текстовые подписи, точки привязки блоков) далеко за
+  // пределами самой поверхности — по истинному bbox камера отъезжает так,
+  // что сама поверхность съёживается до пары пикселей (визуально "пусто").
+  // Привязываем центр к произвольной опорной точке (реальная геопривязка —
+  // отдельная задача, здесь только "чтобы было видно").
+  const bboxMin = surface.robustBboxMin || surface.bboxMin;
+  const bboxMax = surface.robustBboxMax || surface.bboxMax;
   let modelMatrix;
-  if (surface.bboxMin && surface.bboxMax) {
-    const center = surface.bboxMin.map((v, i) => (v + surface.bboxMax[i]) / 2);
+  if (bboxMin && bboxMax) {
+    const center = bboxMin.map((v, i) => (v + bboxMax[i]) / 2);
     const anchor = Cesium.Cartesian3.fromDegrees(74.30, 51.857, 100);
     const enu = Cesium.Transforms.eastNorthUpToFixedFrame(anchor);
     const recenter = Cesium.Matrix4.fromTranslation(new Cesium.Cartesian3(-center[0], -center[1], -center[2]));
@@ -146,17 +152,18 @@ async function loadGlbSurface(surface) {
   // вершин — с включённым backface culling (дефолт) грани стабильно
   // невидимы с "внешней" стороны, экран остаётся пустым без единой ошибки.
   const model = await Cesium.Model.fromGltfAsync({ url: "api/surface/file", modelMatrix, backFaceCulling: false });
-  // fromGltfAsync резолвится уже с готовой моделью (ready === true) — к этому
-  // моменту readyEvent уже отстрелялся, и подписка на него после add() никогда
-  // не срабатывает. Отдельно от этого: viewer.zoomTo() вообще не принимает
-  // Cesium.Model как цель (только Entity/DataSource/Cesium3DTileset и т.п.) —
-  // он молча резолвится без ошибки и без единого движения камеры. Нужен
-  // camera.flyToBoundingSphere(), который работает с любым BoundingSphere.
   currentModel = viewer.scene.primitives.add(model);
   // model.boundingSphere считается во время update() сцены — сразу после
-  // add() его обычно ещё нет, и обращение к геттеру до готовности не просто
-  // возвращает undefined, а бросает исключение изнутри Cesium. Опрашиваем
-  // через postRender, глотая ошибку, пока геттер не станет доступен.
+  // add() его обычно ещё нет, и обращение к геттеру до готовности не
+  // просто возвращает undefined, а бросает исключение изнутри Cesium.
+  // Опрашиваем через postRender, глотая ошибку, пока геттер не станет
+  // доступен. ВАЖНО: наводим камеру именно по model.boundingSphere, а не
+  // по самостоятельно вычисленной сфере — Cesium применяет собственную
+  // (плюс из glTF-узла assimp) коррекцию осей поверх нашего modelMatrix,
+  // и ручной пересчёт "где должна быть камера" расходится с тем, где
+  // Cesium реально рисует модель (проверено эмпирически: с независимо
+  // вычисленной сферой экран остаётся пустым, хотя все числа выглядят
+  // разумно).
   let boundingSphere;
   for (let i = 0; i < 60 && !boundingSphere; i++) {
     await new Promise((resolve) => {
@@ -165,6 +172,10 @@ async function loadGlbSurface(surface) {
     try { boundingSphere = model.boundingSphere; } catch { /* ещё не готово */ }
   }
   if (!boundingSphere) throw new Error("Не удалось получить boundingSphere модели");
+  // Треугольники-выбросы уже вырезаны из самой геометрии на сервере (см.
+  // filterGlbOutliers в server.js), так что boundingSphere здесь и так
+  // считается только по реальной поверхности — не нужно ничего
+  // подменять вручную.
   viewer.camera.flyToBoundingSphere(boundingSphere, { duration: 1 });
 }
 
@@ -183,6 +194,10 @@ async function refreshSurfaceInfo() {
   ].filter(Boolean).map(([k, v]) => `<div class="row"><span class="k">${k}</span><span>${v}</span></div>`).join("");
   if (s.format === "glb" && !s.triangleCount) {
     el.innerHTML += `<div class="row" style="color:var(--danger);">assimp не извлёк ни одной грани — DXF, похоже, не в 3DFACE, а в другом типе сущностей (POLYLINE/polyface mesh?)</div>`;
+  }
+  if (s.format === "glb" && s.outliersTrimmed) {
+    const fmt = (b) => b ? b.map((v) => Math.round(v).toLocaleString("ru-RU")).join(", ") : "—";
+    el.innerHTML += `<div class="row" style="color:var(--accent);">В файле есть точки-выбросы далеко за пределами поверхности (рамка штампа, подписи, точки привязки?) — камера наведена по 1–99 перцентилю, не по полному bbox.<br>Полный bbox: [${fmt(s.bboxMin)}] – [${fmt(s.bboxMax)}]<br>Используемый bbox: [${fmt(s.robustBboxMin)}] – [${fmt(s.robustBboxMax)}]</div>`;
   }
 
   clearScene();
