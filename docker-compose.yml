@@ -29,7 +29,7 @@ services:
       # файла Docker молча подменяет ПУСТОЙ ПАПКОЙ, а не ошибкой, и бэкап
       # будет фейлиться с непонятной ошибкой чтения ключа.
       # - ./secrets/backup_ssh_key:/run/secrets/backup_ssh_key:ro
-      # - ./secrets/backup_gdrive_sa.json:/run/secrets/backup_gdrive_sa.json:ro
+      - ./secrets/backup_gdrive_sa.json:/run/secrets/backup_gdrive_sa.json:ro
 
   # Мониторинг оборудования (docs/monitoring-plan.md), Этап 2 — отдельный
   # процесс, тот же образ и та же SQLite-база (общий volume), но не часть
@@ -84,7 +84,7 @@ services:
       # См. комментарий у mine-ops-tool выше — то же самое, оба сервиса
       # должны видеть один и тот же файл ключа/сервисного аккаунта.
       # - ./secrets/backup_ssh_key:/run/secrets/backup_ssh_key:ro
-      # - ./secrets/backup_gdrive_sa.json:/run/secrets/backup_gdrive_sa.json:ro
+      - ./secrets/backup_gdrive_sa.json:/run/secrets/backup_gdrive_sa.json:ro
 
 volumes:
   mine-ops-data:
