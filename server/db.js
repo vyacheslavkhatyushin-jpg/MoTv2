@@ -271,11 +271,13 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action, created_at 
 
 -- Автобэкап БД (см. server/backup/run-backup.js + server/backup-worker.js) —
 -- singleton-строка (id всегда 1), настраивается в Настройки → Резервное
--- копирование. Секреты доступа к офсайт-хранилищам (SSH-ключ, сервисный
--- аккаунт Google) сюда НЕ попадают — только env/файлы на сервере (см.
--- docs/backup-setup.md); эта таблица хранит только "включено ли SSH/Drive
--- как цель", сами учётные данные читаются напрямую из окружения при
--- каждом запуске бэкапа.
+-- копирование. SSH-ключ для своей цели остаётся файлом на сервере (см.
+-- docs/backup-setup.md) — приватный ключ никогда не должен всплывать в
+-- админке. Google Drive — иначе: у личных Google-аккаунтов нет доступа без
+-- интерактивного OAuth-согласия, так что тут это Client ID/Secret и
+-- refresh-token от подключения через UI (см. server/routes/backup.js,
+-- /gdrive/connect) — осознанное исключение из "секреты только в .env",
+-- отдельная миграция ниже добавляет под это колонки.
 CREATE TABLE IF NOT EXISTS backup_settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   enabled INTEGER NOT NULL DEFAULT 0,
@@ -631,6 +633,23 @@ if (db.prepare("SELECT COUNT(*) AS n FROM monitor_systems").get().n === 0) {
   if (!hasGeometryColumn) {
     db.exec("ALTER TABLE equipment_shapes ADD COLUMN geometry TEXT NOT NULL DEFAULT 'sphere'");
   }
+}
+
+// Добавочная миграция: поля OAuth-подключения Google Drive на
+// backup_settings — появились позже основного CREATE TABLE (переход с
+// сервисного аккаунта на OAuth от личного Google-аккаунта, подключение
+// через UI, см. server/routes/backup.js /gdrive/connect), поэтому не могут
+// просто попасть в CREATE TABLE: на уже задеплоенной инсталляции таблица
+// создана раньше этих колонок.
+{
+  const bkCols = db.prepare("PRAGMA table_info(backup_settings)").all().map((c) => c.name);
+  const addBkCol = (name) => {
+    if (!bkCols.includes(name)) db.exec(`ALTER TABLE backup_settings ADD COLUMN ${name} TEXT`);
+  };
+  addBkCol("gdrive_client_id");
+  addBkCol("gdrive_client_secret");
+  addBkCol("gdrive_refresh_token");
+  addBkCol("gdrive_folder_id");
 }
 
 // Добавочная миграция: rx/tx (счётчики принятых/переданных пакетов

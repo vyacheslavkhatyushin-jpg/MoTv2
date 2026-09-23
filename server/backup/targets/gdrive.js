@@ -1,22 +1,32 @@
 /*
 Цель бэкапа "Google Drive" — через OAuth2 refresh-token от ЛИЧНОГО
-Google-аккаунта (не сервисный аккаунт): у сервисных аккаунтов нет своей
-квоты хранилища, и они не могут владеть файлами в обычной папке личного
-Диска — только в Shared Drive, а это функция Google Workspace, которой
-на личном Gmail-аккаунте нет. Refresh-token получается один раз через
-Device Flow — см. server/backup/gdrive-device-auth.js и
-docs/backup-setup.md.
+Google-аккаунта (не сервисный аккаунт: у тех нет своей квоты хранилища и
+они не могут владеть файлами в обычной папке личного Диска — только в
+Shared Drive, а это функция Google Workspace).
+
+В отличие от SSH-цели (файловый секрет на сервере), Client ID/Secret и
+refresh-token тут хранятся в backup_settings (БД) — подключение целиком
+через UI (см. server/routes/backup.js, POST /gdrive/connect), без
+консоли и .env. Осознанное исключение из общего принципа "секреты не в
+БД", см. комментарий у CREATE TABLE backup_settings в server/db.js.
 */
 const fs = require("fs");
 const { google } = require("googleapis");
+const db = require("../../db");
 
 function readConfig() {
-  const clientId = process.env.BACKUP_GDRIVE_CLIENT_ID;
-  const clientSecret = process.env.BACKUP_GDRIVE_CLIENT_SECRET;
-  const refreshToken = process.env.BACKUP_GDRIVE_REFRESH_TOKEN;
-  const folderId = process.env.BACKUP_GDRIVE_FOLDER_ID;
-  if (!clientId || !clientSecret || !refreshToken || !folderId) return null;
-  return { clientId, clientSecret, refreshToken, folderId };
+  const row = db
+    .prepare("SELECT gdrive_client_id, gdrive_client_secret, gdrive_refresh_token, gdrive_folder_id FROM backup_settings WHERE id = 1")
+    .get();
+  if (!row || !row.gdrive_client_id || !row.gdrive_client_secret || !row.gdrive_refresh_token || !row.gdrive_folder_id) {
+    return null;
+  }
+  return {
+    clientId: row.gdrive_client_id,
+    clientSecret: row.gdrive_client_secret,
+    refreshToken: row.gdrive_refresh_token,
+    folderId: row.gdrive_folder_id,
+  };
 }
 
 function isConfigured() {
@@ -31,7 +41,7 @@ function driveClient(cfg) {
 
 async function upload(localPath, fileName) {
   const cfg = readConfig();
-  if (!cfg) throw new Error("Google Drive-цель не настроена (переменные окружения BACKUP_GDRIVE_*)");
+  if (!cfg) throw new Error("Google Drive-цель не настроена (Настройки → Резервное копирование → Подключить Google Drive)");
   const drive = driveClient(cfg);
   await drive.files.create({
     requestBody: { name: fileName, parents: [cfg.folderId] },
@@ -40,4 +50,4 @@ async function upload(localPath, fileName) {
   });
 }
 
-module.exports = { name: "gdrive", isConfigured, upload };
+module.exports = { name: "gdrive", isConfigured, upload, readConfig };

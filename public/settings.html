@@ -749,7 +749,7 @@
         <!-- ============ Резервное копирование ============ -->
         <section class="settings-panel" id="panel-backup">
           <h2>Резервное копирование</h2>
-          <p class="subtitle">Настройки общие на всю систему, не привязаны к конкретному проекту. Учётные данные для SSH/Google Drive задаются на сервере — см. <code>docs/backup-setup.md</code>.</p>
+          <p class="subtitle">Настройки общие на всю систему, не привязаны к конкретному проекту.</p>
 
           <div id="backupError"></div>
 
@@ -774,9 +774,7 @@
             <div class="field-row">
               <div class="field">
                 <label class="check-inline"><input type="checkbox" id="bkTargetSsh"> Другой сервер по SSH <span id="bkSshStatus" class="badge"></span></label>
-              </div>
-              <div class="field">
-                <label class="check-inline"><input type="checkbox" id="bkTargetGdrive"> Google Drive <span id="bkGdriveStatus" class="badge"></span></label>
+                <div class="hint">Ключ и адрес сервера задаются на сервере, см. <code>docs/backup-setup.md</code>.</div>
               </div>
             </div>
 
@@ -784,6 +782,49 @@
               <button class="btn primary" id="btnBkSave">Сохранить настройки</button>
               <button class="btn" id="btnBkRunNow">Сделать бэкап сейчас</button>
               <span class="save-status" id="bkSaveStatus"></span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Google Drive</h3>
+            <div class="field-row" style="align-items:center;">
+              <label class="check-inline" style="margin:0;"><input type="checkbox" id="bkTargetGdrive"> Использовать как цель бэкапа <span id="bkGdriveStatus" class="badge"></span></label>
+              <button class="btn" id="btnBkGdriveConnect" type="button">Подключить</button>
+              <button class="btn" id="btnBkGdriveDisconnect" type="button" style="display:none;">Отключить</button>
+            </div>
+            <div class="hint" id="bkGdriveHint" style="margin-top:6px;"></div>
+
+            <div id="bkGdriveConnectForm" style="display:none; margin-top:14px;">
+              <div class="hint" style="margin-bottom:10px;">
+                Client ID/Secret создаются один раз в Google Cloud Console
+                (это требование самого Google — простого логина/пароля для
+                Drive API не бывает) — пошагово см. <code>docs/backup-setup.md</code>,
+                раздел «Google Drive». Дальше — без консоли, всё здесь.
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label for="bkGdriveClientId">Client ID</label>
+                  <input type="text" id="bkGdriveClientId" autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="bkGdriveClientSecret">Client Secret</label>
+                  <input type="password" id="bkGdriveClientSecret" autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="bkGdriveFolderId">ID папки на Диске</label>
+                  <input type="text" id="bkGdriveFolderId" autocomplete="off">
+                </div>
+              </div>
+              <div class="save-bar" style="margin-top:10px;">
+                <button class="btn primary" id="btnBkGdriveStart" type="button">Начать подключение</button>
+                <span class="save-status" id="bkGdriveFormStatus"></span>
+              </div>
+
+              <div id="bkGdrivePending" style="display:none; margin-top:14px;" class="card" >
+                <div>Откройте на любом устройстве: <a id="bkGdriveVerifyLink" href="#" target="_blank" rel="noopener"></a></div>
+                <div style="margin-top:6px;">Введите код: <code id="bkGdriveUserCode" style="font-size:16px;"></code></div>
+                <div class="hint" style="margin-top:6px;">Жду подтверждения…</div>
+              </div>
             </div>
           </div>
 
@@ -1818,6 +1859,73 @@ function renderTargetBadge(el, info) {
   if (info.configured) { el.textContent = "настроено, выключено"; el.className = "badge badge-off"; return; }
   el.textContent = "не настроено на сервере"; el.className = "badge badge-danger";
 }
+let gdrivePollTimer = null;
+function stopGdrivePoll() {
+  if (gdrivePollTimer) { clearTimeout(gdrivePollTimer); gdrivePollTimer = null; }
+}
+function showGdrivePending(data) {
+  document.getElementById("bkGdriveConnectForm").style.display = "";
+  document.getElementById("bkGdrivePending").style.display = "";
+  document.getElementById("bkGdriveVerifyLink").href = data.verificationUrl;
+  document.getElementById("bkGdriveVerifyLink").textContent = data.verificationUrl;
+  document.getElementById("bkGdriveUserCode").textContent = data.userCode;
+}
+function schedulePollGdriveStatus() {
+  stopGdrivePoll();
+  const poll = async () => {
+    let data;
+    try {
+      const resp = await apiFetch("/api/backup/gdrive/status");
+      data = await resp.json();
+    } catch (e) {
+      gdrivePollTimer = setTimeout(poll, 5000);
+      return;
+    }
+    if (data.status === "pending") {
+      showGdrivePending(data);
+      gdrivePollTimer = setTimeout(poll, 3000);
+    } else if (data.status === "success") {
+      document.getElementById("bkGdrivePending").style.display = "none";
+      showToast("Google Drive подключён");
+      loadBackupSettings();
+    } else if (data.status === "error") {
+      document.getElementById("bkGdrivePending").style.display = "none";
+      const statusEl = document.getElementById("bkGdriveFormStatus");
+      statusEl.className = "save-status"; statusEl.style.color = "var(--danger)";
+      statusEl.textContent = "Ошибка: " + (data.message || "");
+    }
+  };
+  poll();
+}
+function renderGdriveConnectUI(gdrive) {
+  const statusEl = document.getElementById("bkGdriveStatus");
+  const connectBtn = document.getElementById("btnBkGdriveConnect");
+  const disconnectBtn = document.getElementById("btnBkGdriveDisconnect");
+  const hintEl = document.getElementById("bkGdriveHint");
+
+  if (gdrive.configured) {
+    statusEl.textContent = "подключено"; statusEl.className = "badge badge-ok";
+    connectBtn.style.display = "none";
+    disconnectBtn.style.display = "";
+    document.getElementById("bkGdriveConnectForm").style.display = "none";
+    hintEl.textContent = "Копии заливаются в папку " + (gdrive.folderId || "") + " на вашем Google Диске.";
+  } else {
+    statusEl.textContent = "не подключено"; statusEl.className = "badge badge-danger";
+    disconnectBtn.style.display = "none";
+    connectBtn.style.display = "";
+    hintEl.textContent = "Нужно один раз подключить свой Google-аккаунт.";
+  }
+  if (gdrive.clientId) document.getElementById("bkGdriveClientId").value = gdrive.clientId;
+  if (gdrive.folderId) document.getElementById("bkGdriveFolderId").value = gdrive.folderId;
+
+  const connect = gdrive.connect || { status: "idle" };
+  if (connect.status === "pending") {
+    showGdrivePending(connect);
+    schedulePollGdriveStatus();
+  } else {
+    document.getElementById("bkGdrivePending").style.display = "none";
+  }
+}
 function renderBackupHistory(history) {
   const wrap = document.getElementById("bkHistory");
   if (!history.length) { wrap.innerHTML = '<div class="empty">Бэкапов ещё не было.</div>'; return; }
@@ -1851,13 +1959,10 @@ async function loadBackupSettings() {
     document.getElementById("bkTargetGdrive").checked = s.targets.gdrive.enabled;
     document.getElementById("bkTargetGdrive").disabled = !s.targets.gdrive.configured;
     renderTargetBadge(document.getElementById("bkSshStatus"), s.targets.ssh);
-    renderTargetBadge(document.getElementById("bkGdriveStatus"), s.targets.gdrive);
-    const hintParts = [];
-    if (!s.targets.ssh.configured) hintParts.push("SSH");
-    if (!s.targets.gdrive.configured) hintParts.push("Google Drive");
-    document.getElementById("bkTargetsHint").textContent = hintParts.length
-      ? `${hintParts.join(" и ")} не настроен(ы) на сервере (см. docs/backup-setup.md) — чекбокс недоступен, пока не заданы переменные окружения.`
+    document.getElementById("bkTargetsHint").textContent = !s.targets.ssh.configured
+      ? "SSH не настроен на сервере (см. docs/backup-setup.md) — чекбокс недоступен, пока не задан ключ."
       : "Локальных копий сейчас хранится: " + s.localBackupCount + ".";
+    renderGdriveConnectUI(s.targets.gdrive);
     renderBackupHistory(s.history);
   } catch (err) {
     errEl.textContent = "Не удалось загрузить настройки бэкапа: " + err.message;
@@ -1902,6 +2007,47 @@ document.getElementById("btnBkRunNow").addEventListener("click", async () => {
     statusEl.textContent = "Ошибка: " + err.message;
   } finally {
     btn.disabled = false;
+  }
+});
+document.getElementById("btnBkGdriveConnect").addEventListener("click", () => {
+  document.getElementById("bkGdriveConnectForm").style.display = "";
+});
+document.getElementById("btnBkGdriveStart").addEventListener("click", async () => {
+  const statusEl = document.getElementById("bkGdriveFormStatus");
+  const clientId = document.getElementById("bkGdriveClientId").value.trim();
+  const clientSecret = document.getElementById("bkGdriveClientSecret").value.trim();
+  const folderId = document.getElementById("bkGdriveFolderId").value.trim();
+  if (!clientId || !clientSecret || !folderId) {
+    statusEl.className = "save-status"; statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "Заполните все три поля.";
+    return;
+  }
+  statusEl.className = "save-status"; statusEl.style.color = ""; statusEl.textContent = "Запрашиваю код у Google…";
+  try {
+    const resp = await apiFetch("/api/backup/gdrive/connect", {
+      method: "POST",
+      body: JSON.stringify({ clientId, clientSecret, folderId }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ("HTTP " + resp.status));
+    statusEl.textContent = "";
+    showGdrivePending(data);
+    schedulePollGdriveStatus();
+  } catch (err) {
+    statusEl.className = "save-status"; statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "Ошибка: " + err.message;
+  }
+});
+document.getElementById("btnBkGdriveDisconnect").addEventListener("click", async () => {
+  if (!confirm("Отключить Google Drive? Бэкап туда прекратится, пока не подключите заново.")) return;
+  try {
+    const resp = await apiFetch("/api/backup/gdrive/disconnect", { method: "POST" });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    stopGdrivePoll();
+    showToast("Google Drive отключён");
+    loadBackupSettings();
+  } catch (err) {
+    showToast("Не удалось отключить: " + err.message, true);
   }
 });
 

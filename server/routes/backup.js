@@ -16,6 +16,7 @@ const { logAudit } = require("../lib/audit");
 const { runBackup, getSettings, listLocalBackups } = require("../backup/run-backup");
 const sshTarget = require("../backup/targets/ssh");
 const gdriveTarget = require("../backup/targets/gdrive");
+const gdriveOAuth = require("../backup/gdrive-oauth");
 
 const router = express.Router();
 router.use(requireAuth, requireRole("admin"));
@@ -30,7 +31,13 @@ function serializeSettings() {
     localRetentionCount: row.local_retention_count,
     targets: {
       ssh: { enabled: !!row.target_ssh_enabled, configured: sshTarget.isConfigured() },
-      gdrive: { enabled: !!row.target_gdrive_enabled, configured: gdriveTarget.isConfigured() },
+      gdrive: {
+        enabled: !!row.target_gdrive_enabled,
+        configured: gdriveTarget.isConfigured(),
+        clientId: row.gdrive_client_id || null,
+        folderId: row.gdrive_folder_id || null,
+        connect: gdriveOAuth.getStatus(),
+      },
     },
     localBackupCount: listLocalBackups().length,
     updatedBy: row.updated_by,
@@ -99,6 +106,34 @@ router.post("/run-now", async (req, res) => {
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// Подключение Google Drive целиком через UI (Device Flow) — Client ID/
+// Secret создаются один раз в Google Cloud Console (требование самого
+// Google, см. docs/backup-setup.md), но дальше уже без консоли: код и
+// ссылка отдаются прямо сюда, фронтенд поллит /gdrive/status.
+router.post("/gdrive/connect", async (req, res) => {
+  const { clientId, clientSecret, folderId } = req.body || {};
+  if (!clientId || typeof clientId !== "string") return res.status(400).json({ error: "invalid_client_id" });
+  if (!clientSecret || typeof clientSecret !== "string") return res.status(400).json({ error: "invalid_client_secret" });
+  if (!folderId || typeof folderId !== "string") return res.status(400).json({ error: "invalid_folder_id" });
+  try {
+    const status = await gdriveOAuth.startConnect({ clientId, clientSecret, folderId });
+    logAudit({ actor: req.user.username, action: "backup.gdrive.connect_start", entityType: "backup_settings", ip: req.ip });
+    res.json(status);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.get("/gdrive/status", (req, res) => {
+  res.json(gdriveOAuth.getStatus());
+});
+
+router.post("/gdrive/disconnect", (req, res) => {
+  gdriveOAuth.disconnect();
+  logAudit({ actor: req.user.username, action: "backup.gdrive.disconnect", entityType: "backup_settings", ip: req.ip });
+  res.json(serializeSettings());
 });
 
 // Скачать конкретный локальный бэкап руками (проверить/унести самому,
