@@ -161,13 +161,13 @@ node list-projects.js
 node list-users.js
 ```
 
-Список всех пользователей и их ролей (`viewer`/`editor`/`admin`). Хеши
-паролей не печатаются — это только просмотр.
+Список всех пользователей и их ролей (`viewer`/`engineer`/`supervisor`/
+`admin`). Хеши паролей не печатаются — это только просмотр.
 
 ### `seed.js` — создать/изменить пользователя (включая сброс пароля) или проект
 
 ```
-node seed.js user <username> <password> <viewer|editor|admin>
+node seed.js user <username> <password> <viewer|engineer|supervisor|admin>
 node seed.js project <id> <name>
 ```
 
