@@ -41,7 +41,7 @@ function saveRefreshToken(refreshToken) {
 function disconnect() {
   stopPolling();
   db.prepare(
-    "UPDATE backup_settings SET gdrive_client_id = NULL, gdrive_client_secret = NULL, gdrive_refresh_token = NULL, gdrive_folder_id = NULL WHERE id = 1"
+    "UPDATE backup_settings SET gdrive_client_id = NULL, gdrive_client_secret = NULL, gdrive_refresh_token = NULL, gdrive_folder_id = NULL, target_gdrive_enabled = 0 WHERE id = 1"
   ).run();
   state = { status: "idle" };
 }

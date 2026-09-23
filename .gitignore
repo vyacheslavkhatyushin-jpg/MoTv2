@@ -1,6 +1,3 @@
 node_modules/
 server/data/
 .env
-# Секреты офсайт-целей автобэкапа (SSH-ключ, сервисный аккаунт Google) —
-# см. docs/backup-setup.md. Никогда не коммитить.
-secrets/

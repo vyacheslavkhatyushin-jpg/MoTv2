@@ -133,7 +133,7 @@
   .field-row{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px 16px; margin-bottom:4px; align-items:end; }
   .field{ margin-bottom:12px; display:flex; flex-direction:column; }
   .field label{ display:block; font-size:11px; color:var(--text-dim); margin-bottom:4px; }
-  .field input, .field select{
+  .field input, .field select, .field textarea{
     width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
     border-radius:5px; padding:7px 8px; font-size:12.5px; font-family:inherit;
   }
@@ -769,19 +769,57 @@
               </div>
             </div>
 
-            <h3 style="margin-top:20px;">Куда копировать (кроме локального диска)</h3>
             <div class="hint" id="bkTargetsHint" style="margin-bottom:10px;"></div>
-            <div class="field-row">
-              <div class="field">
-                <label class="check-inline"><input type="checkbox" id="bkTargetSsh"> Другой сервер по SSH <span id="bkSshStatus" class="badge"></span></label>
-                <div class="hint">Ключ и адрес сервера задаются на сервере, см. <code>docs/backup-setup.md</code>.</div>
-              </div>
-            </div>
 
             <div class="save-bar" style="margin-top:14px;">
               <button class="btn primary" id="btnBkSave">Сохранить настройки</button>
               <button class="btn" id="btnBkRunNow">Сделать бэкап сейчас</button>
               <span class="save-status" id="bkSaveStatus"></span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Другой сервер по SSH</h3>
+            <div class="field-row" style="align-items:center;">
+              <label class="check-inline" style="margin:0;"><input type="checkbox" id="bkTargetSsh"> Использовать как цель бэкапа <span id="bkSshStatus" class="badge"></span></label>
+              <button class="btn" id="btnBkSshConnect" type="button">Подключить</button>
+              <button class="btn" id="btnBkSshDisconnect" type="button" style="display:none;">Отключить</button>
+            </div>
+            <div class="hint" id="bkSshHint" style="margin-top:6px;"></div>
+
+            <div id="bkSshConnectForm" style="display:none; margin-top:14px;">
+              <div class="hint" style="margin-bottom:10px;">
+                Нужен отдельный SSH-ключ (не ваш личный) и его публичная
+                половина, добавленная в <code>authorized_keys</code> на
+                сервере-приёмнике — пошагово см. <code>docs/backup-setup.md</code>,
+                раздел «Другой сервер по SSH».
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label for="bkSshHost">Хост</label>
+                  <input type="text" id="bkSshHost" autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="bkSshUser">Пользователь</label>
+                  <input type="text" id="bkSshUser" autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="bkSshPort">Порт</label>
+                  <input type="number" id="bkSshPort" min="1" max="65535" value="22">
+                </div>
+                <div class="field">
+                  <label for="bkSshRemoteDir">Папка на сервере</label>
+                  <input type="text" id="bkSshRemoteDir" autocomplete="off">
+                </div>
+              </div>
+              <div class="field" style="margin-top:10px;">
+                <label for="bkSshPrivateKey">Приватный ключ</label>
+                <textarea id="bkSshPrivateKey" rows="6" style="font-family:monospace; font-size:12px;" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"></textarea>
+              </div>
+              <div class="save-bar" style="margin-top:10px;">
+                <button class="btn primary" id="btnBkSshSave" type="button">Сохранить и проверить</button>
+                <span class="save-status" id="bkSshFormStatus"></span>
+              </div>
             </div>
           </div>
 
@@ -1854,10 +1892,28 @@ function formatBytes(n) {
   return (n / 1024 / 1024 / 1024).toFixed(2) + " ГБ";
 }
 const BK_STATUS_LABEL = { success: "успех", failed: "ошибка", partial: "частично", running: "выполняется" };
-function renderTargetBadge(el, info) {
-  if (info.enabled) { el.textContent = "включено"; el.className = "badge badge-ok"; return; }
-  if (info.configured) { el.textContent = "настроено, выключено"; el.className = "badge badge-off"; return; }
-  el.textContent = "не настроено на сервере"; el.className = "badge badge-danger";
+function renderSshConnectUI(ssh) {
+  const statusEl = document.getElementById("bkSshStatus");
+  const connectBtn = document.getElementById("btnBkSshConnect");
+  const disconnectBtn = document.getElementById("btnBkSshDisconnect");
+  const hintEl = document.getElementById("bkSshHint");
+
+  if (ssh.configured) {
+    statusEl.textContent = "подключено"; statusEl.className = "badge badge-ok";
+    connectBtn.style.display = "none";
+    disconnectBtn.style.display = "";
+    document.getElementById("bkSshConnectForm").style.display = "none";
+    hintEl.textContent = `Копии заливаются на ${esc(ssh.user || "")}@${esc(ssh.host || "")}:${esc(ssh.remoteDir || "")}.`;
+  } else {
+    statusEl.textContent = "не подключено"; statusEl.className = "badge badge-danger";
+    disconnectBtn.style.display = "none";
+    connectBtn.style.display = "";
+    hintEl.textContent = "Нужно один раз указать сервер и ключ.";
+  }
+  if (ssh.host) document.getElementById("bkSshHost").value = ssh.host;
+  if (ssh.user) document.getElementById("bkSshUser").value = ssh.user;
+  if (ssh.port) document.getElementById("bkSshPort").value = ssh.port;
+  if (ssh.remoteDir) document.getElementById("bkSshRemoteDir").value = ssh.remoteDir;
 }
 let gdrivePollTimer = null;
 function stopGdrivePoll() {
@@ -1958,10 +2014,8 @@ async function loadBackupSettings() {
     document.getElementById("bkTargetSsh").disabled = !s.targets.ssh.configured;
     document.getElementById("bkTargetGdrive").checked = s.targets.gdrive.enabled;
     document.getElementById("bkTargetGdrive").disabled = !s.targets.gdrive.configured;
-    renderTargetBadge(document.getElementById("bkSshStatus"), s.targets.ssh);
-    document.getElementById("bkTargetsHint").textContent = !s.targets.ssh.configured
-      ? "SSH не настроен на сервере (см. docs/backup-setup.md) — чекбокс недоступен, пока не задан ключ."
-      : "Локальных копий сейчас хранится: " + s.localBackupCount + ".";
+    document.getElementById("bkTargetsHint").textContent = "Локальных копий сейчас хранится: " + s.localBackupCount + ".";
+    renderSshConnectUI(s.targets.ssh);
     renderGdriveConnectUI(s.targets.gdrive);
     renderBackupHistory(s.history);
   } catch (err) {
@@ -2045,6 +2099,53 @@ document.getElementById("btnBkGdriveDisconnect").addEventListener("click", async
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     stopGdrivePoll();
     showToast("Google Drive отключён");
+    loadBackupSettings();
+  } catch (err) {
+    showToast("Не удалось отключить: " + err.message, true);
+  }
+});
+document.getElementById("btnBkSshConnect").addEventListener("click", () => {
+  document.getElementById("bkSshConnectForm").style.display = "";
+});
+document.getElementById("btnBkSshSave").addEventListener("click", async () => {
+  const statusEl = document.getElementById("bkSshFormStatus");
+  const host = document.getElementById("bkSshHost").value.trim();
+  const user = document.getElementById("bkSshUser").value.trim();
+  const port = parseInt(document.getElementById("bkSshPort").value, 10) || 22;
+  const remoteDir = document.getElementById("bkSshRemoteDir").value.trim();
+  const privateKey = document.getElementById("bkSshPrivateKey").value.trim();
+  if (!host || !user || !remoteDir || !privateKey) {
+    statusEl.className = "save-status"; statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "Заполните хост, пользователя, папку и приватный ключ.";
+    return;
+  }
+  statusEl.className = "save-status"; statusEl.style.color = ""; statusEl.textContent = "Сохраняю и проверяю подключение…";
+  try {
+    const resp = await apiFetch("/api/backup/ssh/save", {
+      method: "POST",
+      body: JSON.stringify({ host, user, port, remoteDir, privateKey }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ("HTTP " + resp.status));
+    if (data.tested) {
+      statusEl.className = "save-status ok"; statusEl.textContent = "Сохранено, подключение проверено успешно.";
+      showToast("SSH-сервер подключён");
+    } else {
+      statusEl.className = "save-status"; statusEl.style.color = "var(--danger)";
+      statusEl.textContent = "Сохранено, но проверка подключения не прошла: " + (data.testError || "");
+    }
+    loadBackupSettings();
+  } catch (err) {
+    statusEl.className = "save-status"; statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "Ошибка: " + err.message;
+  }
+});
+document.getElementById("btnBkSshDisconnect").addEventListener("click", async () => {
+  if (!confirm("Отключить SSH-сервер? Бэкап туда прекратится, пока не подключите заново.")) return;
+  try {
+    const resp = await apiFetch("/api/backup/ssh/disconnect", { method: "POST" });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    showToast("SSH-сервер отключён");
     loadBackupSettings();
   } catch (err) {
     showToast("Не удалось отключить: " + err.message, true);

@@ -1,12 +1,15 @@
 /*
 Настройки автобэкапа БД (Настройки → Резервное копирование) — глобально на
-всю систему, не per-project (как Пользователи). Секреты офсайт-целей сюда
-никогда не приходят и отсюда никогда не отдаются — только флаги
-"включено/настроено ли окружением" (см. server/backup/targets/*.js и
-docs/backup-setup.md). Плановый запуск — server/backup-worker.js (отдельный
-процесс), "Сделать бэкап сейчас" ниже запускает ровно тот же код напрямую
-из основного сервера: db.backup() — online backup API SQLite, безопасно
-работает параллельно с живыми запросами, отдельный процесс тут не нужен.
+всю систему, не per-project (как Пользователи). Обе офсайт-цели (SSH и
+Google Drive) настраиваются и хранятся тут же, в БД (backup_settings, см.
+server/db.js) — секреты (приватный ключ, OAuth client secret/refresh-token)
+ПРИНИМАЮТСЯ через /ssh/save и /gdrive/connect, но никогда не отдаются
+обратно в GET/serializeSettings — только флаги "включено/настроено" (см.
+server/backup/targets/*.js и docs/backup-setup.md). Плановый запуск —
+server/backup-worker.js (отдельный процесс), "Сделать бэкап сейчас" ниже
+запускает ровно тот же код напрямую из основного сервера: db.backup() —
+online backup API SQLite, безопасно работает параллельно с живыми
+запросами, отдельный процесс тут не нужен.
 */
 const express = require("express");
 const fs = require("fs");
@@ -30,7 +33,14 @@ function serializeSettings() {
     scheduleTime: row.schedule_time,
     localRetentionCount: row.local_retention_count,
     targets: {
-      ssh: { enabled: !!row.target_ssh_enabled, configured: sshTarget.isConfigured() },
+      ssh: {
+        enabled: !!row.target_ssh_enabled,
+        configured: sshTarget.isConfigured(),
+        host: row.ssh_host || null,
+        user: row.ssh_user || null,
+        port: row.ssh_port || null,
+        remoteDir: row.ssh_remote_dir || null,
+      },
       gdrive: {
         enabled: !!row.target_gdrive_enabled,
         configured: gdriveTarget.isConfigured(),
@@ -106,6 +116,45 @@ router.post("/run-now", async (req, res) => {
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// Подключение SSH-цели целиком через UI — в отличие от Google Drive тут
+// не нужен внешний OAuth-шаг: просто сохраняем host/user/port/remoteDir и
+// сам приватный ключ (в БД, см. server/db.js) и сразу пробуем подключиться
+// и открыть remoteDir, чтобы не ждать первого планового бэкапа для
+// проверки опечатки в хосте/ключе.
+router.post("/ssh/save", async (req, res) => {
+  const { host, user, port, remoteDir, privateKey } = req.body || {};
+  if (!host || typeof host !== "string") return res.status(400).json({ error: "invalid_host" });
+  if (!user || typeof user !== "string") return res.status(400).json({ error: "invalid_user" });
+  if (!remoteDir || typeof remoteDir !== "string") return res.status(400).json({ error: "invalid_remote_dir" });
+  if (!privateKey || typeof privateKey !== "string" || !privateKey.includes("PRIVATE KEY")) {
+    return res.status(400).json({ error: "invalid_private_key" });
+  }
+  const portNum = port ? parseInt(port, 10) : 22;
+  if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) return res.status(400).json({ error: "invalid_port" });
+
+  db.prepare(
+    "UPDATE backup_settings SET ssh_host = ?, ssh_user = ?, ssh_port = ?, ssh_remote_dir = ?, ssh_private_key = ? WHERE id = 1"
+  ).run(host, user, portNum, remoteDir, privateKey);
+  logAudit({ actor: req.user.username, action: "backup.ssh.save", entityType: "backup_settings", ip: req.ip });
+
+  try {
+    const client = await sshTarget.connectWith({ host, user, port: portNum, privateKey });
+    await client.list(remoteDir);
+    await client.end().catch(() => {});
+    res.json({ ok: true, tested: true, ...serializeSettings() });
+  } catch (e) {
+    res.json({ ok: true, tested: false, testError: e.message, ...serializeSettings() });
+  }
+});
+
+router.post("/ssh/disconnect", (req, res) => {
+  db.prepare(
+    "UPDATE backup_settings SET ssh_host = NULL, ssh_user = NULL, ssh_port = NULL, ssh_remote_dir = NULL, ssh_private_key = NULL, target_ssh_enabled = 0 WHERE id = 1"
+  ).run();
+  logAudit({ actor: req.user.username, action: "backup.ssh.disconnect", entityType: "backup_settings", ip: req.ip });
+  res.json(serializeSettings());
 });
 
 // Подключение Google Drive целиком через UI (Device Flow) — Client ID/
