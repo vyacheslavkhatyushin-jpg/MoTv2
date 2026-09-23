@@ -1642,6 +1642,10 @@ async function buildLayerFromOBJ(vertices, groups, legend, filename) {
   const layerHorizons = new Map();
   const horizonKeys = Array.from(grouped.keys()).sort((a, b) => grouped.get(a).sortKey - grouped.get(b).sortKey);
   let totalPoints = 0, totalSegments = 0;
+  // Общий на весь слой (не на горизонт отдельно) — если у двух горизонтов
+  // цвет совпал (палитра HORIZON_PALETTE конечная, зацикливается), им незачем
+  // два разных материала с одинаковым цветом.
+  const materialCache = new Map();
   for (let hi = 0; hi < horizonKeys.length; hi++) {
     const hkey = horizonKeys[hi];
     const hdata = grouped.get(hkey);
@@ -1675,10 +1679,7 @@ async function buildLayerFromOBJ(vertices, groups, legend, filename) {
       geo.setAttribute("position", new THREE.Float32BufferAttribute(solidVerts, 3));
       geo = BufferGeometryUtils.mergeVertices(geo);
       geo.computeVertexNormals();
-      const mat = new THREE.MeshStandardMaterial({
-        color: baseColor, transparent: true, opacity: 0.5,
-        side: THREE.DoubleSide, depthWrite: true, roughness: 0.85, metalness: 0.05,
-      });
+      const mat = getOrCreateHorizonMaterial(materialCache, baseColor, 0.5);
       const solidMesh = new THREE.Mesh(geo, mat);
       leafGroup.add(solidMesh);
       horizonGroup.add(leafGroup);
@@ -1694,7 +1695,7 @@ async function buildLayerFromOBJ(vertices, groups, legend, filename) {
         key: layerId + "||" + hkey + "||" + name,
         name, horizonLabel: hdata.label, layerName,
         group: leafGroup, solidMesh, lineMesh: null, labelObj,
-        color: baseColor, opacity: 0.5, visible: true,
+        color: baseColor, opacity: 0.5, visible: true, materialShared: true,
         length: 0, segCount: triCount,
         bbox: bbox.isEmpty() ? null : bbox.clone(),
         rings: [], fromDTM: true, fromOBJ: true,
@@ -2064,6 +2065,61 @@ function applyGrayscaleToAll() {
     }
   }
 }
+// Материал тоннеля раньше создавался заново на КАЖДУЮ выработку (до ~1500
+// на модель) — GPU при рендере вынужден на каждый меш переключать
+// состояние (цвет/прозрачность/blending), даже если у 80 выработок одного
+// горизонта материал визуально идентичен. cache здесь — Map(color -> mat),
+// своя на каждый вызов buildLayer*/buildLayerFromOBJ/buildLayerFromDTM (то
+// есть общая в пределах одной загруженной модели, не между разными
+// загруженными слоями — так безопаснее для удаления одного слоя).
+function getOrCreateHorizonMaterial(cache, color, opacity) {
+  let mat = cache.get(color);
+  if (!mat) {
+    mat = new THREE.MeshStandardMaterial({
+      color, transparent: true, opacity,
+      side: THREE.DoubleSide, depthWrite: true, roughness: 0.85, metalness: 0.05,
+    });
+    cache.set(color, mat);
+  }
+  return mat;
+}
+function getOrCreateHorizonLineMaterial(cache, color) {
+  let mat = cache.get(color);
+  if (!mat) { mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85 }); cache.set(color, mat); }
+  return mat;
+}
+function getOrCreateHorizonPointMaterial(cache, color) {
+  let mat = cache.get(color);
+  if (!mat) { mat = new THREE.PointsMaterial({ color, size: 6, sizeAttenuation: false }); cache.set(color, mat); }
+  return mat;
+}
+// Пока цвет/прозрачность выработки не переопределили руками, её меш(и)
+// ссылаются на общий материал горизонта — leaf.materialShared === true.
+// "Отделяем" (клонируем) материал ЛЕНИВО, только когда значение реально
+// отличается от текущего — иначе восстановление сохранённого проекта
+// (там leafOverrides есть у КАЖДОЙ выработки, даже нетронутой — см.
+// buildSnapshot) расклеило бы весь выигрыш обратно на первом же restore.
+function detachLeafMaterial(leaf) {
+  if (!leaf.materialShared) return;
+  if (leaf.solidMesh) leaf.solidMesh.material = leaf.solidMesh.material.clone();
+  if (leaf.lineMesh) leaf.lineMesh.material = leaf.lineMesh.material.clone();
+  if (leaf.pointMesh) leaf.pointMesh.material = leaf.pointMesh.material.clone();
+  leaf.materialShared = false;
+}
+function setLeafColor(leaf, hex) {
+  if (leaf.color === hex) return;
+  leaf.color = hex;
+  detachLeafMaterial(leaf);
+  if (leaf.solidMesh) leaf.solidMesh.material.color.setHex(hex);
+  if (leaf.lineMesh) leaf.lineMesh.material.color.setHex(hex);
+  if (leaf.pointMesh) leaf.pointMesh.material.color.setHex(hex);
+}
+function setLeafOpacity(leaf, opacity) {
+  if (leaf.opacity === opacity) return;
+  leaf.opacity = opacity;
+  detachLeafMaterial(leaf);
+  if (leaf.solidMesh) leaf.solidMesh.material.opacity = opacity;
+}
 // пользовательские объекты: кабели, оборудование, метки — не зависят от загруженных STR-слоёв
 const cables = new Map();
 const equipment = new Map();
@@ -2262,6 +2318,9 @@ async function buildLayer(parsed, filename) {
   const layerHorizons = new Map();
   const horizonKeys = Array.from(grouped.keys()).sort((a, b) => grouped.get(a).sortKey - grouped.get(b).sortKey);
   let totalPoints = 0, totalSegments = polylines.length;
+  const materialCache = new Map();
+  const lineMaterialCache = new Map();
+  const pointMaterialCache = new Map();
   for (let hi = 0; hi < horizonKeys.length; hi++) {
     const hkey = horizonKeys[hi];
     const hdata = grouped.get(hkey);
@@ -2307,10 +2366,7 @@ async function buildLayer(parsed, filename) {
         geo.setAttribute("position", new THREE.Float32BufferAttribute(solidVerts, 3));
         geo = BufferGeometryUtils.mergeVertices(geo);
         geo.computeVertexNormals();
-        const mat = new THREE.MeshStandardMaterial({
-          color: baseColor, transparent: true, opacity: 0.5,
-          side: THREE.DoubleSide, depthWrite: true, roughness: 0.85, metalness: 0.05,
-        });
+        const mat = getOrCreateHorizonMaterial(materialCache, baseColor, 0.5);
         solidMesh = new THREE.Mesh(geo, mat);
         leafGroup.add(solidMesh);
       }
@@ -2318,7 +2374,7 @@ async function buildLayer(parsed, filename) {
       if (lineVerts.length) {
         const lgeo = new THREE.BufferGeometry();
         lgeo.setAttribute("position", new THREE.Float32BufferAttribute(lineVerts, 3));
-        const lmat = new THREE.LineBasicMaterial({ color: baseColor, transparent: true, opacity: 0.85 });
+        const lmat = getOrCreateHorizonLineMaterial(lineMaterialCache, baseColor);
         lineMesh = new THREE.LineSegments(lgeo, lmat);
         leafGroup.add(lineMesh);
       }
@@ -2326,7 +2382,7 @@ async function buildLayer(parsed, filename) {
       if (pointVerts.length) {
         const pgeo = new THREE.BufferGeometry();
         pgeo.setAttribute("position", new THREE.Float32BufferAttribute(pointVerts, 3));
-        const pmat = new THREE.PointsMaterial({ color: baseColor, size: 6, sizeAttenuation: false });
+        const pmat = getOrCreateHorizonPointMaterial(pointMaterialCache, baseColor);
         pointMesh = new THREE.Points(pgeo, pmat);
         leafGroup.add(pointMesh);
       }
@@ -2343,7 +2399,7 @@ async function buildLayer(parsed, filename) {
         key: layerId + "||" + hkey + "||" + name,
         name, horizonLabel: hdata.label, layerName,
         group: leafGroup, solidMesh, lineMesh, pointMesh, labelObj,
-        color: baseColor, opacity: 0.5, visible: true,
+        color: baseColor, opacity: 0.5, visible: true, materialShared: true,
         length: leafLen, segCount, bbox: bbox.isEmpty() ? null : bbox.clone(),
         rings: closedRingsScene,
       };
@@ -2453,6 +2509,7 @@ async function buildLayerFromDTM(solids, linePoints, filename, strHeader) {
   const layerHorizons = new Map();
   const horizonKeys = Array.from(grouped.keys()).sort((a, b) => grouped.get(a).sortKey - grouped.get(b).sortKey);
   let totalPoints = 0, totalSegments = 0;
+  const materialCache = new Map();
   for (let hi = 0; hi < horizonKeys.length; hi++) {
     const hkey = horizonKeys[hi];
     const hdata = grouped.get(hkey);
@@ -2484,10 +2541,7 @@ async function buildLayerFromDTM(solids, linePoints, filename, strHeader) {
       geo.setAttribute("position", new THREE.Float32BufferAttribute(solidVerts, 3));
       geo = BufferGeometryUtils.mergeVertices(geo);
       geo.computeVertexNormals();
-      const mat = new THREE.MeshStandardMaterial({
-        color: baseColor, transparent: true, opacity: 0.5,
-        side: THREE.DoubleSide, depthWrite: true, roughness: 0.85, metalness: 0.05,
-      });
+      const mat = getOrCreateHorizonMaterial(materialCache, baseColor, 0.5);
       const solidMesh = new THREE.Mesh(geo, mat);
       leafGroup.add(solidMesh);
       horizonGroup.add(leafGroup);
@@ -2503,7 +2557,7 @@ async function buildLayerFromDTM(solids, linePoints, filename, strHeader) {
         key: layerId + "||" + hkey + "||" + name,
         name, horizonLabel: hdata.label, layerName,
         group: leafGroup, solidMesh, lineMesh: null, labelObj,
-        color: baseColor, opacity: 0.5, visible: true,
+        color: baseColor, opacity: 0.5, visible: true, materialShared: true,
         length: 0, segCount: triCount,
         bbox: bbox.isEmpty() ? null : bbox.clone(),
         rings: [], fromDTM: true,
@@ -2772,16 +2826,13 @@ dom.dVisible.addEventListener("change", () => {
 dom.dColor.addEventListener("input", () => {
   if (!selectedLeaf) return;
   const hex = parseInt(dom.dColor.value.slice(1), 16);
-  selectedLeaf.color = hex;
-  if (selectedLeaf.solidMesh) selectedLeaf.solidMesh.material.color.setHex(hex);
-  if (selectedLeaf.lineMesh) selectedLeaf.lineMesh.material.color.setHex(hex);
+  setLeafColor(selectedLeaf, hex);
   if (selectedLeaf._swatch) selectedLeaf._swatch.style.background = dom.dColor.value;
 });
 dom.dOpacity.addEventListener("input", () => {
   if (!selectedLeaf) return;
   const v = dom.dOpacity.value / 100;
-  selectedLeaf.opacity = v;
-  if (selectedLeaf.solidMesh) selectedLeaf.solidMesh.material.opacity = v;
+  setLeafOpacity(selectedLeaf, v);
 });
 dom.dFocus.addEventListener("click", () => {
   if (selectedLeaf && selectedLeaf.bbox) flyTo(selectedLeaf.bbox);
@@ -6696,9 +6747,14 @@ async function restoreFromSnapshot(state) {
         for (const [name, leaf] of h.leaves) {
           const ov = entry.leafOverrides && entry.leafOverrides[hkey + "||" + name];
           if (!ov) continue;
-          leaf.color = ov.color; leaf.opacity = ov.opacity;
-          applyLeafColor(leaf);
-          if (leaf.solidMesh) leaf.solidMesh.material.opacity = leaf.opacity;
+          // setLeafColor/setLeafOpacity отделяют (клонируют) материал
+          // выработки от общего только если значение и правда отличается
+          // от дефолта горизонта — а leafOverrides в снэпшоте есть у КАЖДОЙ
+          // выработки (см. buildSnapshot), даже нетронутой, так что
+          // безусловное присвоение тут расклеило бы общие материалы
+          // обратно на ~1500 при каждой загрузке проекта.
+          setLeafColor(leaf, ov.color);
+          setLeafOpacity(leaf, ov.opacity);
           setLeafVisible(leaf, ov.visible);
         }
         updateHorizonCheckbox(h);
@@ -6718,9 +6774,14 @@ async function restoreFromSnapshot(state) {
         for (const [name, leaf] of h.leaves) {
           const ov = entry.leafOverrides && entry.leafOverrides[hkey + "||" + name];
           if (!ov) continue;
-          leaf.color = ov.color; leaf.opacity = ov.opacity;
-          applyLeafColor(leaf);
-          if (leaf.solidMesh) leaf.solidMesh.material.opacity = leaf.opacity;
+          // setLeafColor/setLeafOpacity отделяют (клонируют) материал
+          // выработки от общего только если значение и правда отличается
+          // от дефолта горизонта — а leafOverrides в снэпшоте есть у КАЖДОЙ
+          // выработки (см. buildSnapshot), даже нетронутой, так что
+          // безусловное присвоение тут расклеило бы общие материалы
+          // обратно на ~1500 при каждой загрузке проекта.
+          setLeafColor(leaf, ov.color);
+          setLeafOpacity(leaf, ov.opacity);
           setLeafVisible(leaf, ov.visible);
         }
         updateHorizonCheckbox(h);
@@ -6740,9 +6801,14 @@ async function restoreFromSnapshot(state) {
         for (const [name, leaf] of h.leaves) {
           const ov = entry.leafOverrides && entry.leafOverrides[hkey + "||" + name];
           if (!ov) continue;
-          leaf.color = ov.color; leaf.opacity = ov.opacity;
-          applyLeafColor(leaf);
-          if (leaf.solidMesh) leaf.solidMesh.material.opacity = leaf.opacity;
+          // setLeafColor/setLeafOpacity отделяют (клонируют) материал
+          // выработки от общего только если значение и правда отличается
+          // от дефолта горизонта — а leafOverrides в снэпшоте есть у КАЖДОЙ
+          // выработки (см. buildSnapshot), даже нетронутой, так что
+          // безусловное присвоение тут расклеило бы общие материалы
+          // обратно на ~1500 при каждой загрузке проекта.
+          setLeafColor(leaf, ov.color);
+          setLeafOpacity(leaf, ov.opacity);
           setLeafVisible(leaf, ov.visible);
         }
         updateHorizonCheckbox(h);
