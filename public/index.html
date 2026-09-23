@@ -3289,6 +3289,11 @@ function updateHighlightPulse() {
 ============================================================ */
 const MONITOR_GLOW_UP = 0x2ecc71;
 const MONITOR_GLOW_DOWN = 0xe74c3c;
+// Подтверждённая ("я вижу, разбираюсь", см. POST .../monitor/events/:id/acknowledge)
+// авария — тот же пульсирующий индикатор, но янтарный вместо красного:
+// отличать на глаз "кто-то уже занимается" от "только что упало и никто
+// ещё не видел", не убирая саму аварию из вида (объект всё ещё не в норме).
+const MONITOR_GLOW_DOWN_ACK = 0xf39c12;
 const MONITOR_GLOW_TAG = 0xffffff;
 const MONITOR_TAG_PULSE_MS = 500;
 const monitorGlows = new Map(); // equipmentId -> { layers, pulsing, t0 }
@@ -3326,13 +3331,15 @@ function clearMonitorGlow(equipmentId) {
 }
 // state: "up" | "down" | "degraded" | "unknown"/что угодно ещё — трактуется
 // как "нет подсветки", чтобы неизвестный статус не выглядел как авария.
-function setMonitorGlow(eq, state) {
+// acknowledged — только для down/degraded, см. MONITOR_GLOW_DOWN_ACK выше.
+function setMonitorGlow(eq, state, acknowledged) {
   clearMonitorGlow(eq.id);
   if (state === "up") {
     const layers = buildMonitorGlowLayers(eq.mesh, eq.size, MONITOR_GLOW_UP, 1);
     monitorGlows.set(eq.id, { layers, pulsing: false });
   } else if (state === "down" || state === "degraded") {
-    const layers = buildMonitorGlowLayers(eq.mesh, eq.size, MONITOR_GLOW_DOWN, 2);
+    const color = acknowledged ? MONITOR_GLOW_DOWN_ACK : MONITOR_GLOW_DOWN;
+    const layers = buildMonitorGlowLayers(eq.mesh, eq.size, color, 2);
     monitorGlows.set(eq.id, { layers, pulsing: true, t0: performance.now() });
   }
 }
@@ -6308,6 +6315,66 @@ function timeSinceLabel(isoStr) {
   const d = Math.floor(h / 24);
   return d + " дн " + (h % 24) + " ч";
 }
+// Подтверждение аварии ("я вижу, разбираюсь") — POST .../monitor/events/:id/
+// acknowledge, потом оптимистично правим уже полученные строки и
+// перерисовываем весь монитор-UI через applyMonitorStatus (тот же путь, что
+// у обычного WS-тика: один код на пересчёт счётчиков/свечения/списков,
+// не отдельная логика "точечно перекрасить один div").
+async function acknowledgeAlarmEvent(eventId) {
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/events/${eventId}/acknowledge`, { method: "POST" });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const row = monitorLastRows.find((r) => r.event_id === eventId);
+    if (row) {
+      row.acknowledged_by = data.acknowledgedBy;
+      row.acknowledged_at = data.acknowledgedAt || new Date().toISOString();
+      applyMonitorStatus(monitorLastRows);
+    }
+  } catch (e) {}
+}
+// swatch/кнопка одной строки аварии — общие для списка "Активные аварии" и
+// модалки Alarm статус-бара, чтобы не разъезжались (см. monitorStatModalItems).
+function buildAlarmRowEl(row, eq, { withTicketBtn = true, onAfterAction } = {}) {
+  const after = onAfterAction || (() => {});
+  const el = document.createElement("div");
+  el.className = "uo-row";
+  const acknowledged = !!row.acknowledged_by;
+  const swatch = document.createElement("span");
+  swatch.className = "swatch"; swatch.style.background = acknowledged ? "#f39c12" : "#e74c3c";
+  const lname = document.createElement("span");
+  lname.className = "lname"; lname.textContent = eq.label;
+  const since = document.createElement("span");
+  since.className = "llen";
+  since.textContent = row.last_change_at ? timeSinceLabel(row.last_change_at) : "";
+  el.appendChild(swatch); el.appendChild(lname); el.appendChild(since);
+
+  const role = (window.__auth && window.__auth.role) || "viewer";
+  if (acknowledged) {
+    const ackLabel = document.createElement("span");
+    ackLabel.className = "llen"; ackLabel.style.color = "#f39c12";
+    ackLabel.title = `Подтвердил(а): ${row.acknowledged_by}`;
+    ackLabel.textContent = "✓ " + row.acknowledged_by;
+    el.appendChild(ackLabel);
+  } else if (role !== "viewer" && row.event_id) {
+    const ackBtn = document.createElement("button");
+    ackBtn.className = "mk-ticket-btn";
+    ackBtn.title = "Подтвердить — я вижу эту аварию";
+    ackBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5l10 -10" /></svg>';
+    ackBtn.addEventListener("click", (e) => { e.stopPropagation(); acknowledgeAlarmEvent(row.event_id); after(); });
+    el.appendChild(ackBtn);
+  }
+  if (withTicketBtn) {
+    const ticketBtn = document.createElement("button");
+    ticketBtn.className = "mk-ticket-btn";
+    ticketBtn.title = "Создать тикет по этой аварии";
+    ticketBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l0 2" /><path d="M15 11l0 2" /><path d="M15 17l0 2" /><path d="M5 5a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h14a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2z" /></svg>';
+    ticketBtn.addEventListener("click", (e) => { e.stopPropagation(); createTicketFromActiveRow(row, eq); after(); });
+    el.appendChild(ticketBtn);
+  }
+  el.addEventListener("click", () => { showQuickInfoEquip(eq); refreshQuickInfoMetrics(); focusEquip(eq); after(); });
+  return el;
+}
 function renderMonitorActiveList(rows) {
   const active = rows
     .filter((r) => r.state === "down" || r.state === "degraded")
@@ -6317,23 +6384,7 @@ function renderMonitorActiveList(rows) {
   dom.monitorActiveList.innerHTML = "";
   dom.monitorActivePlaceholder.style.display = active.length ? "none" : "block";
   for (const { row, eq } of active) {
-    const el = document.createElement("div");
-    el.className = "uo-row";
-    const swatch = document.createElement("span");
-    swatch.className = "swatch"; swatch.style.background = "#e74c3c";
-    const lname = document.createElement("span");
-    lname.className = "lname"; lname.textContent = eq.label;
-    const since = document.createElement("span");
-    since.className = "llen";
-    since.textContent = row.last_change_at ? timeSinceLabel(row.last_change_at) : "";
-    const ticketBtn = document.createElement("button");
-    ticketBtn.className = "mk-ticket-btn";
-    ticketBtn.title = "Создать тикет по этой аварии";
-    ticketBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l0 2" /><path d="M15 11l0 2" /><path d="M15 17l0 2" /><path d="M5 5a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h14a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2z" /></svg>';
-    ticketBtn.addEventListener("click", (e) => { e.stopPropagation(); createTicketFromActiveRow(row, eq); });
-    el.appendChild(swatch); el.appendChild(lname); el.appendChild(since); el.appendChild(ticketBtn);
-    el.addEventListener("click", () => { showQuickInfoEquip(eq); refreshQuickInfoMetrics(); focusEquip(eq); });
-    dom.monitorActiveList.appendChild(el);
+    dom.monitorActiveList.appendChild(buildAlarmRowEl(row, eq));
   }
 }
 
@@ -6552,7 +6603,7 @@ function applyMonitorStatus(rows) {
     else up++;
     monitorStatusById.set(row.equipment_id, row);
     const eq = equipment.get(row.equipment_id);
-    if (eq) setMonitorGlow(eq, row.state === "down" || row.state === "degraded" ? row.state : "up");
+    if (eq) setMonitorGlow(eq, row.state === "down" || row.state === "degraded" ? row.state : "up", !!row.acknowledged_by);
     if (row.person_count !== null && row.person_count !== undefined) {
       hasPeopleData = true;
       peopleTotal += row.person_count;
@@ -6616,16 +6667,20 @@ function renderMonitorStatModalList() {
   dom.monitorStatModalList.innerHTML = "";
   dom.monitorStatModalEmpty.style.display = items.length ? "none" : "block";
   for (const { row, eq } of items) {
+    if (category === "alarm") {
+      dom.monitorStatModalList.appendChild(buildAlarmRowEl(row, eq, { onAfterAction: closeMonitorStatModal }));
+      continue;
+    }
     const el = document.createElement("div");
     el.className = "uo-row";
     const swatch = document.createElement("span");
     swatch.className = "swatch";
-    swatch.style.background = category === "alarm" ? "#e6553d" : category === "online" ? "#39b8b0" : "#8d979f";
+    swatch.style.background = category === "online" ? "#39b8b0" : "#8d979f";
     const lname = document.createElement("span");
     lname.className = "lname"; lname.textContent = eq.label;
     const sub = document.createElement("span");
     sub.className = "llen";
-    if (category === "alarm" || category === "online") {
+    if (category === "online") {
       sub.textContent = row.last_change_at ? timeSinceLabel(row.last_change_at) : "";
     } else if (category === "regtag") {
       sub.textContent = `${row.person_count} мет.`;
@@ -6633,14 +6688,6 @@ function renderMonitorStatModalList() {
       sub.textContent = `${row.vehicle_count} ед.`;
     }
     el.appendChild(swatch); el.appendChild(lname); el.appendChild(sub);
-    if (category === "alarm") {
-      const ticketBtn = document.createElement("button");
-      ticketBtn.className = "mk-ticket-btn";
-      ticketBtn.title = "Создать тикет по этой аварии";
-      ticketBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l0 2" /><path d="M15 11l0 2" /><path d="M15 17l0 2" /><path d="M5 5a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h14a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2z" /></svg>';
-      ticketBtn.addEventListener("click", (e) => { e.stopPropagation(); createTicketFromActiveRow(row, eq); closeMonitorStatModal(); });
-      el.appendChild(ticketBtn);
-    }
     el.addEventListener("click", () => {
       showQuickInfoEquip(eq); refreshQuickInfoMetrics(); focusEquip(eq);
       closeMonitorStatModal();

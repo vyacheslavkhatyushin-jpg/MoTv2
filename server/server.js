@@ -20,7 +20,7 @@ const adminRoutes = require("./routes/admin");
 const { verifyToken } = require("./auth");
 const db = require("./db");
 const { setupProxyDispatcher } = require("./lib/proxy");
-const { getMonitoredEquipmentIds } = require("./lib/monitorShared");
+const { getMonitoredEquipmentIds, attachOpenEventAck } = require("./lib/monitorShared");
 const { runCleanup: runOrphanedDataCleanup } = require("./lib/cleanupOrphanedData");
 
 setupProxyDispatcher();
@@ -134,7 +134,7 @@ const monitorClients = new Map(); // projectId -> Set<ws>
 // (см. подробный комментарий у isEquipmentMonitored в lib/monitorShared.js).
 function getMonitorStatus(projectId) {
   const validIds = getMonitoredEquipmentIds(projectId);
-  return db
+  const rows = db
     .prepare(
       `SELECT equipment_id, state, last_checked_at, last_change_at, latency_ms,
               person_count, vehicle_count, raw_metrics_json
@@ -142,6 +142,7 @@ function getMonitorStatus(projectId) {
     )
     .all(projectId)
     .filter((row) => validIds.has(row.equipment_id));
+  return attachOpenEventAck(rows, projectId);
 }
 
 function sendStatus(ws, projectId) {

@@ -2,7 +2,7 @@ const express = require("express");
 const db = require("../db");
 const { requireAuth, requireRole } = require("../auth");
 const { logAudit } = require("../lib/audit");
-const { getMonitoredEquipmentIds } = require("../lib/monitorShared");
+const { getMonitoredEquipmentIds, attachOpenEventAck } = require("../lib/monitorShared");
 
 const router = express.Router();
 const SLUG_RE = /^[a-z0-9][a-z0-9-_]{1,63}$/;
@@ -343,7 +343,31 @@ router.get("/:id/monitor/status", (req, res) => {
     )
     .all(req.params.id)
     .filter((row) => validIds.has(row.equipment_id));
-  res.json({ status: rows });
+  res.json({ status: attachOpenEventAck(rows, req.params.id) });
+});
+
+// Подтверждение аварии ("я это вижу, разбираюсь") — отдельно от тикета:
+// более лёгкий жест на активную аварию в списке/модалке статус-бара, без
+// заведения полноценной заявки. Один раз проставляется и не снимается —
+// событие закроется само (авария уйдёт), новая авария на этом же
+// оборудовании — уже новая запись monitor_events, снова неподтверждённая.
+router.post("/:id/monitor/events/:eventId/acknowledge", requireRole("engineer", "supervisor", "admin"), (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const event = db.prepare("SELECT id, acknowledged_by FROM monitor_events WHERE id = ? AND project_id = ?").get(req.params.eventId, req.params.id);
+  if (!event) return res.status(404).json({ error: "event_not_found" });
+  if (event.acknowledged_by) {
+    return res.json({ ok: true, alreadyAcknowledged: true, acknowledgedBy: event.acknowledged_by });
+  }
+
+  const nowIso = new Date().toISOString();
+  db.prepare("UPDATE monitor_events SET acknowledged_by = ?, acknowledged_at = ? WHERE id = ?").run(req.user.username, nowIso, event.id);
+  logAudit({
+    actor: req.user.username, projectId: req.params.id, action: "monitor_event.acknowledge",
+    entityType: "monitor_events", entityId: event.id, ip: req.ip,
+  });
+  res.json({ ok: true, acknowledgedBy: req.user.username, acknowledgedAt: nowIso });
 });
 
 // Дашборд "История аварий" (/<project>/monitoring/stats) — сводка по системам

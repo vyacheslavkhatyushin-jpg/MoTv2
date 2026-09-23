@@ -99,6 +99,30 @@ function getMonitoredEquipmentIds(projectId) {
   return new Set(loadProjectEquipment(projectId).filter(isEquipmentMonitored).map((eq) => eq.id));
 }
 
+// Подмешивает eventId/acknowledgedBy/acknowledgedAt к строкам monitor_status
+// в состоянии down/degraded — общая точка для обоих читателей статуса (WS-
+// рассылка в server.js и REST-фолбэк GET /:id/monitor/status), тот же
+// принцип, что у getMonitoredEquipmentIds: один код на оба места, а не
+// дублирование join'а. "Открытая" авария (ended_at IS NULL) — та же запись,
+// что видит /monitor/events; POST .../monitor/events/:eventId/acknowledge
+// (routes/projects.js) проставляет acknowledged_by/at на неё.
+function attachOpenEventAck(rows, projectId) {
+  const downIds = rows.filter((r) => r.state === "down" || r.state === "degraded").map((r) => r.equipment_id);
+  if (!downIds.length) return rows;
+  const openEvents = db
+    .prepare(
+      `SELECT equipment_id, id, acknowledged_by, acknowledged_at FROM monitor_events
+       WHERE project_id = ? AND ended_at IS NULL AND equipment_id IN (${downIds.map(() => "?").join(",")})`
+    )
+    .all(projectId, ...downIds);
+  const byEquipmentId = new Map(openEvents.map((ev) => [ev.equipment_id, ev]));
+  return rows.map((row) => {
+    const ev = byEquipmentId.get(row.equipment_id);
+    if (!ev) return row;
+    return { ...row, event_id: ev.id, acknowledged_by: ev.acknowledged_by, acknowledged_at: ev.acknowledged_at };
+  });
+}
+
 /* ---------- запись состояния в monitor_status/monitor_events ---------- */
 const stmtGetStatus = db.prepare("SELECT state, raw_metrics_json FROM monitor_status WHERE project_id = ? AND equipment_id = ?");
 const stmtUpsertState = db.prepare(`
@@ -330,4 +354,5 @@ module.exports = {
   isEquipmentMonitored,
   loadProjectEquipment,
   getMonitoredEquipmentIds,
+  attachOpenEventAck,
 };
