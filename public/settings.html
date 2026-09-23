@@ -161,6 +161,7 @@
   #bkHistory table{ width:100%; border-collapse:collapse; font-size:12.5px; }
   #bkHistory th{ text-align:left; padding:6px 10px 6px 0; color:var(--text-dim); font-weight:600; border-bottom:1px solid var(--border); }
   #bkHistory td{ padding:8px 10px 8px 0; border-bottom:1px solid var(--border); vertical-align:top; }
+  #bkHistory td.wrap{ max-width:280px; overflow-wrap:anywhere; }
   #bkHistory .status-success{ color:var(--ok); }
   #bkHistory .status-failed{ color:var(--danger); }
   #bkHistory .status-partial{ color:#f39c12; }
@@ -2024,8 +2025,8 @@ function renderBackupHistory(history) {
       <td class="status-${r.status}">${BK_STATUS_LABEL[r.status] || r.status}</td>
       <td>${r.triggeredBy === "schedule" ? "по расписанию" : esc(r.triggeredBy)}</td>
       <td>${formatBytes(r.localSizeBytes)}</td>
-      <td>${targetsStr}</td>
-      <td>${r.error ? esc(r.error) : ""}</td>
+      <td class="wrap">${targetsStr}</td>
+      <td class="wrap">${r.error ? esc(r.error) : ""}</td>
     </tr>`;
   }).join("");
   wrap.innerHTML = `<table><thead><tr><th>Когда</th><th>Статус</th><th>Кто запустил</th><th>Размер</th><th>Офсайт-цели</th><th>Ошибка</th></tr></thead><tbody>${rows}</tbody></table>`;
