@@ -665,6 +665,19 @@
               </div>
             </div>
             <div id="profiles-list"></div>
+
+            <div class="card" style="margin-top:16px;">
+              <div class="card-head" style="margin-bottom:0;">
+                <div>
+                  <h3>Профиль по умолчанию для формы</h3>
+                  <div class="hint" style="margin-top:4px;">Новый объект этой формы получит этот профиль, если на самом объекте профиль не выбран явно (редактор → карточка оборудования → «Профиль»).</div>
+                </div>
+              </div>
+              <table class="data-table" style="margin-top:12px;">
+                <thead><tr><th>Форма</th><th>Профиль по умолчанию</th></tr></thead>
+                <tbody id="shapedefaults-body"></tbody>
+              </table>
+            </div>
           </div>
 
           <!-- TAB 3: CABLE TYPES -->
@@ -1038,6 +1051,7 @@ function showSection(name) {
   if (name === "references" && !referencesLoaded) {
     referencesLoaded = true;
     loadAttrs().then(loadProfiles);
+    loadShapeDefaultProfiles();
     Promise.all([loadCableTypes(), loadEquipShapes()]).then(loadMonitorSystems);
   }
   if (name === "sources") loadDataSources();
@@ -1303,6 +1317,46 @@ async function loadProfiles() {
   const data = await resp.json();
   refProfiles = data.profiles || [];
   renderProfiles();
+  renderShapeDefaultProfiles();
+}
+/* ---------- профиль по умолчанию на форму (shape_default_profiles) ---------- */
+var refShapeDefaults = {}; // shape -> profileId
+async function loadShapeDefaultProfiles() {
+  const resp = await apiFetch("/api/references/shape-default-profiles");
+  const data = await resp.json();
+  refShapeDefaults = {};
+  for (const row of data.shapeDefaults || []) refShapeDefaults[row.shape] = row.profileId;
+  renderShapeDefaultProfiles();
+}
+// Ждёт и refEquipShapes, и refProfiles — оба грузятся отдельными промисами
+// при старте страницы (см. низ файла), порядок их завершения не
+// гарантирован; безопасный no-op, пока один из двух ещё не пришёл.
+function renderShapeDefaultProfiles() {
+  var body = document.getElementById("shapedefaults-body");
+  if (!body || !refEquipShapes.length) return;
+  // Только формы, которые вообще мониторятся — у немониторящихся (стативы,
+  // муфты и т.п.) никогда не будет raw_metrics_json, профиль для них
+  // бессмысленен (та же логика, что скрывает "Мониторинг" на таком объекте
+  // в редакторе, см. MONITORABLE_SHAPES/updateEquipMonitorRows в index.html).
+  var shapes = refEquipShapes.filter((s) => s.monitorable);
+  body.innerHTML = shapes.map((s) => {
+    var options = '<option value="">— не задан —</option>' +
+      refProfiles.map((p) => '<option value="' + p.id + '"' + (refShapeDefaults[s.key] === p.id ? " selected" : "") + '>' + p.name + '</option>').join("");
+    return '<tr data-shapekey="' + s.key + '"><td>' + s.label + '</td><td><select data-shapedefault>' + options + '</select></td></tr>';
+  }).join("");
+  body.querySelectorAll("[data-shapedefault]").forEach((sel) => {
+    sel.addEventListener("change", async () => {
+      var shape = sel.closest("tr").dataset.shapekey;
+      try {
+        const resp = await apiFetch("/api/references/shape-default-profiles/" + encodeURIComponent(shape), {
+          method: "PUT", body: JSON.stringify({ profileId: sel.value || null }),
+        });
+        if (!resp.ok) throw new Error(await friendlyError(resp));
+        showToast("Сохранено");
+        await loadShapeDefaultProfiles();
+      } catch (e) { showToast(e.message, true); await loadShapeDefaultProfiles(); }
+    });
+  });
 }
 function renderProfiles() {
   var el = document.getElementById("profiles-list");
@@ -1450,6 +1504,7 @@ async function loadEquipShapes() {
   const data = await resp.json();
   refEquipShapes = data.shapes || [];
   renderEquipShapes();
+  renderShapeDefaultProfiles();
 }
 var REF_GEOMETRY_LABELS = { sphere: "Сфера", box: "Куб", cylinder: "Цилиндр", cone: "Конус", capsule: "Капсула", disc: "Диск" };
 // Формы с собственной bespoke-моделью в buildEquipGeometry() (index.html) —

@@ -76,6 +76,32 @@ router.get("/monitor-systems/public", requireAuth, (req, res) => {
   res.json({ systems, cableTypeSystems, equipmentShapeSystems });
 });
 
+// Профили оборудования + профиль формы по умолчанию — нужны редактору
+// (выпадающий список "Профиль" на объекте, детектор "должно быть, но не
+// пришло" в карточке "Инфо") любой авторизованной роли, не только admin.
+router.get("/equipment-profiles/public", requireAuth, (req, res) => {
+  const profiles = db.prepare("SELECT id, name FROM equipment_profiles ORDER BY name").all();
+  const attrRows = db
+    .prepare(
+      `SELECT epa.profile_id AS profileId, epa.attribute_key AS attributeKey, ad.label, ad.unit
+       FROM equipment_profile_attributes epa
+       JOIN attribute_definitions ad ON ad.key = epa.attribute_key
+       ORDER BY epa.profile_id, epa.sort_order`
+    )
+    .all();
+  const shapeDefaults = {};
+  for (const row of db.prepare("SELECT shape, profile_id AS profileId FROM shape_default_profiles").all()) {
+    shapeDefaults[row.shape] = row.profileId;
+  }
+  res.json({
+    profiles: profiles.map((p) => ({
+      ...p,
+      attributes: attrRows.filter((a) => a.profileId === p.id).map((a) => ({ key: a.attributeKey, label: a.label, unit: a.unit })),
+    })),
+    shapeDefaults,
+  });
+});
+
 router.use(requireAuth, requireRole("admin"));
 
 const DATA_TYPES = new Set(["number", "boolean", "string"]);
@@ -273,6 +299,38 @@ router.delete("/equipment-profiles/:id/attributes/:attributeKey", (req, res) => 
   if (!result.changes) return res.status(404).json({ error: "not_found" });
   logAudit({ actor: req.user.username, action: "equipment_profile.remove_attribute", entityType: "equipment_profile", entityId: id, details: { attributeKey }, ip: req.ip });
   res.json({ ok: true });
+});
+
+// Профиль по умолчанию на форму оборудования — раньше существовал только
+// как строки, посаженные вручную сидом в db.js (isib/iilb), без всякого
+// UI для остальных форм и без способа поменять уже заданное. shape —
+// PRIMARY KEY таблицы, поэтому один PUT либо ставит (profileId задан),
+// либо снимает (profileId: null) дефолт для формы, GET отдаёт всё разом.
+router.get("/shape-default-profiles", (req, res) => {
+  const rows = db.prepare("SELECT shape, profile_id AS profileId FROM shape_default_profiles").all();
+  res.json({ shapeDefaults: rows });
+});
+
+router.put("/shape-default-profiles/:shape", (req, res) => {
+  const { shape } = req.params;
+  const { profileId } = req.body || {};
+  const shapeExists = db.prepare("SELECT 1 FROM equipment_shapes WHERE key = ?").get(shape);
+  if (!shapeExists) return res.status(404).json({ error: "unknown_shape" });
+
+  if (profileId === null || profileId === undefined || profileId === "") {
+    db.prepare("DELETE FROM shape_default_profiles WHERE shape = ?").run(shape);
+    logAudit({ actor: req.user.username, action: "shape_default_profile.clear", entityType: "equipment_shape", entityId: shape, ip: req.ip });
+    return res.json({ ok: true, profileId: null });
+  }
+
+  const profileExists = db.prepare("SELECT 1 FROM equipment_profiles WHERE id = ?").get(profileId);
+  if (!profileExists) return res.status(400).json({ error: "unknown_profile" });
+  db.prepare(
+    `INSERT INTO shape_default_profiles (shape, profile_id) VALUES (?, ?)
+     ON CONFLICT(shape) DO UPDATE SET profile_id = excluded.profile_id`
+  ).run(shape, profileId);
+  logAudit({ actor: req.user.username, action: "shape_default_profile.set", entityType: "equipment_shape", entityId: shape, details: { profileId }, ip: req.ip });
+  res.json({ ok: true, profileId });
 });
 
 /* ================= Типы кабелей ================= */

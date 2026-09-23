@@ -899,6 +899,11 @@
           <div class="drow"><span>Расположение</span><input type="text" id="equipDLocation" placeholder="Например: гор. 340, ПК 12"></div>
           <div class="drow"><span>IP-адрес</span><input type="text" id="equipDIp" placeholder="192.168.0.1"></div>
           <div class="drow"><span>ID номер</span><input type="text" id="equipDIdNumber" placeholder="Инвентарный/серийный номер"></div>
+          <div class="drow"><span>Профиль</span>
+            <select id="equipDProfile" style="background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 6px; font-family:inherit;">
+              <option value="">— авто (по форме) —</option>
+            </select>
+          </div>
           <div class="drow" id="equipDMonitorRow"><span>Мониторинг</span>
             <select id="equipDMonitorMethod" style="background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 6px; font-family:inherit;">
               <option value="none">Не мониторится</option>
@@ -1878,6 +1883,7 @@ const dom = {
   equipDLocation: document.getElementById("equipDLocation"),
   equipDIp: document.getElementById("equipDIp"),
   equipDIdNumber: document.getElementById("equipDIdNumber"),
+  equipDProfile: document.getElementById("equipDProfile"),
   equipDMonitorRow: document.getElementById("equipDMonitorRow"),
   equipDMonitorMethod: document.getElementById("equipDMonitorMethod"),
   equipDSnmpCommunityRow: document.getElementById("equipDSnmpCommunityRow"),
@@ -4426,6 +4432,7 @@ function placeEquipment(point, overrides, select = true) {
     location: overrides?.location ?? "",
     ip: overrides?.ip ?? "",
     idNumber: overrides?.idNumber ?? "",
+    profileId: overrides?.profileId ?? "",
     // Мониторинг: monitorMethod выбирает, каким способом опрашивать это
     // конкретное устройство (ping/snmp/custom — источник настраивается
     // через /parsing, см. docs/monitoring-plan.md).
@@ -4556,6 +4563,7 @@ function selectEquip(eq) {
   dom.equipDLocation.value = eq.location || "";
   dom.equipDIp.value = eq.ip || "";
   dom.equipDIdNumber.value = eq.idNumber || "";
+  dom.equipDProfile.value = eq.profileId || "";
   dom.equipDMonitorMethod.value = eq.monitorMethod || "none";
   dom.equipDSnmpCommunity.value = eq.snmpCommunity || "";
   dom.equipDSnmpProfile.value = eq.snmpProfile || "";
@@ -4649,6 +4657,10 @@ dom.equipDIp.addEventListener("input", () => {
 dom.equipDIdNumber.addEventListener("input", () => {
   if (!selectedEquip) return;
   selectedEquip.idNumber = dom.equipDIdNumber.value;
+});
+dom.equipDProfile.addEventListener("change", () => {
+  if (!selectedEquip) return;
+  selectedEquip.profileId = dom.equipDProfile.value || undefined;
 });
 dom.equipDMonitorMethod.addEventListener("change", () => {
   if (!selectedEquip) return;
@@ -5642,6 +5654,7 @@ function serializeEquip(eq) {
     shape: eq.shape, size: eq.size, color: eq.color, label: eq.label, visible: eq.visible,
     position: [eq.mesh.position.x, eq.mesh.position.y, eq.mesh.position.z],
     location: eq.location, ip: eq.ip, idNumber: eq.idNumber,
+    profileId: eq.profileId || "",
     monitorMethod: eq.monitorMethod || "none",
     snmpCommunity: eq.snmpCommunity || "",
     snmpProfile: eq.snmpProfile || "",
@@ -6393,8 +6406,9 @@ const MONITOR_METHOD_LABELS = { ping: "Пинг", snmp: "SNMP", custom: "Нас�
 // Компактная сводка по объекту в нижней панели "Инфо" — по клику на строку
 // в списке (и в редакторе, и в мониторинге), без открытия полной формы
 // редактирования. Показываем только заполненные поля.
-function qiRow(key, val) {
-  return `<div class="qi-row"><span class="qi-key">${esc(key)}</span><span class="qi-val" title="${esc(val)}">${esc(val)}</span></div>`;
+function qiRow(key, val, muted) {
+  const style = muted ? ' style="color:var(--text-faint);"' : "";
+  return `<div class="qi-row"><span class="qi-key">${esc(key)}</span><span class="qi-val"${style} title="${esc(val)}">${esc(val)}</span></div>`;
 }
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -6434,6 +6448,47 @@ async function loadAttributeCatalogOnce() {
   }
 }
 
+// Профили оборудования (equipment_profiles, см. server/routes/references.js
+// GET /equipment-profiles/public) — набор ожидаемых атрибутов для формы
+// оборудования, плюс профиль формы по умолчанию (shapeDefaults). Грузится
+// раз, тем же приёмом, что и attributeCatalogByKey выше.
+const equipmentProfilesById = new Map(); // profileId -> {id, name, attributes:[{key,label,unit}]}
+let shapeDefaultProfileId = {}; // shape -> profileId
+let equipmentProfilesLoaded = false;
+async function loadEquipmentProfilesOnce() {
+  if (equipmentProfilesLoaded) return;
+  equipmentProfilesLoaded = true;
+  try {
+    const resp = await apiFetch("/api/references/equipment-profiles/public");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    for (const p of data.profiles || []) equipmentProfilesById.set(p.id, p);
+    shapeDefaultProfileId = data.shapeDefaults || {};
+    populateEquipProfileOptions();
+  } catch (e) {
+    // офлайн/сбой сети — детектор "нет данных" и выбор профиля в редакторе
+    // просто не будут доступны, остальной интерфейс не завязан на это
+  }
+}
+// Список профилей в выпадающем списке "Профиль" карточки оборудования —
+// перестраивается при загрузке справочника (может прийти позже открытия
+// панели, см. fire-and-forget loadEquipmentProfilesOnce() при старте) и
+// не трогает текущий выбор пользователя.
+function populateEquipProfileOptions() {
+  if (!dom.equipDProfile) return;
+  const current = dom.equipDProfile.value;
+  dom.equipDProfile.innerHTML = '<option value="">— авто (по форме) —</option>' +
+    [...equipmentProfilesById.values()].map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  dom.equipDProfile.value = current;
+}
+// eq.profileId — явный выбор на объекте (переопределяет профиль формы);
+// пусто/не задано — берём профиль формы по умолчанию, если он настроен
+// (Настройки → Справочники → Профили оборудования).
+function effectiveProfileFor(eq) {
+  const id = eq.profileId || shapeDefaultProfileId[eq.shape];
+  return id ? equipmentProfilesById.get(id) || null : null;
+}
+
 function formatMetricNumber(value, unit) {
   const rounded = Math.round(value * 100) / 100;
   return unit ? `${rounded} ${unit}` : String(rounded);
@@ -6446,10 +6501,29 @@ function formatMetricNumber(value, unit) {
 // Tx/Rx — особый случай: старые записи (ещё от удалённого sppd-worker.js)
 // хранят один вложенный объект ({Rx,Tx,UTime}), кастомные источники пишут
 // два плоских ключа (rx/tx) без UTime — оба варианта сводим к одной строке.
-function metricsRowsHtml(metrics) {
+function formatMetricValue(key, value, attr) {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "object") {
+    // легаси-обёртка вида {Firmware:"...", UTime:...} — сервер шлёт значение
+    // завёрнутым в объект с самоимённым полем; достаём его, иначе — сырой JSON
+    const selfKey = Object.keys(value).find((k) => k.toLowerCase() === key.toLowerCase());
+    return selfKey && value[selfKey] !== undefined ? String(value[selfKey]) : JSON.stringify(value);
+  }
+  if (typeof value === "number") return formatMetricNumber(value, attr && attr.unit);
+  if (typeof value === "boolean") return value ? "Да" : "Нет";
+  return String(value);
+}
+// profileAttrs — атрибуты ожидаемого профиля формы (effectiveProfileFor),
+// если есть: показываются ПЕРВЫМИ, в порядке профиля, и явно как "нет
+// данных" (приглушённым цветом), если source ничего по ним не прислал —
+// это и есть детектор "должно быть, но не пришло" (не просто отсутствие
+// строки, как раньше, когда пропущенная метрика была неотличима от формы,
+// которая её вообще не даёт). Остальные ключи raw_metrics_json, не
+// входящие в профиль (нет профиля, либо источник шлёт что-то сверх него),
+// идут следом как раньше — generic-список без ожиданий.
+function metricsRowsHtml(metrics, profileAttrs) {
   const m = metrics || {};
   const keys = Object.keys(m);
-  if (!keys.length) return qiRow("Метрики", "—");
   const rows = [];
   const handled = new Set();
   if (m.rx !== undefined || m.tx !== undefined) {
@@ -6459,28 +6533,22 @@ function metricsRowsHtml(metrics) {
     rows.push(qiRow("Tx/Rx", `Rx: ${m.txRx.Rx ?? "—"} / Tx: ${m.txRx.Tx ?? "—"}`));
     handled.add("txRx");
   }
+  for (const attr of profileAttrs || []) {
+    if (handled.has(attr.key)) continue;
+    handled.add(attr.key);
+    if (!(attr.key in m)) {
+      rows.push(qiRow(attr.label, "нет данных", true));
+      continue;
+    }
+    rows.push(qiRow(attr.label, formatMetricValue(attr.key, m[attr.key], attr)));
+  }
   for (const key of keys) {
     if (handled.has(key)) continue;
-    const value = m[key];
     const attr = attributeCatalogByKey.get(key);
     const label = (attr && attr.label) || key;
-    let text;
-    if (value === null || value === undefined) {
-      text = "—";
-    } else if (typeof value === "object") {
-      // легаси-обёртка вида {Firmware:"...", UTime:...} — сервер шлёт значение
-      // завёрнутым в объект с самоимённым полем; достаём его, иначе — сырой JSON
-      const selfKey = Object.keys(value).find((k) => k.toLowerCase() === key.toLowerCase());
-      text = selfKey && value[selfKey] !== undefined ? String(value[selfKey]) : JSON.stringify(value);
-    } else if (typeof value === "number") {
-      text = formatMetricNumber(value, attr && attr.unit);
-    } else if (typeof value === "boolean") {
-      text = value ? "Да" : "Нет";
-    } else {
-      text = String(value);
-    }
-    rows.push(qiRow(label, text));
+    rows.push(qiRow(label, formatMetricValue(key, m[key], attr)));
   }
+  if (!rows.length) return qiRow("Метрики", "—");
   return rows.join("");
 }
 function showQuickInfoEquip(eq) {
@@ -6495,7 +6563,15 @@ function showQuickInfoEquip(eq) {
   if (eq.monitorMethod === "snmp" && eq.snmpCommunity) rows.push(qiRow("SNMP community", eq.snmpCommunity));
   if (eq.monitorMethod === "snmp" && eq.snmpProfile) rows.push(qiRow("SNMP профиль", eq.snmpProfile));
   if (eq.monitorMethod === "custom" && eq.sourceAddress) rows.push(qiRow("Адрес в источнике", eq.sourceAddress));
-  const metricsHtml = eq.monitorMethod === "custom" ? metricsRowsHtml(quickInfoMetricsCache.get(eq.id)) : "";
+  const profile = effectiveProfileFor(eq);
+  if (profile) rows.push(qiRow("Профиль", profile.name));
+  // Детектор "нет данных" по профилю показываем только для custom — ping/
+  // snmp вообще не пишут raw_metrics_json ни при каких обстоятельствах
+  // (см. ping-worker.js), так что там это было бы просто шумом "нет данных"
+  // на каждый атрибут профиля, а не диагностикой реальной проблемы.
+  const metricsHtml = eq.monitorMethod === "custom"
+    ? metricsRowsHtml(quickInfoMetricsCache.get(eq.id), profile && profile.attributes)
+    : "";
   dom.quickInfoBody.innerHTML = `<div class="qi-title">${esc(eq.label)}</div>${rows.join("")}${metricsHtml}`;
 }
 async function fetchEquipMetrics(eq) {
@@ -6849,6 +6925,7 @@ function applyRoleToUI() {
   }
   loadProjectSwitcher();
   loadAttributeCatalogOnce();
+  loadEquipmentProfilesOnce();
   updateTicketsBadge();
   setInterval(updateTicketsBadge, 30000);
 }

@@ -31,12 +31,12 @@ function seedSnapshot(db, projectId, { cables = [], equipment = [], marks = [], 
 // eq.position обязателен — restoreFromSnapshot() на клиенте (public/index.html)
 // падает на new THREE.Vector3(eq.position[0], ...) без него; наступили на
 // это в сессии, когда тестировали статус-бар без position в сидинге.
-function seedMonitorStatus(db, projectId, equipmentId, { state = "up", personCount = null, vehicleCount = null, lastChangeAt = null } = {}) {
+function seedMonitorStatus(db, projectId, equipmentId, { state = "up", personCount = null, vehicleCount = null, lastChangeAt = null, rawMetrics = null } = {}) {
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO monitor_status (project_id, equipment_id, state, last_checked_at, last_change_at, person_count, vehicle_count)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(projectId, equipmentId, state, now, lastChangeAt || now, personCount, vehicleCount);
+    `INSERT INTO monitor_status (project_id, equipment_id, state, last_checked_at, last_change_at, person_count, vehicle_count, raw_metrics_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(projectId, equipmentId, state, now, lastChangeAt || now, personCount, vehicleCount, rawMetrics ? JSON.stringify(rawMetrics) : null);
 }
 
 function tokenFor(user) {
