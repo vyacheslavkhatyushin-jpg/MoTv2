@@ -153,6 +153,20 @@
   .save-bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   .save-status{ font-size:11px; color:var(--text-faint); }
   .save-status.ok{ color:var(--ok); }
+  .badge{ font-size:10.5px; padding:1px 7px; border-radius:10px; margin-left:4px; vertical-align:middle; }
+  .badge.badge-ok{ background:rgba(46,204,113,0.15); color:var(--ok); }
+  .badge.badge-off{ background:rgba(141,151,159,0.15); color:var(--text-dim); }
+  .badge.badge-danger{ background:rgba(230,85,61,0.15); color:var(--danger); }
+  #bkHistory table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  #bkHistory th{ text-align:left; padding:6px 10px 6px 0; color:var(--text-dim); font-weight:600; border-bottom:1px solid var(--border); }
+  #bkHistory td{ padding:8px 10px 8px 0; border-bottom:1px solid var(--border); vertical-align:top; }
+  #bkHistory .status-success{ color:var(--ok); }
+  #bkHistory .status-failed{ color:var(--danger); }
+  #bkHistory .status-partial{ color:#f39c12; }
+  #bkHistory .status-running{ color:var(--text-dim); }
+  #panel-backup .check-inline{ display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--text); white-space:nowrap; cursor:pointer; }
+  #panel-backup .check-inline input{ min-width:0; width:auto; }
+  #panel-backup code{ background:var(--panel-alt); padding:1px 5px; border-radius:4px; font-size:11.5px; }
   .save-status.err{ color:var(--danger); }
 
   /* ---- превью изменений перед сохранением ---- */
@@ -451,6 +465,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6a8 3 0 1 0 16 0a8 3 0 1 0 -16 0" /><path d="M4 6v6a8 3 0 0 0 16 0v-6" /><path d="M4 12v6a8 3 0 0 0 16 0v-6" /></svg>
           Источники данных
         </button>
+        <button class="settings-nav-btn" data-section="backup" data-admin-only="1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6m-1 0a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v0a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1z" /><path d="M5 10v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-8" /><path d="M9 14h6" /></svg>
+          Резервное копирование
+        </button>
       </nav>
 
       <div class="settings-content">
@@ -727,6 +745,54 @@
             <div id="dataSourcesList"><div class="empty">Загрузка…</div></div>
           </div>
         </section>
+
+        <!-- ============ Резервное копирование ============ -->
+        <section class="settings-panel" id="panel-backup">
+          <h2>Резервное копирование</h2>
+          <p class="subtitle">Настройки общие на всю систему, не привязаны к конкретному проекту. Учётные данные для SSH/Google Drive задаются на сервере в <code>.env</code> — см. <code>docs/backup-setup.md</code>, здесь их нет и не может быть.</p>
+
+          <div id="backupError"></div>
+
+          <div class="card">
+            <h3>Расписание</h3>
+            <div class="field-row">
+              <div class="field">
+                <label class="check-inline" style="margin-bottom:8px;"><input type="checkbox" id="bkEnabled"> Автобэкап включён</label>
+              </div>
+              <div class="field">
+                <label for="bkTime">Время запуска (UTC), ежедневно</label>
+                <input type="time" id="bkTime">
+              </div>
+              <div class="field">
+                <label for="bkRetention">Хранить локальных копий</label>
+                <input type="number" id="bkRetention" min="1" max="90" step="1">
+              </div>
+            </div>
+
+            <h3 style="margin-top:20px;">Куда копировать (кроме локального диска)</h3>
+            <div class="hint" id="bkTargetsHint" style="margin-bottom:10px;"></div>
+            <div class="field-row">
+              <div class="field">
+                <label class="check-inline"><input type="checkbox" id="bkTargetSsh"> Другой сервер по SSH <span id="bkSshStatus" class="badge"></span></label>
+              </div>
+              <div class="field">
+                <label class="check-inline"><input type="checkbox" id="bkTargetGdrive"> Google Drive <span id="bkGdriveStatus" class="badge"></span></label>
+              </div>
+            </div>
+
+            <div class="save-bar" style="margin-top:14px;">
+              <button class="btn primary" id="btnBkSave">Сохранить настройки</button>
+              <button class="btn" id="btnBkRunNow">Сделать бэкап сейчас</button>
+              <span class="save-status" id="bkSaveStatus"></span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>История</h3>
+            <div class="hint">Последние 10 запусков — плановых и по кнопке «Сделать бэкап сейчас».</div>
+            <div id="bkHistory"><div class="empty">Загрузка…</div></div>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -769,7 +835,7 @@ function parseServerDate(s) {
    наравне с admin, см. applyRoleUI). ADMIN_ONLY_SECTIONS — единственное
    место, где это решение принимается на клиенте; сервер всё равно гейтит
    /api/users и /api/references по роли независимо от того, что тут покажут. */
-const ADMIN_ONLY_SECTIONS = new Set(["users", "references"]);
+const ADMIN_ONLY_SECTIONS = new Set(["users", "references", "backup"]);
 let isFullAdmin = false;
 let referencesLoaded = false;
 function showSection(name) {
@@ -782,6 +848,7 @@ function showSection(name) {
     Promise.all([loadCableTypes(), loadEquipShapes()]).then(loadMonitorSystems);
   }
   if (name === "sources") loadDataSources();
+  if (name === "backup") loadBackupSettings();
   try { history.replaceState(null, "", `/${CURRENT_PROJECT_ID}/settings?section=${name}`); } catch (e) {}
 }
 document.querySelectorAll(".settings-nav-btn").forEach((btn) => {
@@ -1736,6 +1803,107 @@ async function updateTicketsBadge() {
   }
 }
 document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
+
+/* ================= Резервное копирование ================= */
+function formatBytes(n) {
+  if (n == null) return "—";
+  if (n < 1024) return n + " Б";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " КБ";
+  if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + " МБ";
+  return (n / 1024 / 1024 / 1024).toFixed(2) + " ГБ";
+}
+const BK_STATUS_LABEL = { success: "успех", failed: "ошибка", partial: "частично", running: "выполняется" };
+function renderTargetBadge(el, info) {
+  if (info.enabled) { el.textContent = "включено"; el.className = "badge badge-ok"; return; }
+  if (info.configured) { el.textContent = "настроено, выключено"; el.className = "badge badge-off"; return; }
+  el.textContent = "не настроено на сервере"; el.className = "badge badge-danger";
+}
+function renderBackupHistory(history) {
+  const wrap = document.getElementById("bkHistory");
+  if (!history.length) { wrap.innerHTML = '<div class="empty">Бэкапов ещё не было.</div>'; return; }
+  const rows = history.map((r) => {
+    const targetsStr = r.targets
+      ? Object.entries(r.targets).map(([k, v]) => `${k}: ${v.ok ? "✓" : "✗ " + esc(v.error || "")}`).join(", ")
+      : "—";
+    return `<tr>
+      <td>${parseServerDate(r.startedAt).toLocaleString("ru-RU")}</td>
+      <td class="status-${r.status}">${BK_STATUS_LABEL[r.status] || r.status}</td>
+      <td>${r.triggeredBy === "schedule" ? "по расписанию" : esc(r.triggeredBy)}</td>
+      <td>${formatBytes(r.localSizeBytes)}</td>
+      <td>${targetsStr}</td>
+      <td>${r.error ? esc(r.error) : ""}</td>
+    </tr>`;
+  }).join("");
+  wrap.innerHTML = `<table><thead><tr><th>Когда</th><th>Статус</th><th>Кто запустил</th><th>Размер</th><th>Офсайт-цели</th><th>Ошибка</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+async function loadBackupSettings() {
+  const errEl = document.getElementById("backupError");
+  errEl.textContent = "";
+  try {
+    const resp = await apiFetch("/api/backup/settings");
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const s = await resp.json();
+    document.getElementById("bkEnabled").checked = s.enabled;
+    document.getElementById("bkTime").value = s.scheduleTime;
+    document.getElementById("bkRetention").value = s.localRetentionCount;
+    document.getElementById("bkTargetSsh").checked = s.targets.ssh.enabled;
+    document.getElementById("bkTargetSsh").disabled = !s.targets.ssh.configured;
+    document.getElementById("bkTargetGdrive").checked = s.targets.gdrive.enabled;
+    document.getElementById("bkTargetGdrive").disabled = !s.targets.gdrive.configured;
+    renderTargetBadge(document.getElementById("bkSshStatus"), s.targets.ssh);
+    renderTargetBadge(document.getElementById("bkGdriveStatus"), s.targets.gdrive);
+    const hintParts = [];
+    if (!s.targets.ssh.configured) hintParts.push("SSH");
+    if (!s.targets.gdrive.configured) hintParts.push("Google Drive");
+    document.getElementById("bkTargetsHint").textContent = hintParts.length
+      ? `${hintParts.join(" и ")} не настроен(ы) на сервере (см. docs/backup-setup.md) — чекбокс недоступен, пока не заданы переменные окружения.`
+      : "Локальных копий сейчас хранится: " + s.localBackupCount + ".";
+    renderBackupHistory(s.history);
+  } catch (err) {
+    errEl.textContent = "Не удалось загрузить настройки бэкапа: " + err.message;
+  }
+}
+document.getElementById("btnBkSave").addEventListener("click", async () => {
+  const statusEl = document.getElementById("bkSaveStatus");
+  statusEl.className = "save-status"; statusEl.textContent = "Сохранение…";
+  const body = {
+    enabled: document.getElementById("bkEnabled").checked,
+    scheduleTime: document.getElementById("bkTime").value,
+    localRetentionCount: parseInt(document.getElementById("bkRetention").value, 10),
+    targets: {
+      ssh: document.getElementById("bkTargetSsh").checked,
+      gdrive: document.getElementById("bkTargetGdrive").checked,
+    },
+  };
+  try {
+    const resp = await apiFetch("/api/backup/settings", { method: "PUT", body: JSON.stringify(body) });
+    if (!resp.ok) { const d = await resp.json().catch(() => ({})); throw new Error(d.error || ("HTTP " + resp.status)); }
+    statusEl.className = "save-status ok"; statusEl.textContent = "Сохранено.";
+    loadBackupSettings();
+  } catch (err) {
+    statusEl.className = "save-status"; statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "Ошибка: " + err.message;
+  }
+});
+document.getElementById("btnBkRunNow").addEventListener("click", async () => {
+  const btn = document.getElementById("btnBkRunNow");
+  const statusEl = document.getElementById("bkSaveStatus");
+  btn.disabled = true;
+  statusEl.className = "save-status"; statusEl.textContent = "Выполняется бэкап…";
+  try {
+    const resp = await apiFetch("/api/backup/run-now", { method: "POST" });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error(data.error || ("HTTP " + resp.status));
+    statusEl.className = "save-status ok";
+    statusEl.textContent = data.status === "success" ? "Готово." : "Готово (есть ошибки — см. историю ниже).";
+    loadBackupSettings();
+  } catch (err) {
+    statusEl.className = "save-status"; statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "Ошибка: " + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 function boot() {
   const hasAccess = applyRoleUI();

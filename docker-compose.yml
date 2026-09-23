@@ -9,8 +9,27 @@ services:
     environment:
       - JWT_SECRET=${JWT_SECRET}
       - PORT=3000
+      # Автобэкап (Настройки → Резервное копирование, см. docs/backup-setup.md):
+      # "Сделать бэкап сейчас" запускается прямо отсюда (server/routes/backup.js —
+      # db.backup() безопасен параллельно с живыми запросами), поэтому эти же
+      # переменные нужны и здесь, не только у backup-worker ниже. Секреты сюда
+      # НЕ попадают — только пути к смонтированным файлам, сами файлы см.
+      # volumes ниже (закомментированы, пока не настроено).
+      - BACKUP_SSH_HOST=${BACKUP_SSH_HOST:-}
+      - BACKUP_SSH_USER=${BACKUP_SSH_USER:-}
+      - BACKUP_SSH_PORT=${BACKUP_SSH_PORT:-22}
+      - BACKUP_SSH_KEY_PATH=/run/secrets/backup_ssh_key
+      - BACKUP_SSH_REMOTE_DIR=${BACKUP_SSH_REMOTE_DIR:-}
+      - BACKUP_GDRIVE_SA_KEY_PATH=/run/secrets/backup_gdrive_sa.json
+      - BACKUP_GDRIVE_FOLDER_ID=${BACKUP_GDRIVE_FOLDER_ID:-}
     volumes:
       - mine-ops-data:/app/server/data
+      # Раскомментируйте после того, как реально положите файл по этому пути
+      # на хосте (см. docs/backup-setup.md) — bind-mount несуществующего
+      # файла Docker молча подменяет ПУСТОЙ ПАПКОЙ, а не ошибкой, и бэкап
+      # будет фейлиться с непонятной ошибкой чтения ключа.
+      # - ./secrets/backup_ssh_key:/run/secrets/backup_ssh_key:ro
+      # - ./secrets/backup_gdrive_sa.json:/run/secrets/backup_gdrive_sa.json:ro
 
   # Мониторинг оборудования (docs/monitoring-plan.md), Этап 2 — отдельный
   # процесс, тот же образ и та же SQLite-база (общий volume), но не часть
@@ -41,6 +60,31 @@ services:
     restart: unless-stopped
     volumes:
       - mine-ops-data:/app/server/data
+
+  # Плановый автобэкап (см. server/backup-worker.js) — отдельный процесс по
+  # той же причине, что ping-worker: загрузка на офсайт-цель может подвиснуть,
+  # это не должно задевать редактор. Расписание (время суток) настраивается
+  # в БД через Настройки → Резервное копирование, не через env.
+  backup-worker:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: ["node", "backup-worker.js"]
+    restart: unless-stopped
+    environment:
+      - BACKUP_SSH_HOST=${BACKUP_SSH_HOST:-}
+      - BACKUP_SSH_USER=${BACKUP_SSH_USER:-}
+      - BACKUP_SSH_PORT=${BACKUP_SSH_PORT:-22}
+      - BACKUP_SSH_KEY_PATH=/run/secrets/backup_ssh_key
+      - BACKUP_SSH_REMOTE_DIR=${BACKUP_SSH_REMOTE_DIR:-}
+      - BACKUP_GDRIVE_SA_KEY_PATH=/run/secrets/backup_gdrive_sa.json
+      - BACKUP_GDRIVE_FOLDER_ID=${BACKUP_GDRIVE_FOLDER_ID:-}
+    volumes:
+      - mine-ops-data:/app/server/data
+      # См. комментарий у mine-ops-tool выше — то же самое, оба сервиса
+      # должны видеть один и тот же файл ключа/сервисного аккаунта.
+      # - ./secrets/backup_ssh_key:/run/secrets/backup_ssh_key:ro
+      # - ./secrets/backup_gdrive_sa.json:/run/secrets/backup_gdrive_sa.json:ro
 
 volumes:
   mine-ops-data:

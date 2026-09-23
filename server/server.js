@@ -14,6 +14,7 @@ const auditRoutes = require("./routes/audit");
 const ticketsRoutes = require("./routes/tickets");
 const parsingRoutes = require("./routes/parsing");
 const referencesRoutes = require("./routes/references");
+const backupRoutes = require("./routes/backup");
 const { verifyToken } = require("./auth");
 const db = require("./db");
 
@@ -39,6 +40,7 @@ app.use("/api/users", usersRoutes);
 app.use("/api/audit-log", auditRoutes);
 app.use("/api/parsing", parsingRoutes.router);
 app.use("/api/references", referencesRoutes);
+app.use("/api/backup", backupRoutes);
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
