@@ -71,8 +71,6 @@
     font-size:9.5px; font-weight:700; line-height:1;
   }
   .nav-badge.badge-danger{ background:var(--danger); color:#fff; }
-  #monitorPageTitle{ display:none; padding:14px 12px 2px; font-size:14.5px; font-weight:700; color:var(--text); }
-  body.monitoring-mode #monitorPageTitle{ display:block; }
   body.monitoring-mode #tab-monitor.active{ display:block; overflow-y:auto; flex:1 1 auto; }
   body.monitoring-mode .layer-remove{ display:none !important; }
   #monitorActiveWrap{ max-height:220px; overflow-y:auto; border-bottom:1px solid var(--border-soft); }
@@ -726,7 +724,6 @@
     </div>
   </div>
   <div id="sidebar">
-    <div id="monitorPageTitle"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M20 4v8" /><path d="M16 4.5v7" /><path d="M12 5v16" /><path d="M8 5.5v5" /><path d="M4 6v4" /><path d="M20 8h-16" /></svg> Мониторинг оборудования</div>
     <button id="btnSaveAll" class="save-btn-big" title="Сохранить все изменения (кабели, оборудование, метки, заплатки) в общий проект на сервере"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1" /><path d="M9 15l3 -3l3 3" /><path d="M12 12l0 9" /></svg> Сохранить изменения</button>
     <div id="saveStatus"></div>
     <div id="fileMeta"></div>
