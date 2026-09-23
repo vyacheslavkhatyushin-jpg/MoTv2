@@ -269,6 +269,38 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_project ON audit_log(project_id, create
 CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action, created_at DESC);
 
+-- Автобэкап БД (см. server/backup/run-backup.js + server/backup-worker.js) —
+-- singleton-строка (id всегда 1), настраивается в Настройки → Резервное
+-- копирование. Секреты доступа к офсайт-хранилищам (SSH-ключ, сервисный
+-- аккаунт Google) сюда НЕ попадают — только env/файлы на сервере (см.
+-- docs/backup-setup.md); эта таблица хранит только "включено ли SSH/Drive
+-- как цель", сами учётные данные читаются напрямую из окружения при
+-- каждом запуске бэкапа.
+CREATE TABLE IF NOT EXISTS backup_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  enabled INTEGER NOT NULL DEFAULT 0,
+  schedule_time TEXT NOT NULL DEFAULT '03:00',
+  local_retention_count INTEGER NOT NULL DEFAULT 14,
+  target_ssh_enabled INTEGER NOT NULL DEFAULT 0,
+  target_gdrive_enabled INTEGER NOT NULL DEFAULT 0,
+  updated_by TEXT,
+  updated_at TEXT
+);
+INSERT OR IGNORE INTO backup_settings (id) VALUES (1);
+
+CREATE TABLE IF NOT EXISTS backup_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at TEXT NOT NULL DEFAULT (datetime('now')),
+  finished_at TEXT,
+  status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running','success','partial','failed')),
+  triggered_by TEXT NOT NULL,
+  local_file TEXT,
+  local_size_bytes INTEGER,
+  targets_json TEXT,
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_backup_runs_started ON backup_runs(started_at DESC);
+
 -- Тикетинг: устранение аварий/находок эксплуатацией. equipment_id и
 -- monitor_event_id — оба nullable: тикет может быть общим (без привязки к
 -- конкретному оборудованию) или заведён вручную, не по факту аварии из
@@ -693,4 +725,8 @@ if (monitorThresholdsCols.some((c) => c.name === "ping_fail_threshold")) {
   }
 }
 
+// Бэкап-модуль (server/backup/run-backup.js) снимает копию по этому же пути —
+// проще прицепить его к уже открытому db, чем пересчитывать DB_PATH заново
+// в другом файле и рисковать разойтись, если дефолт когда-нибудь поменяется.
+db.DB_PATH = DB_PATH;
 module.exports = db;
