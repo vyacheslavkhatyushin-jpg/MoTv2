@@ -1,6 +1,22 @@
 # syntax=docker/dockerfile:1
 FROM node:20-bookworm-slim
 
+# Прокси на этапе СБОРКИ образа — отдельный механизм от `environment:` в
+# docker-compose.yml (тот действует только во время запуска контейнера,
+# на apt-get/npm install во время build вообще не влияет). Docker сам
+# умеет пробрасывать HTTP_PROXY/HTTPS_PROXY из окружения хоста как build
+# args БЕЗ явного объявления в docker-compose.yml — но только если они
+# видны переменными окружения именно там, откуда вызывается `docker
+# compose build`/`up --build` (см. docs/backup-setup.md, диагностика
+# "долгая пересборка"). ARG тут просто делает их доступными внутри
+# Dockerfile — apt-get и npm сами читают их как обычные переменные
+# окружения (ENV ниже), никакого спец-кода не нужно, в отличие от нашего
+# собственного fetch() в рантайме.
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV HTTP_PROXY=$HTTP_PROXY
+ENV HTTPS_PROXY=$HTTPS_PROXY
+
 # python3/make/g++ — фолбэк на случай, если для better-sqlite3 не найдётся
 # готовый прекомпилированный бинарник под платформу образа (тогда npm
 # соберёт нативный модуль из исходников через node-gyp).

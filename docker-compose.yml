@@ -3,6 +3,16 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
+      # Прокси НА ЭТАПЕ СБОРКИ (apt-get, npm install) — отдельно от
+      # HTTPS_PROXY/HTTP_PROXY в environment: ниже (тот только для
+      # запущенного контейнера, сборки вообще не касается). Без этого
+      # апдейт зависимостей в package.json за корпоративным прокси может
+      # растягиваться на много минут вместо секунд/десятков секунд — npm
+      # не падает сразу, а долго ретраит сетевые запросы. См.
+      # docs/backup-setup.md, диагностика "долгая пересборка".
+      args:
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        HTTP_PROXY: ${HTTP_PROXY:-}
     restart: unless-stopped
     ports:
       - "80:3000"
@@ -36,6 +46,10 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
+      # См. комментарий у mine-ops-tool выше — то же самое, для сборки.
+      args:
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        HTTP_PROXY: ${HTTP_PROXY:-}
     command: ["node", "monitor/ping-worker.js"]
     restart: unless-stopped
     environment:
@@ -54,6 +68,10 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
+      # См. комментарий у mine-ops-tool выше — то же самое, для сборки.
+      args:
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        HTTP_PROXY: ${HTTP_PROXY:-}
     command: ["node", "monitor/custom-monitor-worker.js"]
     restart: unless-stopped
     volumes:
@@ -67,6 +85,10 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
+      # См. комментарий у mine-ops-tool выше — то же самое, для сборки.
+      args:
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        HTTP_PROXY: ${HTTP_PROXY:-}
     command: ["node", "backup-worker.js"]
     restart: unless-stopped
     environment:
