@@ -171,6 +171,36 @@
   #panel-backup code{ background:var(--panel-alt); padding:1px 5px; border-radius:4px; font-size:11.5px; }
   .save-status.err{ color:var(--danger); }
 
+  /* ---- Настройки → Проекты ---- */
+  #panel-projects table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  #panel-projects th{ text-align:left; padding:7px 10px 7px 0; color:var(--text-dim); font-weight:600; border-bottom:1px solid var(--border); font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+  #panel-projects td{ padding:9px 10px 9px 0; border-bottom:1px solid var(--border-soft); vertical-align:middle; }
+  #panel-projects tr:last-child td{ border-bottom:none; }
+  #panel-projects tr.proj-row{ cursor:pointer; }
+  #panel-projects tr.proj-row:hover td{ background:var(--panel-alt); }
+  #panel-projects tr.proj-row.selected td{ background:rgba(255,159,28,.07); }
+  #panel-projects .block-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:14px; }
+  #panel-projects .block{ background:var(--panel-alt); border:1px solid var(--border); border-radius:9px; padding:14px 16px; display:flex; flex-direction:column; gap:8px; }
+  #panel-projects .block-head{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  #panel-projects .block-title{ font-weight:700; font-size:12.5px; }
+  #panel-projects .block-stat{ font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; }
+  #panel-projects .block-stat .unit{ font-size:11px; font-weight:600; color:var(--text-faint); margin-left:4px; }
+  #panel-projects .block-sub{ font-size:11px; color:var(--text-faint); }
+  #panel-projects .block-actions{ margin-top:auto; padding-top:8px; display:flex; justify-content:flex-end; }
+  #panel-projects .type-list{ display:flex; flex-direction:column; gap:5px; font-size:12px; max-height:150px; overflow-y:auto; padding-right:2px; }
+  #panel-projects .type-row{ display:flex; align-items:center; gap:7px; padding:3px 0; }
+  #panel-projects .type-row label{ flex:1; display:flex; justify-content:space-between; gap:8px; cursor:pointer; margin:0; }
+  #panel-projects .type-row .cnt{ color:var(--text-faint); font-variant-numeric:tabular-nums; }
+  #panel-projects .type-row input{ accent-color:var(--accent); }
+  #panel-projects .confirm-box{ margin-top:8px; padding:10px 12px; border:1px solid rgba(230,85,61,.4); background:rgba(230,85,61,.06); border-radius:7px; display:none; flex-direction:column; gap:8px; }
+  #panel-projects .confirm-box.open{ display:flex; }
+  #panel-projects .confirm-box .warn-text{ font-size:11.5px; color:var(--text); line-height:1.5; }
+  #panel-projects .confirm-box .warn-text b{ color:var(--danger); }
+  #panel-projects .confirm-box input{ background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:5px; padding:6px 8px; font-size:12px; font-family:inherit; width:100%; }
+  #panel-projects .confirm-box input:focus{ outline:none; border-color:var(--danger); }
+  #panel-projects .confirm-box .confirm-actions{ display:flex; gap:8px; justify-content:flex-end; }
+  #panel-projects .empty-hint{ font-size:12px; color:var(--text-faint); padding:16px 0; }
+
   /* ---- превью изменений перед сохранением ---- */
   .diff-preview{
     border:1px solid var(--accent-dim); background:rgba(255,159,28,.06); border-radius:8px;
@@ -474,6 +504,10 @@
         <button class="settings-nav-btn" data-section="network" data-admin-only="1">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M3.6 9h16.8" /><path d="M3.6 15h16.8" /><path d="M11.5 3a17 17 0 0 0 0 18" /><path d="M12.5 3a17 17 0 0 1 0 18" /></svg>
           Сеть
+        </button>
+        <button class="settings-nav-btn" data-section="projects" data-admin-only="1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2 -2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /></svg>
+          Проекты
         </button>
       </nav>
 
@@ -902,6 +936,56 @@
             </div>
           </div>
         </section>
+
+        <!-- ============ Проекты ============ -->
+        <section class="settings-panel" id="panel-projects">
+          <h2>Проекты</h2>
+          <p class="subtitle">Список проектов и очистка отдельных блоков данных. Полное удаление проекта намеренно оставлено только в консоли (<code>delete-project.js</code>) — слишком легко нажать по ошибке, когда речь о каскадном стирании всей модели.</p>
+
+          <div id="projectsError"></div>
+
+          <div class="card">
+            <h3>Все проекты</h3>
+            <table>
+              <thead><tr><th>Проект</th><th>ID</th><th>Создан</th><th>Объектов</th><th></th></tr></thead>
+              <tbody id="projAdminTbody"><tr><td colspan="5"><div class="empty-hint">Загрузка…</div></td></tr></tbody>
+            </table>
+            <div id="projNewForm" style="display:none; margin-top:14px;" class="field-row">
+              <div class="field">
+                <label for="projNewId">ID (часть URL)</label>
+                <input type="text" id="projNewId" autocomplete="off" placeholder="shaft-2">
+              </div>
+              <div class="field">
+                <label for="projNewName">Название</label>
+                <input type="text" id="projNewName" autocomplete="off" placeholder="Шахта №2">
+              </div>
+              <div class="field" style="justify-content:flex-end;">
+                <div class="save-bar">
+                  <button class="btn primary" id="btnProjCreateSubmit">Создать</button>
+                  <button class="btn" id="btnProjCreateCancel">Отмена</button>
+                </div>
+              </div>
+            </div>
+            <div id="projRenameForm" style="display:none; margin-top:14px;" class="field-row">
+              <div class="field">
+                <label id="projRenameLabel" for="projRenameName">Новое название</label>
+                <input type="text" id="projRenameName" autocomplete="off">
+              </div>
+              <div class="field" style="justify-content:flex-end;">
+                <div class="save-bar">
+                  <button class="btn primary" id="btnProjRenameSubmit">Сохранить</button>
+                  <button class="btn" id="btnProjRenameCancel">Отмена</button>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:14px;">
+              <button class="btn" id="btnProjNew">+ Создать проект</button>
+            </div>
+            <div class="save-status" id="projListStatus" style="margin-top:8px;"></div>
+          </div>
+
+          <div id="projDetailWrap"></div>
+        </section>
       </div>
     </div>
   </div>
@@ -944,7 +1028,7 @@ function parseServerDate(s) {
    наравне с admin, см. applyRoleUI). ADMIN_ONLY_SECTIONS — единственное
    место, где это решение принимается на клиенте; сервер всё равно гейтит
    /api/users и /api/references по роли независимо от того, что тут покажут. */
-const ADMIN_ONLY_SECTIONS = new Set(["users", "references", "backup", "network"]);
+const ADMIN_ONLY_SECTIONS = new Set(["users", "references", "backup", "network", "projects"]);
 let isFullAdmin = false;
 let referencesLoaded = false;
 function showSection(name) {
@@ -959,6 +1043,7 @@ function showSection(name) {
   if (name === "sources") loadDataSources();
   if (name === "backup") loadBackupSettings();
   if (name === "network") loadNetworkSettings();
+  if (name === "projects") loadProjectsAdmin();
   try { history.replaceState(null, "", `/${CURRENT_PROJECT_ID}/settings?section=${name}`); } catch (e) {}
 }
 document.querySelectorAll(".settings-nav-btn").forEach((btn) => {
@@ -2219,6 +2304,271 @@ document.getElementById("btnNetSave").addEventListener("click", async () => {
     statusEl.textContent = "Ошибка: " + err.message;
   }
 });
+
+/* ================= Проекты (admin) ================= */
+let ADMIN_PROJECTS = [];
+let selectedAdminProjectId = null;
+
+function fmtN(n) { return (n || 0).toLocaleString("ru-RU"); }
+
+async function loadProjectsAdmin() {
+  const errEl = document.getElementById("projectsError");
+  errEl.textContent = "";
+  try {
+    const resp = await apiFetch("/api/admin/projects");
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    ADMIN_PROJECTS = data.projects;
+    renderProjAdminTable();
+    renderProjDetail();
+  } catch (err) {
+    errEl.textContent = "Не удалось загрузить список проектов: " + err.message;
+  }
+}
+function renderProjAdminTable() {
+  const tbody = document.getElementById("projAdminTbody");
+  if (!ADMIN_PROJECTS.length) { tbody.innerHTML = '<tr><td colspan="5"><div class="empty-hint">Проектов ещё нет.</div></td></tr>'; return; }
+  tbody.innerHTML = ADMIN_PROJECTS.map((p) => {
+    const total = p.counts.cables + p.counts.equipment + p.counts.marks + p.counts.patches;
+    return `<tr class="proj-row${p.id === selectedAdminProjectId ? " selected" : ""}" data-id="${esc(p.id)}">
+      <td>${esc(p.name)}</td>
+      <td class="mono" style="color:var(--text-faint);">${esc(p.id)}</td>
+      <td>${parseServerDate(p.created_at).toLocaleDateString("ru-RU")}</td>
+      <td class="mono">${fmtN(total)}</td>
+      <td><button class="btn small" data-rename="${esc(p.id)}">Переименовать</button></td>
+    </tr>`;
+  }).join("");
+  tbody.querySelectorAll(".proj-row").forEach((tr) => {
+    tr.addEventListener("click", (e) => {
+      if (e.target.closest("button")) return;
+      selectedAdminProjectId = tr.dataset.id;
+      document.getElementById("projRenameForm").style.display = "none";
+      renderProjAdminTable();
+      renderProjDetail();
+    });
+  });
+  tbody.querySelectorAll("[data-rename]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const p = ADMIN_PROJECTS.find((x) => x.id === btn.dataset.rename);
+      document.getElementById("projNewForm").style.display = "none";
+      document.getElementById("projRenameLabel").textContent = `Новое название для «${p.name}» (${p.id})`;
+      document.getElementById("projRenameName").value = p.name;
+      document.getElementById("projRenameName").dataset.id = p.id;
+      document.getElementById("projRenameForm").style.display = "";
+    });
+  });
+}
+document.getElementById("btnProjNew").addEventListener("click", () => {
+  document.getElementById("projRenameForm").style.display = "none";
+  document.getElementById("projNewId").value = "";
+  document.getElementById("projNewName").value = "";
+  document.getElementById("projNewForm").style.display = "";
+});
+document.getElementById("btnProjCreateCancel").addEventListener("click", () => {
+  document.getElementById("projNewForm").style.display = "none";
+});
+document.getElementById("btnProjCreateSubmit").addEventListener("click", async () => {
+  const statusEl = document.getElementById("projListStatus");
+  const id = document.getElementById("projNewId").value.trim().toLowerCase();
+  const name = document.getElementById("projNewName").value.trim();
+  try {
+    const resp = await apiFetch("/api/projects", { method: "POST", body: JSON.stringify({ id, name }) });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ("HTTP " + resp.status));
+    document.getElementById("projNewForm").style.display = "none";
+    statusEl.className = "save-status ok"; statusEl.textContent = "Проект создан.";
+    showToast(`Проект «${name}» создан`);
+    loadProjectsAdmin();
+  } catch (err) {
+    statusEl.className = "save-status"; statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "Ошибка: " + err.message;
+  }
+});
+document.getElementById("btnProjRenameCancel").addEventListener("click", () => {
+  document.getElementById("projRenameForm").style.display = "none";
+});
+document.getElementById("btnProjRenameSubmit").addEventListener("click", async () => {
+  const statusEl = document.getElementById("projListStatus");
+  const input = document.getElementById("projRenameName");
+  const id = input.dataset.id;
+  const name = input.value.trim();
+  if (!name) return;
+  try {
+    const resp = await apiFetch("/api/admin/projects/" + encodeURIComponent(id), { method: "PUT", body: JSON.stringify({ name }) });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ("HTTP " + resp.status));
+    document.getElementById("projRenameForm").style.display = "none";
+    statusEl.className = "save-status ok"; statusEl.textContent = "Переименовано.";
+    showToast("Проект переименован");
+    loadProjectsAdmin();
+  } catch (err) {
+    statusEl.className = "save-status"; statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "Ошибка: " + err.message;
+  }
+});
+
+function typeListHtml(items, prefix) {
+  if (!items.length) return '<div class="block-sub">Нет объектов.</div>';
+  return `<div class="type-list">${items.map((t, i) => `
+    <div class="type-row">
+      <input type="checkbox" id="${prefix}-${i}" value="${esc(t.key)}">
+      <label for="${prefix}-${i}"><span>${esc(t.label)}</span><span class="cnt mono">${fmtN(t.count)}</span></label>
+    </div>
+  `).join("")}</div>`;
+}
+function confirmBoxHtmlProj(blockKey, warnHtml, needPassword) {
+  return `
+    <div class="confirm-box" id="pconfirm-${blockKey}">
+      <div class="warn-text">${warnHtml}</div>
+      ${needPassword ? `<input type="password" id="pconfirm-input-${blockKey}" placeholder="Ваш пароль администратора" autocomplete="current-password">` : ""}
+      <div class="confirm-actions">
+        <button class="btn small" data-pcancel="${blockKey}">Отмена</button>
+        <button class="btn small danger" data-pdo="${blockKey}" ${needPassword ? "disabled" : ""}>Удалить безвозвратно</button>
+      </div>
+    </div>
+  `;
+}
+async function renderProjDetail() {
+  const wrap = document.getElementById("projDetailWrap");
+  if (!selectedAdminProjectId) { wrap.innerHTML = ""; return; }
+  const p = ADMIN_PROJECTS.find((x) => x.id === selectedAdminProjectId);
+  if (!p) { wrap.innerHTML = ""; return; }
+
+  let types = { cableTypes: [], equipShapes: [] };
+  try {
+    const resp = await apiFetch("/api/admin/projects/" + encodeURIComponent(p.id) + "/types");
+    if (resp.ok) types = await resp.json();
+  } catch (e) { /* блок кабелей/оборудования просто покажется пустым */ }
+
+  wrap.innerHTML = `
+    <div class="card">
+      <h3>Данные проекта «${esc(p.name)}» <span class="badge badge-off mono">${esc(p.id)}</span></h3>
+      <div class="hint">Каждый блок очищается независимо от остальных — снимок модели это не трогает, кроме блока «Кабели и оборудование» ниже.</div>
+      <div class="block-grid">
+
+        <div class="block">
+          <div class="block-head"><div class="block-title">Кабели и оборудование</div></div>
+          <div class="block-sub">Выберите типы для удаления — остальная модель не тронется.</div>
+          ${typeListHtml(types.cableTypes, "pcable")}
+          ${typeListHtml(types.equipShapes, "pequip")}
+          <div class="block-actions">
+            <button class="btn small danger" data-popen="types" ${(!types.cableTypes.length && !types.equipShapes.length) ? "disabled" : ""}>Удалить выбранные типы</button>
+          </div>
+          ${confirmBoxHtmlProj("types", `Будут безвозвратно удалены все объекты выбранных типов в проекте <b>${esc(p.name)}</b>, включая их подключения к кабельным трассам.`, true)}
+        </div>
+
+        <div class="block">
+          <div class="block-head"><div class="block-title">История мониторинга и аварий</div><div class="block-stat">${fmtN(p.counts.monitorEvents)}<span class="unit">событий</span></div></div>
+          <div class="block-sub">monitor_events, monitor_tag_pulses</div>
+          <div class="block-actions"><button class="btn small danger" data-popen="monitor" ${p.counts.monitorEvents ? "" : "disabled"}>Очистить</button></div>
+          ${confirmBoxHtmlProj("monitor", `Вся история мониторинга и аварий проекта <b>${esc(p.name)}</b> будет удалена без возможности восстановления. Текущий статус оборудования не пострадает.`, true)}
+        </div>
+
+        <div class="block">
+          <div class="block-head"><div class="block-title">Тикеты</div><div class="block-stat">${fmtN(p.counts.ticketsClosed)}<span class="unit">закрытых</span></div></div>
+          <div class="block-sub">Открытых сейчас: ${fmtN(p.counts.ticketsOpen)}</div>
+          <div class="block-actions"><button class="btn small danger" data-popen="tickets" ${p.counts.ticketsClosed ? "" : "disabled"}>Очистить закрытые</button></div>
+          ${confirmBoxHtmlProj("tickets", `Будут удалены ${fmtN(p.counts.ticketsClosed)} закрытых/отменённых тикетов проекта <b>${esc(p.name)}</b>. Открытые не тронутся.`, false)}
+        </div>
+
+        <div class="block">
+          <div class="block-head"><div class="block-title">Отчёты по фонарям</div><div class="block-stat">${fmtN(p.counts.lampReports)}<span class="unit">отчётов</span></div></div>
+          <div class="block-sub">Загруженные выгрузки и их разбор</div>
+          <div class="block-actions"><button class="btn small danger" data-popen="lamps" ${p.counts.lampReports ? "" : "disabled"}>Очистить</button></div>
+          ${confirmBoxHtmlProj("lamps", `Все ${fmtN(p.counts.lampReports)} отчётов по фонарям проекта <b>${esc(p.name)}</b> будут удалены без возможности восстановления.`, false)}
+        </div>
+
+        <div class="block">
+          <div class="block-head"><div class="block-title">Журнал действий</div><div class="block-stat">${fmtN(p.counts.auditLog)}<span class="unit">записей</span></div></div>
+          <div class="block-sub">
+            Старше <input type="number" id="pAuditDays" value="90" min="1" style="width:56px; display:inline-block; background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:2px 5px; font-size:11px;"> дней
+          </div>
+          <div class="block-actions"><button class="btn small danger" data-popen="audit" ${p.counts.auditLog ? "" : "disabled"}>Очистить</button></div>
+          ${confirmBoxHtmlProj("audit", `Записи журнала действий проекта <b>${esc(p.name)}</b> старше указанного числа дней будут удалены без возможности восстановления.`, false)}
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  wrap.querySelectorAll("[data-popen]").forEach((btn) => {
+    btn.addEventListener("click", () => document.getElementById(`pconfirm-${btn.dataset.popen}`).classList.add("open"));
+  });
+  wrap.querySelectorAll("[data-pcancel]").forEach((btn) => {
+    btn.addEventListener("click", () => document.getElementById(`pconfirm-${btn.dataset.pcancel}`).classList.remove("open"));
+  });
+  wrap.querySelectorAll("[id^='pconfirm-input-']").forEach((input) => {
+    input.addEventListener("input", () => {
+      const key = input.id.replace("pconfirm-input-", "");
+      wrap.querySelector(`[data-pdo="${key}"]`).disabled = input.value.length === 0;
+    });
+  });
+
+  wrap.querySelector('[data-pdo="types"]').addEventListener("click", async () => {
+    const password = document.getElementById("pconfirm-input-types").value;
+    const cableTypes = [...wrap.querySelectorAll("[id^='pcable-']:checked")].map((el) => el.value);
+    const equipShapes = [...wrap.querySelectorAll("[id^='pequip-']:checked")].map((el) => el.value);
+    if (!cableTypes.length && !equipShapes.length) { showToast("Ничего не выбрано", true); return; }
+    try {
+      const resp = await apiFetch("/api/admin/projects/" + encodeURIComponent(p.id) + "/model/delete-by-type", {
+        method: "POST", body: JSON.stringify({ password, cableTypes, equipShapes }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error === "invalid_password" ? "Неверный пароль" : (data.error || ("HTTP " + resp.status)));
+      showToast(`Удалено: кабелей ${data.removedCables}, оборудования ${data.removedEquip}`);
+      loadProjectsAdmin();
+    } catch (err) {
+      showToast("Ошибка: " + err.message, true);
+    }
+  });
+  wrap.querySelector('[data-pdo="monitor"]').addEventListener("click", async () => {
+    const password = document.getElementById("pconfirm-input-monitor").value;
+    try {
+      const resp = await apiFetch("/api/admin/projects/" + encodeURIComponent(p.id) + "/monitoring/clear", { method: "POST", body: JSON.stringify({ password }) });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error === "invalid_password" ? "Неверный пароль" : (data.error || ("HTTP " + resp.status)));
+      showToast(`Очищено записей: ${data.removed}`);
+      loadProjectsAdmin();
+    } catch (err) {
+      showToast("Ошибка: " + err.message, true);
+    }
+  });
+  wrap.querySelector('[data-pdo="tickets"]').addEventListener("click", async () => {
+    try {
+      const resp = await apiFetch("/api/admin/projects/" + encodeURIComponent(p.id) + "/tickets/clear-closed", { method: "POST" });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || ("HTTP " + resp.status));
+      showToast(`Удалено тикетов: ${data.removed}`);
+      loadProjectsAdmin();
+    } catch (err) {
+      showToast("Ошибка: " + err.message, true);
+    }
+  });
+  wrap.querySelector('[data-pdo="lamps"]').addEventListener("click", async () => {
+    try {
+      const resp = await apiFetch("/api/admin/projects/" + encodeURIComponent(p.id) + "/lamps/clear", { method: "POST" });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || ("HTTP " + resp.status));
+      showToast(`Удалено отчётов: ${data.removed}`);
+      loadProjectsAdmin();
+    } catch (err) {
+      showToast("Ошибка: " + err.message, true);
+    }
+  });
+  wrap.querySelector('[data-pdo="audit"]').addEventListener("click", async () => {
+    const olderThanDays = parseInt(document.getElementById("pAuditDays").value, 10) || 90;
+    try {
+      const resp = await apiFetch("/api/admin/projects/" + encodeURIComponent(p.id) + "/audit/clear", { method: "POST", body: JSON.stringify({ olderThanDays }) });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || ("HTTP " + resp.status));
+      showToast(`Удалено записей журнала: ${data.removed}`);
+      loadProjectsAdmin();
+    } catch (err) {
+      showToast("Ошибка: " + err.message, true);
+    }
+  });
+}
 
 function boot() {
   const hasAccess = applyRoleUI();
