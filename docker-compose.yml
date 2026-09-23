@@ -13,6 +13,13 @@ services:
       args:
         HTTPS_PROXY: ${HTTPS_PROXY:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
+      # Docker по умолчанию генерирует provenance/SBOM-attestation при
+      # экспорте образа (лишние "exporting attestation manifest"/"manifest
+      # list" шаги в логе сборки) — нам это не нужно (не публикуем образ
+      # никуда наружу), а по факту заметно удлиняет и без того небыстрый
+      # экспорт/распаковку слоёв на медленном диске.
+      provenance: false
+      sbom: false
     restart: unless-stopped
     ports:
       - "80:3000"
@@ -50,6 +57,8 @@ services:
       args:
         HTTPS_PROXY: ${HTTPS_PROXY:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
+      provenance: false
+      sbom: false
     command: ["node", "monitor/ping-worker.js"]
     restart: unless-stopped
     environment:
@@ -72,6 +81,8 @@ services:
       args:
         HTTPS_PROXY: ${HTTPS_PROXY:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
+      provenance: false
+      sbom: false
     command: ["node", "monitor/custom-monitor-worker.js"]
     restart: unless-stopped
     volumes:
@@ -89,6 +100,8 @@ services:
       args:
         HTTPS_PROXY: ${HTTPS_PROXY:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
+      provenance: false
+      sbom: false
     command: ["node", "backup-worker.js"]
     restart: unless-stopped
     environment:
