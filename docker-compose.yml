@@ -12,15 +12,20 @@ services:
       # Автобэкап (Настройки → Резервное копирование, см. docs/backup-setup.md):
       # "Сделать бэкап сейчас" запускается прямо отсюда (server/routes/backup.js —
       # db.backup() безопасен параллельно с живыми запросами), поэтому эти же
-      # переменные нужны и здесь, не только у backup-worker ниже. Секреты сюда
-      # НЕ попадают — только пути к смонтированным файлам, сами файлы см.
-      # volumes ниже (закомментированы, пока не настроено).
+      # переменные нужны и здесь, не только у backup-worker ниже. SSH-ключ —
+      # файловый секрет (смонтирован ниже, volumes); Google Drive — OAuth
+      # refresh-token от личного аккаунта (не сервисный аккаунт: у тех нет
+      # своей квоты хранилища для обычной папки на личном Диске), сам токен —
+      # обычная переменная окружения, не файл, получается один раз через
+      # server/backup/gdrive-device-auth.js — см. docs/backup-setup.md.
       - BACKUP_SSH_HOST=${BACKUP_SSH_HOST:-}
       - BACKUP_SSH_USER=${BACKUP_SSH_USER:-}
       - BACKUP_SSH_PORT=${BACKUP_SSH_PORT:-22}
       - BACKUP_SSH_KEY_PATH=/run/secrets/backup_ssh_key
       - BACKUP_SSH_REMOTE_DIR=${BACKUP_SSH_REMOTE_DIR:-}
-      - BACKUP_GDRIVE_SA_KEY_PATH=/run/secrets/backup_gdrive_sa.json
+      - BACKUP_GDRIVE_CLIENT_ID=${BACKUP_GDRIVE_CLIENT_ID:-}
+      - BACKUP_GDRIVE_CLIENT_SECRET=${BACKUP_GDRIVE_CLIENT_SECRET:-}
+      - BACKUP_GDRIVE_REFRESH_TOKEN=${BACKUP_GDRIVE_REFRESH_TOKEN:-}
       - BACKUP_GDRIVE_FOLDER_ID=${BACKUP_GDRIVE_FOLDER_ID:-}
     volumes:
       - mine-ops-data:/app/server/data
@@ -29,7 +34,6 @@ services:
       # файла Docker молча подменяет ПУСТОЙ ПАПКОЙ, а не ошибкой, и бэкап
       # будет фейлиться с непонятной ошибкой чтения ключа.
       # - ./secrets/backup_ssh_key:/run/secrets/backup_ssh_key:ro
-      - ./secrets/backup_gdrive_sa.json:/run/secrets/backup_gdrive_sa.json:ro
 
   # Мониторинг оборудования (docs/monitoring-plan.md), Этап 2 — отдельный
   # процесс, тот же образ и та же SQLite-база (общий volume), но не часть
@@ -77,14 +81,16 @@ services:
       - BACKUP_SSH_PORT=${BACKUP_SSH_PORT:-22}
       - BACKUP_SSH_KEY_PATH=/run/secrets/backup_ssh_key
       - BACKUP_SSH_REMOTE_DIR=${BACKUP_SSH_REMOTE_DIR:-}
-      - BACKUP_GDRIVE_SA_KEY_PATH=/run/secrets/backup_gdrive_sa.json
+      - BACKUP_GDRIVE_CLIENT_ID=${BACKUP_GDRIVE_CLIENT_ID:-}
+      - BACKUP_GDRIVE_CLIENT_SECRET=${BACKUP_GDRIVE_CLIENT_SECRET:-}
+      - BACKUP_GDRIVE_REFRESH_TOKEN=${BACKUP_GDRIVE_REFRESH_TOKEN:-}
       - BACKUP_GDRIVE_FOLDER_ID=${BACKUP_GDRIVE_FOLDER_ID:-}
     volumes:
       - mine-ops-data:/app/server/data
       # См. комментарий у mine-ops-tool выше — то же самое, оба сервиса
-      # должны видеть один и тот же файл ключа/сервисного аккаунта.
+      # должны видеть один и тот же файл SSH-ключа (Google Drive — просто
+      # переменные окружения, файла тут больше нет).
       # - ./secrets/backup_ssh_key:/run/secrets/backup_ssh_key:ro
-      - ./secrets/backup_gdrive_sa.json:/run/secrets/backup_gdrive_sa.json:ro
 
 volumes:
   mine-ops-data:
