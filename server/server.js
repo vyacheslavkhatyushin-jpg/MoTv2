@@ -17,6 +17,9 @@ const referencesRoutes = require("./routes/references");
 const backupRoutes = require("./routes/backup");
 const { verifyToken } = require("./auth");
 const db = require("./db");
+const { setupProxyDispatcher } = require("./lib/proxy");
+
+setupProxyDispatcher();
 
 const app = express();
 const PORT = process.env.PORT || 3000;

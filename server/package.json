@@ -16,6 +16,7 @@
     "googleapis": "^144.0.0",
     "jsonwebtoken": "^9.0.2",
     "ssh2-sftp-client": "^11.0.0",
+    "undici": "^6.21.0",
     "ws": "^8.21.3",
     "xlsx": "^0.18.5"
   }

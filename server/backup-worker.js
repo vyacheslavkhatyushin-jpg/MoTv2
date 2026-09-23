@@ -13,6 +13,9 @@ schedule_time), не через env — в отличие от PING_INTERVAL_MS 
 */
 const db = require("./db");
 const { runBackup } = require("./backup/run-backup");
+const { setupProxyDispatcher } = require("./lib/proxy");
+
+setupProxyDispatcher();
 
 const CHECK_INTERVAL_MS = 60 * 1000;
 let lastRunDate = null; // "YYYY-MM-DD" (UTC) — не даём сработать дважды в одну и ту же минуту-совпадение
