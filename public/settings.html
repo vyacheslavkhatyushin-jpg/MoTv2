@@ -131,6 +131,7 @@
   .card .hint{ font-size:11px; color:var(--text-faint); line-height:1.5; margin:-8px 0 14px; }
 
   .field-row{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px 16px; margin-bottom:4px; align-items:end; }
+  .target-row{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; }
   .field{ margin-bottom:12px; display:flex; flex-direction:column; }
   .field label{ display:block; font-size:11px; color:var(--text-dim); margin-bottom:4px; }
   .field input, .field select, .field textarea{
@@ -780,7 +781,7 @@
 
           <div class="card">
             <h3>Другой сервер по SSH</h3>
-            <div class="field-row" style="align-items:center;">
+            <div class="target-row">
               <label class="check-inline" style="margin:0;"><input type="checkbox" id="bkTargetSsh"> Использовать как цель бэкапа <span id="bkSshStatus" class="badge"></span></label>
               <button class="btn" id="btnBkSshConnect" type="button">Подключить</button>
               <button class="btn" id="btnBkSshDisconnect" type="button" style="display:none;">Отключить</button>
@@ -825,7 +826,7 @@
 
           <div class="card">
             <h3>Google Drive</h3>
-            <div class="field-row" style="align-items:center;">
+            <div class="target-row">
               <label class="check-inline" style="margin:0;"><input type="checkbox" id="bkTargetGdrive"> Использовать как цель бэкапа <span id="bkGdriveStatus" class="badge"></span></label>
               <button class="btn" id="btnBkGdriveConnect" type="button">Подключить</button>
               <button class="btn" id="btnBkGdriveDisconnect" type="button" style="display:none;">Отключить</button>

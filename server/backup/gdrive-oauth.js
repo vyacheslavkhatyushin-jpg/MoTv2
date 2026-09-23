@@ -94,14 +94,26 @@ async function startConnect({ clientId, clientSecret, folderId }) {
   stopPolling();
   saveClientCreds({ clientId, clientSecret, folderId });
 
-  const deviceRes = await fetch("https://oauth2.googleapis.com/device/code", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      scope: "https://www.googleapis.com/auth/drive.file",
-    }),
-  });
+  let deviceRes;
+  try {
+    deviceRes = await fetch("https://oauth2.googleapis.com/device/code", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        scope: "https://www.googleapis.com/auth/drive.file",
+      }),
+    });
+  } catch (e) {
+    // fetch сам кидает исключение (а не HTTP-ошибку) при сетевых проблемах
+    // (нет DNS/маршрута/фаервол режет исходящий 443 на oauth2.googleapis.com)
+    // — сообщение "fetch failed" само по себе непонятно пользователю в UI.
+    state = {
+      status: "error",
+      message: `Не удалось связаться с Google (${e.message}) — похоже, у сервера нет исходящего доступа в интернет к oauth2.googleapis.com. Проверьте сетевые настройки/фаервол сервера.`,
+    };
+    throw new Error(state.message);
+  }
   const device = await deviceRes.json();
   if (!deviceRes.ok) {
     state = { status: "error", message: device.error_description || device.error || "Ошибка запроса кода у Google" };
