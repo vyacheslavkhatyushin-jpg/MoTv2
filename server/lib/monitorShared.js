@@ -61,6 +61,44 @@ async function login(config) {
     .join("; ");
 }
 
+/* ---------- какое оборудование СЕЙЧАС реально мониторится ----------
+Единственный источник истины для критерия "мониторится" — раньше он был
+продублирован (ping-worker.js/collectPingTargets, custom-monitor-worker.js/
+collectCustomTargets), и чтение статуса (getMonitorStatus в server.js,
+GET /:id/monitor/status в routes/projects.js) вообще не сверялось с этим
+критерием, а просто отдавало ВСЁ, что накопилось в monitor_status —
+включая "осиротевшие" строки оборудования, которое удалили, переименовали
+(новый id) или у которого просто выключили мониторинг, но не удалили сам
+объект. Такие строки никогда не подчищались автоматически (только вручную
+через cleanup-orphaned-monitor-data.js) и молча подмешивались в сумму
+🟢/🔴/⚪ на странице "Мониторинг" — расхождение с тем, что реально видно
+в списке оборудования, вылезало у пользователя раз за разом при каждой
+переконфигурации мониторинга, не только при удалении объекта.
+
+Фикс — системный, не точечный: обе точки чтения статуса (WS-рассылка и
+REST-фолбэк) теперь фильтруют monitor_status по ЭТОМУ предикату каждый
+раз, а не доверяют содержимому таблицы — значит, даже если где-то в
+будущем появится ещё один способ оставить осиротевшую строку, она
+перестанет попадать в интерфейс сама по себе, без ручной чистки. */
+function isEquipmentMonitored(eq) {
+  if (eq.monitorMethod === "ping") return !!eq.ip;
+  if (eq.monitorMethod === "custom") return !!eq.dataSourceId && !!eq.sourceAddress;
+  return false;
+}
+function loadProjectEquipment(projectId) {
+  const row = db.prepare("SELECT snapshot_json FROM project_state WHERE project_id = ?").get(projectId);
+  if (!row) return [];
+  try {
+    return JSON.parse(row.snapshot_json).equipment || [];
+  } catch (e) {
+    console.error(`[monitorShared] bad snapshot_json for project ${projectId}:`, e.message);
+    return [];
+  }
+}
+function getMonitoredEquipmentIds(projectId) {
+  return new Set(loadProjectEquipment(projectId).filter(isEquipmentMonitored).map((eq) => eq.id));
+}
+
 /* ---------- запись состояния в monitor_status/monitor_events ---------- */
 const stmtGetStatus = db.prepare("SELECT state, raw_metrics_json FROM monitor_status WHERE project_id = ? AND equipment_id = ?");
 const stmtUpsertState = db.prepare(`
@@ -286,4 +324,7 @@ module.exports = {
   loadShapeThresholds,
   resolveFailDurationSec,
   resolveStaleAfterSec,
+  isEquipmentMonitored,
+  loadProjectEquipment,
+  getMonitoredEquipmentIds,
 };

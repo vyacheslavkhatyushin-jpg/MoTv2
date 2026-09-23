@@ -2,6 +2,7 @@ const express = require("express");
 const db = require("../db");
 const { requireAuth, requireRole } = require("../auth");
 const { logAudit } = require("../lib/audit");
+const { getMonitoredEquipmentIds } = require("../lib/monitorShared");
 
 const router = express.Router();
 const SLUG_RE = /^[a-z0-9][a-z0-9-_]{1,63}$/;
@@ -329,13 +330,19 @@ router.get("/:id/monitor/status", (req, res) => {
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
+  // Тот же фильтр по getMonitoredEquipmentIds, что у WS-рассылки в
+  // server.js — иначе "осиротевшие" строки monitor_status (удалённое/
+  // переименованное оборудование или просто выключенный мониторинг)
+  // подмешиваются в этот REST-фолбэк точно так же, как раньше в WS.
+  const validIds = getMonitoredEquipmentIds(req.params.id);
   const rows = db
     .prepare(
       `SELECT equipment_id, state, last_checked_at, last_change_at, latency_ms,
               person_count, vehicle_count, raw_metrics_json
        FROM monitor_status WHERE project_id = ?`
     )
-    .all(req.params.id);
+    .all(req.params.id)
+    .filter((row) => validIds.has(row.equipment_id));
   res.json({ status: rows });
 });
 

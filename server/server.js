@@ -20,6 +20,7 @@ const adminRoutes = require("./routes/admin");
 const { verifyToken } = require("./auth");
 const db = require("./db");
 const { setupProxyDispatcher } = require("./lib/proxy");
+const { getMonitoredEquipmentIds } = require("./lib/monitorShared");
 
 setupProxyDispatcher();
 
@@ -125,14 +126,21 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true, perMessageDeflate: true });
 const monitorClients = new Map(); // projectId -> Set<ws>
 
+// Фильтруем по getMonitoredEquipmentIds, а не отдаём monitor_status как
+// есть — иначе "осиротевшие" строки (объект удалён/переименован/у него
+// выключили мониторинг, но строка статуса осталась) подмешиваются в сумму
+// 🟢/🔴/⚪ на клиенте, давая расхождение с реальным списком оборудования
+// (см. подробный комментарий у isEquipmentMonitored в lib/monitorShared.js).
 function getMonitorStatus(projectId) {
+  const validIds = getMonitoredEquipmentIds(projectId);
   return db
     .prepare(
       `SELECT equipment_id, state, last_checked_at, last_change_at, latency_ms,
               person_count, vehicle_count, raw_metrics_json
        FROM monitor_status WHERE project_id = ?`
     )
-    .all(projectId);
+    .all(projectId)
+    .filter((row) => validIds.has(row.equipment_id));
 }
 
 function sendStatus(ws, projectId) {

@@ -14,7 +14,7 @@ monitorMethod:"ping" и непустым IP, пингует параллельн
 */
 const { execFile } = require("child_process");
 const db = require("../db");
-const { loadShapeThresholds, resolveFailDurationSec } = require("../lib/monitorShared");
+const { loadShapeThresholds, resolveFailDurationSec, loadProjectEquipment } = require("../lib/monitorShared");
 
 const INTERVAL_MS = parseInt(process.env.PING_INTERVAL_MS || "60000", 10);
 const CONCURRENCY = parseInt(process.env.PING_CONCURRENCY || "20", 10);
@@ -64,20 +64,13 @@ function collectPingTargets() {
   const projects = db.prepare("SELECT id FROM projects").all();
   const targets = [];
   for (const { id: projectId } of projects) {
-    const row = db
-      .prepare("SELECT snapshot_json FROM project_state WHERE project_id = ?")
-      .get(projectId);
-    if (!row) continue;
-    let snapshot;
-    try {
-      snapshot = JSON.parse(row.snapshot_json);
-    } catch (err) {
-      console.error(`[ping-worker] bad snapshot_json for project ${projectId}:`, err.message);
-      continue;
-    }
     const thresholds = loadProjectThresholds(projectId);
     const shapeOverrides = loadShapeThresholds(projectId);
-    for (const eq of snapshot.equipment || []) {
+    // loadProjectEquipment — общая с getMonitorStatus (server.js) точка
+    // чтения снимка, тот же критерий "мониторится по пингу", что и
+    // isEquipmentMonitored в lib/monitorShared.js (не вызываем её напрямую
+    // тут, т.к. этому воркеру нужны только ping-цели, не custom).
+    for (const eq of loadProjectEquipment(projectId)) {
       if (eq.monitorMethod === "ping" && eq.ip) {
         targets.push({
           projectId, equipmentId: eq.id, label: eq.label, ip: eq.ip,

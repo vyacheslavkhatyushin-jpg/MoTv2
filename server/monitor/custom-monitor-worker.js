@@ -83,17 +83,11 @@ function sameSourceConfig(a, b) {
 
 /* ---------- цели: оборудование, привязанное к этому источнику ---------- */
 function collectCustomTargets(projectId, sourceId) {
-  const row = db.prepare("SELECT snapshot_json FROM project_state WHERE project_id = ?").get(projectId);
   const byAddr = new Map();
-  if (!row) return byAddr;
-  let snapshot;
-  try {
-    snapshot = JSON.parse(row.snapshot_json);
-  } catch (err) {
-    console.error(`[custom-monitor-worker] bad snapshot_json for project ${projectId}:`, err.message);
-    return byAddr;
-  }
-  for (const eq of snapshot.equipment || []) {
+  // shared.loadProjectEquipment — общая с getMonitorStatus (server.js) и
+  // ping-worker.js точка чтения снимка (парсинг + лог битого JSON в одном
+  // месте, см. lib/monitorShared.js).
+  for (const eq of shared.loadProjectEquipment(projectId)) {
     if (eq.monitorMethod !== "custom" || eq.dataSourceId !== sourceId || !eq.sourceAddress) continue;
     const addr = String(eq.sourceAddress);
     if (!byAddr.has(addr)) byAddr.set(addr, []);
