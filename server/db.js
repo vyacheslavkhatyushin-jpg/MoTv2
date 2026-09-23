@@ -269,6 +269,20 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_project ON audit_log(project_id, create
 CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action, created_at DESC);
 
+-- Общесерверные сетевые настройки (не привязаны к какой-то одной фиче) —
+-- singleton-строка. Сейчас тут только исходящий HTTP(S)-прокси (см.
+-- server/lib/proxy.js, Настройки → Сеть) — на разных площадках может
+-- быть разный корпоративный прокси или его не быть вовсе, поэтому это
+-- настройка через UI, а не .env/docker-compose.yml (те тоже продолжают
+-- работать как фолбэк, если тут пусто — см. server/lib/proxy.js).
+CREATE TABLE IF NOT EXISTS server_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  outbound_proxy_url TEXT,
+  updated_by TEXT,
+  updated_at TEXT
+);
+INSERT OR IGNORE INTO server_settings (id) VALUES (1);
+
 -- Автобэкап БД (см. server/backup/run-backup.js + server/backup-worker.js) —
 -- singleton-строка (id всегда 1), настраивается в Настройки → Резервное
 -- копирование. И SSH-ключ, и Google Drive OAuth-токен подключаются целиком

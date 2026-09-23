@@ -470,6 +470,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6m-1 0a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v0a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1z" /><path d="M5 10v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-8" /><path d="M9 14h6" /></svg>
           Резервное копирование
         </button>
+        <button class="settings-nav-btn" data-section="network" data-admin-only="1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M3.6 9h16.8" /><path d="M3.6 15h16.8" /><path d="M11.5 3a17 17 0 0 0 0 18" /><path d="M12.5 3a17 17 0 0 1 0 18" /></svg>
+          Сеть
+        </button>
       </nav>
 
       <div class="settings-content">
@@ -873,6 +877,30 @@
             <div id="bkHistory"><div class="empty">Загрузка…</div></div>
           </div>
         </section>
+
+        <!-- ============ Сеть ============ -->
+        <section class="settings-panel" id="panel-network">
+          <h2>Сеть</h2>
+          <p class="subtitle">Общесерверная настройка, не привязана к конкретному проекту или фиче — применяется ко всем исходящим запросам сервера (сейчас использует только Google Drive при подключении, см. Резервное копирование).</p>
+
+          <div id="networkError"></div>
+
+          <div class="card">
+            <h3>Исходящий прокси</h3>
+            <div class="field-row">
+              <div class="field" style="grid-column:1 / -1;">
+                <label for="netProxyUrl">HTTP(S)-прокси (URL)</label>
+                <input type="text" id="netProxyUrl" autocomplete="off" placeholder="http://proxy-host:3128">
+                <div class="field-hint">Пусто — прокси не используется (если только не задан через HTTPS_PROXY/HTTP_PROXY в docker-compose.yml на этом сервере — см. подсказку ниже).</div>
+              </div>
+            </div>
+            <div class="hint" id="netEffectiveHint" style="margin-top:6px;"></div>
+            <div class="save-bar" style="margin-top:14px;">
+              <button class="btn primary" id="btnNetSave">Сохранить</button>
+              <span class="save-status" id="netSaveStatus"></span>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -915,7 +943,7 @@ function parseServerDate(s) {
    наравне с admin, см. applyRoleUI). ADMIN_ONLY_SECTIONS — единственное
    место, где это решение принимается на клиенте; сервер всё равно гейтит
    /api/users и /api/references по роли независимо от того, что тут покажут. */
-const ADMIN_ONLY_SECTIONS = new Set(["users", "references", "backup"]);
+const ADMIN_ONLY_SECTIONS = new Set(["users", "references", "backup", "network"]);
 let isFullAdmin = false;
 let referencesLoaded = false;
 function showSection(name) {
@@ -929,6 +957,7 @@ function showSection(name) {
   }
   if (name === "sources") loadDataSources();
   if (name === "backup") loadBackupSettings();
+  if (name === "network") loadNetworkSettings();
   try { history.replaceState(null, "", `/${CURRENT_PROJECT_ID}/settings?section=${name}`); } catch (e) {}
 }
 document.querySelectorAll(".settings-nav-btn").forEach((btn) => {
@@ -2150,6 +2179,43 @@ document.getElementById("btnBkSshDisconnect").addEventListener("click", async ()
     loadBackupSettings();
   } catch (err) {
     showToast("Не удалось отключить: " + err.message, true);
+  }
+});
+
+/* ================= Сеть ================= */
+async function loadNetworkSettings() {
+  const errEl = document.getElementById("networkError");
+  errEl.textContent = "";
+  try {
+    const resp = await apiFetch("/api/network/settings");
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const s = await resp.json();
+    document.getElementById("netProxyUrl").value = s.outboundProxyUrl || "";
+    const hintEl = document.getElementById("netEffectiveHint");
+    if (s.effectiveProxyUrl) {
+      hintEl.textContent = s.outboundProxyUrl
+        ? "Сейчас используется этот адрес."
+        : `Поле пустое, но реально используется прокси из окружения сервера: ${s.effectiveProxyUrl}.`;
+    } else {
+      hintEl.textContent = "Прокси не используется — исходящие запросы идут напрямую.";
+    }
+  } catch (err) {
+    errEl.textContent = "Не удалось загрузить сетевые настройки: " + err.message;
+  }
+}
+document.getElementById("btnNetSave").addEventListener("click", async () => {
+  const statusEl = document.getElementById("netSaveStatus");
+  statusEl.className = "save-status"; statusEl.style.color = ""; statusEl.textContent = "Сохранение…";
+  const outboundProxyUrl = document.getElementById("netProxyUrl").value.trim();
+  try {
+    const resp = await apiFetch("/api/network/settings", { method: "PUT", body: JSON.stringify({ outboundProxyUrl }) });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || ("HTTP " + resp.status));
+    statusEl.className = "save-status ok"; statusEl.textContent = "Сохранено, применено сразу.";
+    loadNetworkSettings();
+  } catch (err) {
+    statusEl.className = "save-status"; statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "Ошибка: " + err.message;
   }
 });
 

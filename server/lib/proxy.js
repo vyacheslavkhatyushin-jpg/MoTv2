@@ -1,19 +1,46 @@
 /*
-Глобальный fetch() Node сам по себе НЕ читает HTTP_PROXY/HTTPS_PROXY (в
-отличие от googleapis/gaxios, которые это умеют из коробки) — на сервере
-за корпоративным прокси (см. docs/backup-setup.md, диагностика "fetch
-failed" при подключении Google Drive) это ломает наши собственные вызовы
-fetch() (server/backup/gdrive-oauth.js — Device Flow к oauth2.googleapis.com).
-Вызывается один раз при старте процесса (server.js и backup-worker.js).
+Исходящий HTTP(S)-прокси для fetch() (Настройки → Сеть, admin) —
+общесерверная настройка, не привязана к конкретной фиче: на разных
+площадках может стоять разный корпоративный прокси или не быть его
+вовсе. Приоритет: значение из БД (server_settings.outbound_proxy_url,
+задаётся через UI) — если пусто, фолбэк на HTTPS_PROXY/HTTP_PROXY из
+окружения (см. docker-compose.yml). Глобальный fetch() Node сам по себе
+НЕ читает эти переменные (в отличие от googleapis/gaxios, которые это
+умеют из коробки) — отсюда и весь этот модуль.
 */
-const { ProxyAgent, setGlobalDispatcher } = require("undici");
+const { Agent, ProxyAgent, setGlobalDispatcher } = require("undici");
+const db = require("../db");
 
-function setupProxyDispatcher() {
-  const proxyUrl =
-    process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
-  if (!proxyUrl) return;
-  setGlobalDispatcher(new ProxyAgent(proxyUrl));
-  console.log(`[proxy] исходящий fetch() настроен через ${proxyUrl}`);
+function envProxyUrl() {
+  return process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || "";
 }
 
-module.exports = { setupProxyDispatcher };
+function getConfiguredProxyUrl() {
+  let dbValue = "";
+  try {
+    const row = db.prepare("SELECT outbound_proxy_url FROM server_settings WHERE id = 1").get();
+    dbValue = (row && row.outbound_proxy_url) || "";
+  } catch (e) {
+    // Таблица могла ещё не существовать на очень старой инсталляции до
+    // миграции — не валим процесс на старте из-за этого.
+  }
+  return dbValue || envProxyUrl();
+}
+
+// Применяет прокси сразу, без перезапуска процесса — вызывается и при
+// старте (setupProxyDispatcher), и сразу после сохранения в Настройки →
+// Сеть (см. server/routes/network.js).
+function applyProxy(url) {
+  if (url) {
+    setGlobalDispatcher(new ProxyAgent(url));
+    console.log(`[proxy] исходящий fetch() настроен через ${url}`);
+  } else {
+    setGlobalDispatcher(new Agent());
+  }
+}
+
+function setupProxyDispatcher() {
+  applyProxy(getConfiguredProxyUrl());
+}
+
+module.exports = { setupProxyDispatcher, applyProxy, getConfiguredProxyUrl };
