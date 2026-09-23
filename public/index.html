@@ -317,6 +317,36 @@
   }
   .uo-row:hover .uo-edit-btn{ color:var(--text-dim); }
   .uo-edit-btn:hover{ border-color:var(--accent); color:var(--accent) !important; }
+  /* ---- статус-бар мониторинга: кликабельные счётчики + модалка со списком ---- */
+  .mon-stat-btn{
+    background:none; border:none; padding:6px 6px; margin:-6px -6px; border-radius:6px;
+    font:inherit; color:inherit; cursor:pointer; display:flex; align-items:center; gap:6px;
+  }
+  .mon-stat-btn:hover{ background:var(--panel-alt); }
+  .mon-stat-btn:disabled{ cursor:default; }
+  .mon-stat-btn:disabled:hover{ background:none; }
+  .mon-stat-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .mon-stat-sep{ width:1px; height:14px; background:var(--border); flex-shrink:0; }
+  #monitorStatModal{
+    position:fixed; inset:0; z-index:900; display:none; align-items:center; justify-content:center;
+    background:rgba(13,15,17,.6);
+  }
+  #monitorStatModal.open{ display:flex; }
+  #monitorStatModalCard{
+    width:420px; max-width:90vw; max-height:70vh; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; box-shadow:0 20px 60px rgba(0,0,0,.5); display:flex; flex-direction:column; overflow:hidden;
+  }
+  #monitorStatModalHead{
+    display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--border-soft); flex-shrink:0;
+  }
+  #monitorStatModalTitle{ font-size:13.5px; font-weight:600; flex:1; }
+  #monitorStatModalCount{ font-size:12px; color:var(--text-faint); }
+  #monitorStatModalClose{
+    background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:15px; line-height:1; padding:4px;
+  }
+  #monitorStatModalClose:hover{ color:var(--text); }
+  #monitorStatModalList{ overflow-y:auto; padding:6px; display:flex; flex-direction:column; gap:1px; }
+  #monitorStatModalEmpty{ padding:20px 16px; color:var(--text-faint); font-size:12.5px; text-align:center; }
   .uo-details .dtitle{
     display:flex; align-items:center; justify-content:space-between; gap:6px;
     font-weight:600; font-size:12.5px; margin-bottom:6px;
@@ -971,12 +1001,30 @@
           <div class="placeholder" id="monitorActivePlaceholder" style="padding:16px; margin:0;">Активных аварий нет.</div>
         </div>
 
-        <div class="panel-row" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; border-top:1px solid var(--border-soft);">
-          <span style="font-size:12.5px; color:var(--text-dim);">🟢 <span id="monitorCountUp">0</span></span>
-          <span style="font-size:12.5px; color:var(--text-dim);">🔴 <span id="monitorCountDown">0</span></span>
-          <span style="font-size:12.5px; color:var(--text-faint);">⚪ <span id="monitorCountUnknown">0</span></span>
-          <span id="monitorPeopleTotalWrap" style="font-size:12.5px; color:var(--text-dim); display:none;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg> <span id="monitorPeopleTotal">0</span></span>
-          <span id="monitorVehiclesTotalWrap" style="font-size:12.5px; color:var(--text-dim); display:none;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M5 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M15 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5" /></svg> <span id="monitorVehiclesTotal">0</span></span>
+        <div class="panel-row" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; border-top:1px solid var(--border-soft);">
+          <button type="button" class="mon-stat-btn" id="monitorBtnOnline" title="Показать список устройств">
+            <span class="mon-stat-dot" style="background:var(--accent-2); box-shadow:0 0 6px rgba(57,184,176,.6);"></span>
+            <span style="font-size:12.5px; color:var(--text-dim);">Online</span>
+            <span class="mono" style="font-size:12.5px; color:var(--text); font-weight:600;" id="monitorCountUp">0</span>
+          </button>
+          <span class="mon-stat-sep"></span>
+          <button type="button" class="mon-stat-btn" id="monitorBtnAlarm" title="Показать список устройств">
+            <span class="mon-stat-dot" style="background:var(--danger); box-shadow:0 0 6px rgba(230,85,61,.6);"></span>
+            <span style="font-size:12.5px; color:var(--text-dim);">Alarm</span>
+            <span class="mono" style="font-size:12.5px; color:var(--text); font-weight:600;" id="monitorCountDown">0</span>
+          </button>
+          <span class="mon-stat-sep" id="monitorPeopleTotalSep" style="display:none;"></span>
+          <button type="button" class="mon-stat-btn" id="monitorBtnRegtag" style="display:none;" title="Показать список считывателей">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--text-dim)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg>
+            <span style="font-size:12.5px; color:var(--text-dim);">RegTag</span>
+            <span class="mono" style="font-size:12.5px; color:var(--text); font-weight:600;" id="monitorPeopleTotal">0</span>
+          </button>
+          <span class="mon-stat-sep" id="monitorVehiclesTotalSep" style="display:none;"></span>
+          <button type="button" class="mon-stat-btn" id="monitorBtnVehicles" style="display:none;" title="Показать список">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--text-dim)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M15 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5" /></svg>
+            <span style="font-size:12.5px; color:var(--text-dim);">Транспорт</span>
+            <span class="mono" style="font-size:12.5px; color:var(--text); font-weight:600;" id="monitorVehiclesTotal">0</span>
+          </button>
         </div>
         <div class="panel-row" id="monitorSystems"></div>
 
@@ -996,6 +1044,20 @@
     </div>
   </div>
 </div>
+</div>
+
+<!-- ================= Список устройств по статусу (Online/Alarm/RegTag/Транспорт) ================= -->
+<div id="monitorStatModal">
+  <div id="monitorStatModalCard">
+    <div id="monitorStatModalHead">
+      <span class="mon-stat-dot" id="monitorStatModalDot"></span>
+      <span id="monitorStatModalTitle"></span>
+      <span id="monitorStatModalCount"></span>
+      <button type="button" id="monitorStatModalClose" title="Закрыть">✕</button>
+    </div>
+    <div id="monitorStatModalList"></div>
+    <div class="placeholder" id="monitorStatModalEmpty" style="display:none;">Список пуст.</div>
+  </div>
 </div>
 <script type="importmap">
 {
@@ -1870,12 +1932,23 @@ const dom = {
   patchDDelete: document.getElementById("patchDDelete"),
   monitorCountUp: document.getElementById("monitorCountUp"),
   monitorCountDown: document.getElementById("monitorCountDown"),
-  monitorCountUnknown: document.getElementById("monitorCountUnknown"),
-  monitorPeopleTotalWrap: document.getElementById("monitorPeopleTotalWrap"),
+  monitorBtnOnline: document.getElementById("monitorBtnOnline"),
+  monitorBtnAlarm: document.getElementById("monitorBtnAlarm"),
+  monitorBtnRegtag: document.getElementById("monitorBtnRegtag"),
+  monitorBtnVehicles: document.getElementById("monitorBtnVehicles"),
+  monitorPeopleTotalSep: document.getElementById("monitorPeopleTotalSep"),
   monitorPeopleTotal: document.getElementById("monitorPeopleTotal"),
-  monitorVehiclesTotalWrap: document.getElementById("monitorVehiclesTotalWrap"),
+  monitorVehiclesTotalSep: document.getElementById("monitorVehiclesTotalSep"),
   monitorVehiclesTotal: document.getElementById("monitorVehiclesTotal"),
   monitorActiveList: document.getElementById("monitorActiveList"),
+  monitorStatModal: document.getElementById("monitorStatModal"),
+  monitorStatModalCard: document.getElementById("monitorStatModalCard"),
+  monitorStatModalDot: document.getElementById("monitorStatModalDot"),
+  monitorStatModalTitle: document.getElementById("monitorStatModalTitle"),
+  monitorStatModalCount: document.getElementById("monitorStatModalCount"),
+  monitorStatModalClose: document.getElementById("monitorStatModalClose"),
+  monitorStatModalList: document.getElementById("monitorStatModalList"),
+  monitorStatModalEmpty: document.getElementById("monitorStatModalEmpty"),
   monitorActivePlaceholder: document.getElementById("monitorActivePlaceholder"),
   monitorSystems: document.getElementById("monitorSystems"),
   monitorCablesCount: document.getElementById("monitorCablesCount"),
@@ -6463,21 +6536,26 @@ async function createTicketFromActiveRow(row, eq) {
 // Полный пересчёт подсветки при каждом сообщении — раз в несколько секунд
 // на ~сотнях объектов это дёшево (пересоздать несколько маленьких сфер),
 // зато не нужно отдельно отслеживать diff между сообщениями.
+let monitorLastRows = [];
 function applyMonitorStatus(rows) {
   clearAllMonitorGlows();
   monitorStatusById.clear();
-  let up = 0, down = 0, unknown = 0;
+  monitorLastRows = rows;
+  // Только два бакета — "на связи"/"авария". Статуса "Неизвестно" в
+  // интерфейсе больше нет: любая строка, не находящаяся явно в down/degraded,
+  // считается online (см. server/lib/monitorShared.js — источник, который
+  // вообще прислал данные, по определению жив).
+  let up = 0, down = 0;
   // Суммы по людям/технике — только по тем строкам, где счётчик реально
   // пришёл (не null): источник сам решает, у скольких считывателей он
   // сейчас прислал данные, остальное оборудование в сумму не подмешивается.
   let peopleTotal = 0, vehiclesTotal = 0, hasPeopleData = false, hasVehiclesData = false;
   for (const row of rows) {
-    if (row.state === "up") up++;
-    else if (row.state === "down" || row.state === "degraded") down++;
-    else unknown++;
+    if (row.state === "down" || row.state === "degraded") down++;
+    else up++;
     monitorStatusById.set(row.equipment_id, row);
     const eq = equipment.get(row.equipment_id);
-    if (eq) setMonitorGlow(eq, row.state);
+    if (eq) setMonitorGlow(eq, row.state === "down" || row.state === "degraded" ? row.state : "up");
     if (row.person_count !== null && row.person_count !== undefined) {
       hasPeopleData = true;
       peopleTotal += row.person_count;
@@ -6489,15 +6567,100 @@ function applyMonitorStatus(rows) {
   }
   if (dom.monitorCountUp) dom.monitorCountUp.textContent = up;
   if (dom.monitorCountDown) dom.monitorCountDown.textContent = down;
-  if (dom.monitorCountUnknown) dom.monitorCountUnknown.textContent = unknown;
-  if (dom.monitorPeopleTotalWrap) dom.monitorPeopleTotalWrap.style.display = hasPeopleData ? "" : "none";
+  if (dom.monitorBtnRegtag) dom.monitorBtnRegtag.style.display = hasPeopleData ? "" : "none";
+  if (dom.monitorPeopleTotalSep) dom.monitorPeopleTotalSep.style.display = hasPeopleData ? "" : "none";
   if (dom.monitorPeopleTotal) dom.monitorPeopleTotal.textContent = peopleTotal;
-  if (dom.monitorVehiclesTotalWrap) dom.monitorVehiclesTotalWrap.style.display = hasVehiclesData ? "" : "none";
+  if (dom.monitorBtnVehicles) dom.monitorBtnVehicles.style.display = hasVehiclesData ? "" : "none";
+  if (dom.monitorVehiclesTotalSep) dom.monitorVehiclesTotalSep.style.display = hasVehiclesData ? "" : "none";
   if (dom.monitorVehiclesTotal) dom.monitorVehiclesTotal.textContent = vehiclesTotal;
   if (dom.monitorActiveList) renderMonitorActiveList(rows);
   if (IS_MONITORING_PAGE) renderMonitorEquip();
   refreshEquipDetailVoltage();
+  if (monitorStatModalCategory) renderMonitorStatModalList();
 }
+
+/* ---------- модалка "список устройств по статусу" (Online/Alarm/RegTag/Транспорт) ---------- */
+const MONITOR_STAT_CATEGORIES = {
+  online: { title: "Online", dotColor: "var(--accent-2)" },
+  alarm: { title: "Alarm", dotColor: "var(--danger)" },
+  regtag: { title: "RegTag", dotColor: "var(--text-dim)" },
+  vehicles: { title: "Транспорт", dotColor: "var(--text-dim)" },
+};
+let monitorStatModalCategory = null;
+function monitorStatModalItems(category) {
+  const items = [];
+  for (const row of monitorLastRows) {
+    const eq = equipment.get(row.equipment_id);
+    if (!eq) continue;
+    const isDown = row.state === "down" || row.state === "degraded";
+    if (category === "online" && isDown) continue;
+    if (category === "alarm" && !isDown) continue;
+    if (category === "regtag" && (row.person_count === null || row.person_count === undefined)) continue;
+    if (category === "vehicles" && (row.vehicle_count === null || row.vehicle_count === undefined)) continue;
+    items.push({ row, eq });
+  }
+  items.sort((a, b) => a.eq.label.localeCompare(b.eq.label));
+  return items;
+}
+function renderMonitorStatModalList() {
+  const category = monitorStatModalCategory;
+  if (!category || !dom.monitorStatModalList) return;
+  const meta = MONITOR_STAT_CATEGORIES[category];
+  const items = monitorStatModalItems(category);
+  dom.monitorStatModalDot.style.background = meta.dotColor;
+  dom.monitorStatModalTitle.textContent = meta.title;
+  dom.monitorStatModalCount.textContent = items.length;
+  dom.monitorStatModalList.innerHTML = "";
+  dom.monitorStatModalEmpty.style.display = items.length ? "none" : "block";
+  for (const { row, eq } of items) {
+    const el = document.createElement("div");
+    el.className = "uo-row";
+    const swatch = document.createElement("span");
+    swatch.className = "swatch";
+    swatch.style.background = category === "alarm" ? "#e6553d" : category === "online" ? "#39b8b0" : "#8d979f";
+    const lname = document.createElement("span");
+    lname.className = "lname"; lname.textContent = eq.label;
+    const sub = document.createElement("span");
+    sub.className = "llen";
+    if (category === "alarm" || category === "online") {
+      sub.textContent = row.last_change_at ? timeSinceLabel(row.last_change_at) : "";
+    } else if (category === "regtag") {
+      sub.textContent = `${row.person_count} мет.`;
+    } else if (category === "vehicles") {
+      sub.textContent = `${row.vehicle_count} ед.`;
+    }
+    el.appendChild(swatch); el.appendChild(lname); el.appendChild(sub);
+    if (category === "alarm") {
+      const ticketBtn = document.createElement("button");
+      ticketBtn.className = "mk-ticket-btn";
+      ticketBtn.title = "Создать тикет по этой аварии";
+      ticketBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l0 2" /><path d="M15 11l0 2" /><path d="M15 17l0 2" /><path d="M5 5a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h14a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2z" /></svg>';
+      ticketBtn.addEventListener("click", (e) => { e.stopPropagation(); createTicketFromActiveRow(row, eq); closeMonitorStatModal(); });
+      el.appendChild(ticketBtn);
+    }
+    el.addEventListener("click", () => {
+      showQuickInfoEquip(eq); refreshQuickInfoMetrics(); focusEquip(eq);
+      closeMonitorStatModal();
+    });
+    dom.monitorStatModalList.appendChild(el);
+  }
+}
+function openMonitorStatModal(category) {
+  monitorStatModalCategory = category;
+  renderMonitorStatModalList();
+  dom.monitorStatModal.classList.add("open");
+}
+function closeMonitorStatModal() {
+  monitorStatModalCategory = null;
+  dom.monitorStatModal.classList.remove("open");
+}
+if (dom.monitorBtnOnline) dom.monitorBtnOnline.addEventListener("click", () => openMonitorStatModal("online"));
+if (dom.monitorBtnAlarm) dom.monitorBtnAlarm.addEventListener("click", () => openMonitorStatModal("alarm"));
+if (dom.monitorBtnRegtag) dom.monitorBtnRegtag.addEventListener("click", () => openMonitorStatModal("regtag"));
+if (dom.monitorBtnVehicles) dom.monitorBtnVehicles.addEventListener("click", () => openMonitorStatModal("vehicles"));
+if (dom.monitorStatModalClose) dom.monitorStatModalClose.addEventListener("click", closeMonitorStatModal);
+if (dom.monitorStatModal) dom.monitorStatModal.addEventListener("click", (e) => { if (e.target === dom.monitorStatModal) closeMonitorStatModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && monitorStatModalCategory) closeMonitorStatModal(); });
 let monitorWS = null;
 let monitorLastMessageAt = 0;
 let monitorWatchdogTimer = null;

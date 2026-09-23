@@ -110,9 +110,12 @@ const stmtUpsertState = db.prepare(`
     last_change_at = CASE WHEN monitor_status.state != @state THEN @changedAt ELSE monitor_status.last_change_at END,
     raw_metrics_json = @metrics
 `);
+// state='up' на INSERT — если счётчик вообще дошёл и распарсился, источник
+// точно жив (тот же довод, что и в applyMetricsOnly ниже); "unknown" как
+// отдельный бакет статуса на дашборде больше не показывается.
 const stmtUpsertCounts = db.prepare(`
   INSERT INTO monitor_status (project_id, equipment_id, state, last_checked_at, person_count, vehicle_count)
-  VALUES (@projectId, @equipmentId, 'unknown', @checkedAt, @personCount, @vehicleCount)
+  VALUES (@projectId, @equipmentId, 'up', @checkedAt, @personCount, @vehicleCount)
   ON CONFLICT(project_id, equipment_id) DO UPDATE SET
     last_checked_at = @checkedAt,
     person_count = @personCount,
