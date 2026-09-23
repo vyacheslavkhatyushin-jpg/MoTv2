@@ -28,6 +28,17 @@ function seedSnapshot(db, projectId, { cables = [], equipment = [], marks = [], 
   ).run(projectId, JSON.stringify({ cables, equipment, marks, patches }));
 }
 
+// eq.position обязателен — restoreFromSnapshot() на клиенте (public/index.html)
+// падает на new THREE.Vector3(eq.position[0], ...) без него; наступили на
+// это в сессии, когда тестировали статус-бар без position в сидинге.
+function seedMonitorStatus(db, projectId, equipmentId, { state = "up", personCount = null, vehicleCount = null, lastChangeAt = null } = {}) {
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO monitor_status (project_id, equipment_id, state, last_checked_at, last_change_at, person_count, vehicle_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(projectId, equipmentId, state, now, lastChangeAt || now, personCount, vehicleCount);
+}
+
 function tokenFor(user) {
   return jwt.sign({ sub: user.id, username: user.username, role: user.role }, TEST_JWT_SECRET, { expiresIn: "1h" });
 }
@@ -36,4 +47,4 @@ function authHeader(user) {
   return { Authorization: `Bearer ${tokenFor(user)}` };
 }
 
-module.exports = { createUser, createProject, seedSnapshot, tokenFor, authHeader };
+module.exports = { createUser, createProject, seedSnapshot, seedMonitorStatus, tokenFor, authHeader };

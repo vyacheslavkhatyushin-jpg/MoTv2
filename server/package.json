@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "seed": "node seed.js",
-    "test": "node --test"
+    "test": "node --test test/unit/*.test.js test/integration/*.test.js",
+    "test:e2e": "node --test test/e2e/*.test.js",
+    "test:all": "node --test test/unit/*.test.js test/integration/*.test.js test/e2e/*.test.js",
+    "playwright:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -20,5 +23,8 @@
     "undici": "^6.21.0",
     "ws": "^8.21.3",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
   }
 }
