@@ -6574,8 +6574,14 @@ function applyMonitorStatus(rows) {
   if (dom.monitorVehiclesTotalSep) dom.monitorVehiclesTotalSep.style.display = hasVehiclesData ? "" : "none";
   if (dom.monitorVehiclesTotal) dom.monitorVehiclesTotal.textContent = vehiclesTotal;
   if (dom.monitorActiveList) renderMonitorActiveList(rows);
+  // Живой бейдж напряжения в дереве оборудования (monitorVoltageBadgeEl)
+  // уже обновляется тут через renderMonitorEquip() — отдельная функция
+  // refreshEquipDetailVoltage() обслуживала блок "Напряжение (SPPD)" в
+  // панели редактирования объекта, удалённый вместе со всей SPPD-панелью
+  // (см. git-историю); этот вызов был случайно оставлен и на каждое
+  // сообщение мониторинга кидал ReferenceError, прерывая функцию до конца
+  // (в т.ч. до обновления открытой модалки статус-бара ниже).
   if (IS_MONITORING_PAGE) renderMonitorEquip();
-  refreshEquipDetailVoltage();
   if (monitorStatModalCategory) renderMonitorStatModalList();
 }
 
