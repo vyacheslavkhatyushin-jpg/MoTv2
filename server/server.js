@@ -21,6 +21,7 @@ const { verifyToken } = require("./auth");
 const db = require("./db");
 const { setupProxyDispatcher } = require("./lib/proxy");
 const { getMonitoredEquipmentIds } = require("./lib/monitorShared");
+const { runCleanup: runOrphanedDataCleanup } = require("./lib/cleanupOrphanedData");
 
 setupProxyDispatcher();
 
@@ -246,6 +247,29 @@ setInterval(() => {
     }
   }
 }, BROADCAST_INTERVAL_MS);
+
+// Периодическая чистка "осиротевших" строк monitor_status/monitor_events/
+// monitor_tag_pulses (см. server/lib/cleanupOrphanedData.js — почему они
+// вообще появляются и почему это только housekeeping, не источник багов:
+// тот баг уже закрыт фильтрацией на чтении в getMonitorStatus/
+// lib/monitorShared.js). Раз в сутки достаточно — это не защита от
+// показа неверных данных, а просто чтобы таблицы не пухли годами без
+// ручного запуска cleanup-orphaned-monitor-data.js. Первый прогон — вскоре
+// после старта (не сразу, чтобы не толкаться с остальной инициализацией),
+// не дожидаясь первых суток.
+const ORPHANED_DATA_CLEANUP_INTERVAL_MS = parseInt(process.env.ORPHANED_DATA_CLEANUP_INTERVAL_MS || String(24 * 3600 * 1000), 10);
+function runScheduledOrphanedDataCleanup() {
+  try {
+    const { totalOrphanIds } = runOrphanedDataCleanup({ actor: "cron" });
+    if (totalOrphanIds > 0) {
+      console.log(`[cleanup] удалено осиротевших monitor-записей: ${totalOrphanIds}`);
+    }
+  } catch (err) {
+    console.error("[cleanup] orphaned data cleanup failed:", err);
+  }
+}
+setTimeout(runScheduledOrphanedDataCleanup, 60 * 1000);
+setInterval(runScheduledOrphanedDataCleanup, ORPHANED_DATA_CLEANUP_INTERVAL_MS);
 
 server.listen(PORT, () => {
   console.log(`Mine Operations Tool server listening on port ${PORT}`);
