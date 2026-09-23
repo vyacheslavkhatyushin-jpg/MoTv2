@@ -6499,6 +6499,29 @@ function applyMonitorStatus(rows) {
   refreshEquipDetailVoltage();
 }
 let monitorWS = null;
+let monitorLastMessageAt = 0;
+let monitorWatchdogTimer = null;
+// Сервер шлёт статус раз в BROADCAST_INTERVAL_MS (5с, см. server/server.js).
+// Если сокет "залип" в открытом состоянии, не прислав close (сон ноутбука,
+// смена сети, дохлый NAT) — браузер может годами не заметить обрыв, а
+// панель под "Активными авариями" просто замирает на последних цифрах.
+// Собственный close-хендлер на это не сработает, раз close не пришёл —
+// поэтому вотчдог сам считает секунды с последнего сообщения и форсит
+// переподключение, если данные не идут заметно дольше обычного интервала.
+const MONITOR_WS_STALE_MS = 15000;
+function stopMonitorWatchdog() {
+  if (monitorWatchdogTimer) { clearInterval(monitorWatchdogTimer); monitorWatchdogTimer = null; }
+}
+function startMonitorWatchdog() {
+  stopMonitorWatchdog();
+  monitorWatchdogTimer = setInterval(() => {
+    if (!monitorWS || Date.now() - monitorLastMessageAt < MONITOR_WS_STALE_MS) return;
+    console.warn("Мониторинг: сокет не присылал данные больше " + (MONITOR_WS_STALE_MS / 1000) + "с, переподключаюсь.");
+    try { monitorWS.close(); } catch (e) {}
+    // close-хендлер сам переподключится через 4с — тут только форсируем
+    // разрыв "подвисшего" сокета, который сам никогда не закроется.
+  }, 5000);
+}
 function connectMonitorWS() {
   const auth = window.__auth;
   // Локальная резервная копия (offline) или отсутствие сессии — подключаться некуда.
@@ -6508,7 +6531,10 @@ function connectMonitorWS() {
   const url = `${proto}//${location.host}/api/monitor/ws?project=${encodeURIComponent(CURRENT_PROJECT_ID)}&token=${encodeURIComponent(auth.token)}`;
   const ws = new WebSocket(url);
   monitorWS = ws;
+  monitorLastMessageAt = Date.now();
+  startMonitorWatchdog();
   ws.addEventListener("message", (ev) => {
+    monitorLastMessageAt = Date.now();
     try {
       const msg = JSON.parse(ev.data);
       if (msg.type === "status") applyMonitorStatus(msg.status || []);
@@ -6525,6 +6551,7 @@ function connectMonitorWS() {
   ws.addEventListener("close", () => {
     if (monitorWS !== ws) return; // уже переподключились другим сокетом
     monitorWS = null;
+    stopMonitorWatchdog();
     if (window.__auth) setTimeout(connectMonitorWS, 4000);
   });
   ws.addEventListener("error", () => {});
