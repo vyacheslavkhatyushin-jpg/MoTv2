@@ -138,6 +138,21 @@ Docker-варианте). Проекты — `node create-project.js <id> "<name
 <projectId> --yes` (сначала без `--yes` — покажет, что будет удалено,
 ничего не тронув). См. `docs/emergency-cli-scripts.md`.
 
+## Тесты
+
+```bash
+cd server
+npm ci
+
+npm test           # backend: unit + integration (node:test), без браузера
+npm run test:e2e   # E2E (Playwright, headless Chromium) — требует
+                    # npm run playwright:install один раз локально
+npm run test:all   # всё вместе
+```
+
+На каждый push/PR в `main` тесты гоняются автоматически в CI (GitHub
+Actions, `.github/workflows/tests.yml`) — backend и E2E отдельными джобами.
+
 ## Известные ограничения текущей версии (MVP)
 
 - Модель совместной работы — "общий проект + сохранение по кнопке" с

@@ -1,0 +1,52 @@
+name: Автотесты
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (unit + integration)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: server/package-lock.json
+      - name: npm ci
+        working-directory: server
+        run: npm ci
+      - name: npm test
+        working-directory: server
+        run: npm test
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: server/package-lock.json
+      - name: npm ci
+        working-directory: server
+        run: npm ci
+      - name: Кэш браузеров Playwright
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('server/package-lock.json') }}
+      - name: Установить Chromium (Playwright)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: server
+        run: npm run playwright:install
+      - name: npm run test:e2e
+        working-directory: server
+        run: npm run test:e2e
