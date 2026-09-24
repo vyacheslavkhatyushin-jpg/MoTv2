@@ -88,6 +88,62 @@ test("страница Схема: рисует связанные кабеле�
   });
 });
 
+test("страница Схема: показывает реальную длину кабеля на ребре, переключатель скрывает подписи", async (t) => {
+  const server = await startServer();
+  t.after(() => server.stop());
+
+  const engineer = createUser(server.db, { username: "e2e-schema-len", role: "engineer" });
+  createProject(server.db, { id: "e2e-schema-len", name: "E2E schema length" });
+  seedSnapshot(server.db, "e2e-schema-len", {
+    equipment: [
+      { id: "eqA", label: "МАП-А", shape: "map", position: [0, 0, 0], size: 5 },
+      { id: "eqB", label: "МАП-Б", shape: "map", position: [30, 40, 0], size: 5 },
+    ],
+    cables: [
+      // ломаная линия — сумма отрезков должна считаться правильно, не по
+      // прямой между узлами A и B (30² + 40² = 50 напрямую, но кабель
+      // проложен через промежуточный узел и должен получиться длиннее).
+      { id: "cab1", label: "Трасса-1", cableType: "vols", nodes: [[0, 0, 0], [30, 0, 0], [30, 40, 0]], endpointAEquipId: "eqA", endpointBEquipId: "eqB" },
+    ],
+  });
+
+  const browser = await launchBrowser();
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  const pageErrors = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+
+  await page.goto(server.baseUrl + "/");
+  await page.evaluate(
+    (session) => localStorage.setItem("kzmAuthSession", JSON.stringify(session)),
+    { token: tokenFor(engineer), username: engineer.username, role: engineer.role }
+  );
+  await page.goto(`${server.baseUrl}/e2e-schema-len/schema`);
+  await page.waitForLoadState("networkidle");
+  await page.waitForSelector('#viewport g[data-equip-id="eqA"]', { timeout: 8000 });
+
+  await t.test("подпись на ребре показывает реальную длину ломаной (70 м), не прямую (50 м)", async () => {
+    // SVG <text> — не HTMLElement, innerText() тут не работает, только textContent().
+    const text = await page.locator(".edge-len-label").textContent();
+    assert.equal(text, "70 м");
+  });
+
+  await t.test("подсказка при наведении на ребро тоже содержит длину", async () => {
+    const title = await page.locator(".edge-line title").textContent();
+    assert.match(title, /70 м/);
+  });
+
+  await t.test("снятие галочки 'длины кабелей' скрывает подпись", async () => {
+    await page.uncheck("#chkShowLengths");
+    await page.waitForSelector(".edge-len-label", { state: "hidden", timeout: 2000 });
+  });
+
+  await t.test("ни одной ошибки в консоли", () => {
+    assert.deepEqual(pageErrors, []);
+  });
+});
+
 test("страница Схема: перетаскивание узла закрепляет позицию, сброс возвращает автораскладку (Фаза 4)", async (t) => {
   const server = await startServer();
   t.after(() => server.stop());

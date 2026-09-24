@@ -131,6 +131,12 @@
     cursor:grab; touch-action:none; }
   #diagramSvg.dragging{ cursor:grabbing; }
   #diagramSvg text{ fill:var(--text-dim); font-family:inherit; user-select:none; }
+  .edge-len-label{
+    font-size:9px; fill:var(--text-dim); font-variant-numeric:tabular-nums;
+    paint-order:stroke fill; stroke:var(--bg); stroke-width:3px; stroke-linejoin:round;
+    pointer-events:none;
+  }
+  #diagramWrap.hide-lengths .edge-len-label{ display:none; }
   .node-circle{ cursor:pointer; stroke-width:2; }
   .node-circle:hover{ filter:brightness(1.3); }
   #diagramWrap.editable .node-circle{ cursor:grab; }
@@ -328,6 +334,9 @@
         <span class="item"><span class="dot" style="background:var(--danger);"></span>авария</span>
         <span class="item"><span class="dot" style="background:var(--text-faint);"></span>нет данных</span>
       </div>
+      <label class="legend item" style="cursor:pointer;">
+        <input type="checkbox" id="chkShowLengths" checked style="accent-color:var(--accent);">длины кабелей
+      </label>
       <button class="toolbtn" id="btnFitView" title="Вписать схему в экран">⤢ Вписать</button>
       <button class="toolbtn" id="btnRefreshSchema" title="Обновить">↻ Обновить</button>
       <button class="toolbtn" id="btnExportSvg" title="Скачать схему как SVG">⤓ SVG</button>
@@ -672,6 +681,19 @@ function cableColor(c) {
 function cableLabel(c) {
   return (CABLE_TYPES_BY_KEY[c.cableType] && CABLE_TYPES_BY_KEY[c.cableType].label) || c.cableType || "Другое";
 }
+// Реальная физическая длина трассы (сумма отрезков её 3D-узлов, метры) — та
+// же формула, что и в сводке на дашборде статистики (monitoring-stats.html,
+// cablePathLen). Раскладка схемы силовая и не отражает масштаб местности,
+// поэтому это именно настоящая длина кабеля, а не расстояние между узлами
+// на диаграмме.
+function cablePathLen(nodes) {
+  let len = 0;
+  for (let i = 1; i < (nodes || []).length; i++) {
+    const [x1, y1, z1] = nodes[i - 1], [x2, y2, z2] = nodes[i];
+    len += Math.hypot(x2 - x1, y2 - y1, z2 - z1);
+  }
+  return len;
+}
 
 function updateEdgesFor(equipId, x, y) {
   viewport.querySelectorAll(`.edge-line[data-a="${CSS.escape(equipId)}"]`).forEach((l) => {
@@ -699,10 +721,26 @@ function renderGraph(graph) {
     line.dataset.a = e.a; line.dataset.b = e.b;
     line.setAttribute("stroke", cableColor(e.cable));
     line.setAttribute("stroke-width", Math.max(1.5, Math.min(4, (CABLE_TYPES_BY_KEY[e.cable.cableType]?.thickness || 6) / 4)));
+    const lenM = Math.round(cablePathLen(e.cable.nodes));
     const title = document.createElementNS(SVGNS, "title");
-    title.textContent = `${e.cable.label || "Кабель"} (${cableLabel(e.cable)})`;
+    title.textContent = `${e.cable.label || "Кабель"} (${cableLabel(e.cable)}) — ${lenM} м`;
     line.appendChild(title);
     edgesGroup.appendChild(line);
+
+    // Подпись длины — по центру ребра, с лёгким перпендикулярным сдвигом
+    // (не наезжает на саму линию) и обводкой цветом фона вместо подложки
+    // (не нужно знать bbox текста заранее, работает поверх любой линии).
+    const midX = (pa.x + pb.x) / 2, midY = (pa.y + pb.y) / 2;
+    const dx = pb.x - pa.x, dy = pb.y - pa.y;
+    const segLen = Math.hypot(dx, dy) || 1;
+    const offX = (-dy / segLen) * 8, offY = (dx / segLen) * 8;
+    const lenText = document.createElementNS(SVGNS, "text");
+    lenText.setAttribute("class", "edge-len-label");
+    lenText.setAttribute("x", midX + offX);
+    lenText.setAttribute("y", midY + offY);
+    lenText.setAttribute("text-anchor", "middle");
+    lenText.textContent = `${lenM} м`;
+    edgesGroup.appendChild(lenText);
   }
   viewport.appendChild(edgesGroup);
 
@@ -952,6 +990,12 @@ function exportSvg() {
   // т.п.) — при открытии файла отдельно от страницы этого стиля не будет,
   // поэтому здесь прописываем реальные hex-значения прямо в атрибуты.
   clone.querySelectorAll("text").forEach((t) => t.setAttribute("fill", "#8d979f"));
+  clone.querySelectorAll(".edge-len-label").forEach((t) => {
+    if (document.getElementById("diagramWrap").classList.contains("hide-lengths")) { t.remove(); return; }
+    t.setAttribute("stroke", "#14171a");
+    t.setAttribute("stroke-width", "3");
+    t.setAttribute("paint-order", "stroke fill");
+  });
   const bbox = viewport.getBBox();
   const pad = 40;
   const vp = clone.querySelector("#viewport");
@@ -990,6 +1034,9 @@ document.getElementById("btnResetLayout").addEventListener("click", async () => 
     await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/schema-layout`, { method: "DELETE" });
   } catch (err) { /* сеть недоступна — локально уже сброшено, на сервере переживёт до следующей попытки */ }
   rebuildAndRender(false);
+});
+document.getElementById("chkShowLengths").addEventListener("change", (e) => {
+  document.getElementById("diagramWrap").classList.toggle("hide-lengths", !e.target.checked);
 });
 
 /* ---------------- Оркестрация ---------------- */
