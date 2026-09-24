@@ -834,6 +834,16 @@
               <option value="custom">Другое</option>
             </select>
           </div>
+          <div class="drow"><span>Подключён (начало)</span>
+            <select id="cableDEndpointA" style="background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 6px; font-family:inherit; max-width:170px;">
+              <option value="">— не указано —</option>
+            </select>
+          </div>
+          <div class="drow"><span>Подключён (конец)</span>
+            <select id="cableDEndpointB" style="background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 6px; font-family:inherit; max-width:170px;">
+              <option value="">— не указано —</option>
+            </select>
+          </div>
           <div class="drow" style="align-items:flex-start;">
             <span>Толщина</span>
             <input type="range" id="cableDThickness" min="1" max="20" value="5" style="flex:1;margin-left:8px;accent-color:var(--accent);">
@@ -1856,6 +1866,8 @@ const dom = {
   cableList: document.getElementById("cableList"),
   cablePlaceholder: document.getElementById("cablePlaceholder"),
   cableDetails: document.getElementById("cableDetails"),
+  cableDEndpointA: document.getElementById("cableDEndpointA"),
+  cableDEndpointB: document.getElementById("cableDEndpointB"),
   cableDTitle: document.getElementById("cableDTitle"),
   cableDNodeScale: document.getElementById("cableDNodeScale"),
   cableDColor: document.getElementById("cableDColor"),
@@ -3748,6 +3760,8 @@ function createCable(nodes, overrides, select = true) {
   const cableData = {
     id, type: "cable", nodes: nodes.map((p) => p.clone()), color, thickness, radius, nodeScale,
     cableType, lineType,
+    endpointAEquipId: overrides?.endpointAEquipId ?? "",
+    endpointBEquipId: overrides?.endpointBEquipId ?? "",
     label, visible: mesh.visible, mesh, nodeGroup, nodeMarkers, labelObj,
     length: cablePathLength(nodes),
     createdBy: overrides?.createdBy ?? currentUsername(),
@@ -3981,6 +3995,21 @@ function renderCableNodeList(c) {
     dom.cableNodeList.appendChild(row);
   });
 }
+// Связность кабель↔оборудование — реальные данные (не только визуальная
+// "трасса проходит рядом"), нужны для структурной схемы связей и для
+// вопроса "если этот кабель оборвётся, что теряет связь". Список — текущее
+// оборудование ПРОЕКТА (не глобальный справочник, как у профилей/форм),
+// поэтому строим select заново при каждом открытии карточки кабеля, а не
+// грузим один раз при старте.
+function populateCableEndpointOptions(c) {
+  const items = [...equipment.values()].sort((a, b) => a.label.localeCompare(b.label));
+  const optionsHtml = '<option value="">— не указано —</option>' +
+    items.map((eq) => `<option value="${eq.id}">${esc(eq.label)}</option>`).join("");
+  dom.cableDEndpointA.innerHTML = optionsHtml;
+  dom.cableDEndpointB.innerHTML = optionsHtml;
+  dom.cableDEndpointA.value = c.endpointAEquipId || "";
+  dom.cableDEndpointB.value = c.endpointBEquipId || "";
+}
 function selectCable(c) {
   selectedCable = c;
   buildCableList();
@@ -3993,8 +4022,17 @@ function selectCable(c) {
   dom.cableDThickness.value = c.thickness;
   dom.cableDNodeScale.value = c.nodeScale ?? 1;
   dom.cableDStats.textContent = `Узлов: ${c.nodes.length} · длина: ${Math.round(c.length)} м`;
+  populateCableEndpointOptions(c);
   renderCableNodeList(c);
 }
+dom.cableDEndpointA.addEventListener("change", () => {
+  if (!selectedCable) return;
+  selectedCable.endpointAEquipId = dom.cableDEndpointA.value || "";
+});
+dom.cableDEndpointB.addEventListener("change", () => {
+  if (!selectedCable) return;
+  selectedCable.endpointBEquipId = dom.cableDEndpointB.value || "";
+});
 document.getElementById("cableTypeSelect").addEventListener("change", (e) => {
   cableTypeSelected = e.target.value;
 });
@@ -4698,8 +4736,18 @@ dom.equipDDelete.addEventListener("click", () => {
   // geometry — общая (кэш по форме+размеру), диспозить нельзя, см. getEquipGeometry.
   selectedEquip.mesh.material.dispose();
   if (selectedEquip.labelObj) { scene.remove(selectedEquip.labelObj); selectedEquip.labelObj.element.remove(); }
-  equipment.delete(selectedEquip.id);
+  const deletedId = selectedEquip.id;
+  equipment.delete(deletedId);
   recordDeletion("equipment", selectedEquip);
+  // Кабели, у которых этот объект был на одном из концов, — отвязываем.
+  // Обрыв связи должен быть виден явно ("не указано"), а не тихо
+  // указывать на удалённый объект — тот же принцип, что у "осиротевших"
+  // ссылок на equipment_id в остальной системе (см. getMonitoredEquipmentIds).
+  for (const c of cables.values()) {
+    if (c.endpointAEquipId === deletedId) c.endpointAEquipId = "";
+    if (c.endpointBEquipId === deletedId) c.endpointBEquipId = "";
+  }
+  if (selectedCable) populateCableEndpointOptions(selectedCable);
   selectedEquip = null;
   dom.equipDetails.classList.remove("open");
   buildEquipList();
@@ -5645,6 +5693,7 @@ function serializeCable(c) {
     nodes: c.nodes.map((p) => [p.x, p.y, p.z]),
     color: c.color, thickness: c.thickness, label: c.label, visible: c.visible, nodeScale: c.nodeScale,
     cableType: c.cableType, lineType: c.lineType,
+    endpointAEquipId: c.endpointAEquipId || "", endpointBEquipId: c.endpointBEquipId || "",
     createdBy: c.createdBy, createdAt: c.createdAt,
   };
 }
