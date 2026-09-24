@@ -762,4 +762,57 @@ router.put("/:id/monitor/shape-thresholds/:shape", requireRole("admin", "supervi
   res.json({ ok: true });
 });
 
+// Ручная раскладка схемы связей (см. public/schema.html, Фаза 4) — координаты
+// узлов, которые пользователь перетащил мышью. Чтение доступно любой
+// авторизованной роли (как и сама схема), правка — как редактирование модели
+// (engineer/supervisor/admin), см. requireRole ниже.
+router.get("/:id/schema-layout", (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const rows = db
+    .prepare("SELECT equipment_id, x, y FROM schema_layout_overrides WHERE project_id = ?")
+    .all(req.params.id);
+  const positions = {};
+  for (const r of rows) positions[r.equipment_id] = { x: r.x, y: r.y };
+  res.json({ positions });
+});
+
+router.put("/:id/schema-layout/:equipmentId", requireRole("engineer", "supervisor", "admin"), (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const { x, y } = req.body || {};
+  if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) {
+    return res.status(400).json({ error: "invalid_coordinates" });
+  }
+  db.prepare(
+    `INSERT INTO schema_layout_overrides (project_id, equipment_id, x, y, updated_by, updated_at)
+     VALUES (@projectId, @equipmentId, @x, @y, @by, datetime('now'))
+     ON CONFLICT(project_id, equipment_id) DO UPDATE SET
+       x = @x, y = @y, updated_by = @by, updated_at = datetime('now')`
+  ).run({ projectId: req.params.id, equipmentId: req.params.equipmentId, x, y, by: req.user.username });
+  res.json({ ok: true });
+});
+
+// Открепить один узел (вернуть его под автоматическую раскладку) — отдельно
+// от полного сброса ниже, чтобы можно было поправить один "убежавший" узел,
+// не теряя расстановку остальных.
+router.delete("/:id/schema-layout/:equipmentId", requireRole("engineer", "supervisor", "admin"), (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  db.prepare("DELETE FROM schema_layout_overrides WHERE project_id = ? AND equipment_id = ?").run(req.params.id, req.params.equipmentId);
+  res.json({ ok: true });
+});
+
+router.delete("/:id/schema-layout", requireRole("engineer", "supervisor", "admin"), (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  db.prepare("DELETE FROM schema_layout_overrides WHERE project_id = ?").run(req.params.id);
+  logAudit({ actor: req.user.username, projectId: req.params.id, action: "schema_layout.reset", entityType: "schema_layout", ip: req.ip });
+  res.json({ ok: true });
+});
+
 module.exports = router;

@@ -489,6 +489,23 @@ CREATE TABLE IF NOT EXISTS project_data_sources (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_project_data_sources_project ON project_data_sources(project_id);
+
+-- Ручная корректировка раскладки схемы связей (см. public/schema.html,
+-- Фаза 4 плана "структурная схема связей") — координаты узла, которые
+-- пользователь перетащил мышью, переопределяют force-directed раскладку
+-- при следующей отрисовке (пересчитывается вокруг закреплённых узлов, а не
+-- поверх них). Отдельная таблица, а не поле в project_state.snapshot_json:
+-- это чисто вид-состояние диаграммы, не часть модели шахты, и не должно
+-- участвовать в трёхстороннем слиянии/конфликтах PUT /:id/state.
+CREATE TABLE IF NOT EXISTS schema_layout_overrides (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  equipment_id TEXT NOT NULL,
+  x REAL NOT NULL,
+  y REAL NOT NULL,
+  updated_by TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (project_id, equipment_id)
+);
 `);
 
 // Одноразовый сид справочников — формализует то, что уже зашито в коде
