@@ -129,6 +129,29 @@ test("страница Схема: показывает реальную дли�
     assert.equal(text, "70 м");
   });
 
+  await t.test("РЕГРЕССИЯ: подпись длины следует за узлом при перетаскивании, не остаётся на месте", async () => {
+    const labelBefore = page.locator(".edge-len-label");
+    const xBefore = parseFloat(await labelBefore.getAttribute("x"));
+
+    const g = page.locator('#viewport g[data-equip-id="eqA"]');
+    const box = await g.locator("circle").boundingBox();
+    const startX = box.x + box.width / 2, startY = box.y + box.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 200, startY, { steps: 8 });
+    await page.mouse.up();
+
+    const xAfter = parseFloat(await labelBefore.getAttribute("x"));
+    // Смещение узла на 200 экранных px сдвигает середину ребра — при
+    // масштабе fitView здесь меньше 1, но заведомо больше пары пикселей;
+    // старый баг оставлял подпись ровно на месте (xAfter === xBefore).
+    assert.ok(Math.abs(xAfter - xBefore) > 20, `подпись должна была сдвинуться, было x=${xBefore}, стало x=${xAfter}`);
+
+    // Длина при этом не пересчитывается (тянем узел мышью на диаграмме,
+    // не редактируем сам кабель) — текст остаётся тем же "70 м".
+    assert.equal(await labelBefore.textContent(), "70 м");
+  });
+
   await t.test("подсказка при наведении на ребро тоже содержит длину", async () => {
     const title = await page.locator(".edge-line title").textContent();
     assert.match(title, /70 м/);

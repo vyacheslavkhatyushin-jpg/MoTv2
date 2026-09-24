@@ -695,12 +695,35 @@ function cablePathLen(nodes) {
   return len;
 }
 
+// Подпись длины — по центру ребра, с лёгким перпендикулярным сдвигом (не
+// наезжает на саму линию). Отдельная функция, а не инлайн в renderGraph,
+// потому что пересчитывается дважды: один раз при отрисовке, ещё раз на
+// каждый кадр перетаскивания узла (updateEdgesFor ниже) — раньше подпись
+// оставалась на старом месте, когда рёбра уже следовали за узлом.
+function positionLenLabel(text, ax, ay, bx, by) {
+  const midX = (ax + bx) / 2, midY = (ay + by) / 2;
+  const dx = bx - ax, dy = by - ay;
+  const segLen = Math.hypot(dx, dy) || 1;
+  const offX = (-dy / segLen) * 8, offY = (dx / segLen) * 8;
+  text.setAttribute("x", midX + offX);
+  text.setAttribute("y", midY + offY);
+}
 function updateEdgesFor(equipId, x, y) {
   viewport.querySelectorAll(`.edge-line[data-a="${CSS.escape(equipId)}"]`).forEach((l) => {
     l.setAttribute("x1", x); l.setAttribute("y1", y);
   });
   viewport.querySelectorAll(`.edge-line[data-b="${CSS.escape(equipId)}"]`).forEach((l) => {
     l.setAttribute("x2", x); l.setAttribute("y2", y);
+  });
+  viewport.querySelectorAll(`.edge-len-label[data-a="${CSS.escape(equipId)}"], .edge-len-label[data-b="${CSS.escape(equipId)}"]`).forEach((t) => {
+    const otherId = t.dataset.a === equipId ? t.dataset.b : t.dataset.a;
+    const other = currentPosById.get(otherId);
+    if (!other) return;
+    const ax = t.dataset.a === equipId ? x : other.x;
+    const ay = t.dataset.a === equipId ? y : other.y;
+    const bx = t.dataset.b === equipId ? x : other.x;
+    const by = t.dataset.b === equipId ? y : other.y;
+    positionLenLabel(t, ax, ay, bx, by);
   });
 }
 function renderGraph(graph) {
@@ -727,18 +750,15 @@ function renderGraph(graph) {
     line.appendChild(title);
     edgesGroup.appendChild(line);
 
-    // Подпись длины — по центру ребра, с лёгким перпендикулярным сдвигом
-    // (не наезжает на саму линию) и обводкой цветом фона вместо подложки
-    // (не нужно знать bbox текста заранее, работает поверх любой линии).
-    const midX = (pa.x + pb.x) / 2, midY = (pa.y + pb.y) / 2;
-    const dx = pb.x - pa.x, dy = pb.y - pa.y;
-    const segLen = Math.hypot(dx, dy) || 1;
-    const offX = (-dy / segLen) * 8, offY = (dx / segLen) * 8;
+    // Подпись длины (обводка цветом фона вместо подложки — не нужно знать
+    // bbox текста заранее, работает поверх любой линии). data-a/data-b —
+    // как у самой линии, чтобы updateEdgesFor() мог найти и передвинуть её
+    // во время перетаскивания узла.
     const lenText = document.createElementNS(SVGNS, "text");
     lenText.setAttribute("class", "edge-len-label");
-    lenText.setAttribute("x", midX + offX);
-    lenText.setAttribute("y", midY + offY);
     lenText.setAttribute("text-anchor", "middle");
+    lenText.dataset.a = e.a; lenText.dataset.b = e.b;
+    positionLenLabel(lenText, pa.x, pa.y, pb.x, pb.y);
     lenText.textContent = `${lenM} м`;
     edgesGroup.appendChild(lenText);
   }
