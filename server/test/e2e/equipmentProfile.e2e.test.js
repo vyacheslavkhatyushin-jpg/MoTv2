@@ -1,10 +1,20 @@
 /*
 E2E: детектор "должно быть, но не пришло" в карточке "Инфо" — профиль формы
-даёт ожидаемый список атрибутов; то, что реально пришло в raw_metrics_json,
-показывается значением, то, чего нет — явно как "нет данных" (приглушённым
-цветом), а не молчаливым отсутствием строки (см. metricsRowsHtml в
-public/index.html и обсуждение в этой сессии: раньше "не пришла метрика" и
-"эта форма вообще её не даёт" были неотличимы).
+даёт ожидаемый список атрибутов; то, что реально пришло, показывается
+значением, то, чего нет — явно как "нет данных" (приглушённым цветом), а
+не молчаливым отсутствием строки (см. metricsRowsHtml в public/index.html
+и обсуждение в этой сессии: раньше "не пришла метрика" и "эта форма вообще
+её не даёт" были неотличимы).
+
+Регрессия: online/personCount/vehicleCount НИКОГДА не попадают в
+raw_metrics_json — custom-monitor-worker.js осознанно пишет их в отдельные
+колонки monitor_status (state/person_count/vehicle_count, см.
+buildEffectiveMetrics в index.html). Первая версия детектора проверяла
+только raw_metrics_json и поэтому показывала "нет данных" на эти три
+атрибута ВСЕГДА, даже когда данные реально приходили — баг, найденный
+пользователем на живом IILB. Сидинг ниже нарочно кладёт online/personCount
+через их настоящие колонки (state/personCount), а не через rawMetrics —
+как оно реально приходит от воркера.
 */
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
@@ -26,11 +36,13 @@ test("карточка Инфо: показывает 'нет данных' дл
       monitorMethod: "custom", dataSourceId: "src1", sourceAddress: "42",
     }],
   });
-  // Источник прислал online + personCount, но НЕ vehicleCount/rssi — их
-  // профиль ожидает, детектор должен явно показать "нет данных" на обоих.
+  // state="up" -> online (через колонку state, НЕ raw_metrics_json), personCount
+  // через свою колонку (тоже не raw_metrics_json) — оба реально пришли.
+  // vehicleCount и rssi — не пришли вовсе (профиль их ожидает, детектор
+  // должен явно показать "нет данных" на обоих, а не на всех пяти сразу).
   seedMonitorStatus(server.db, "e2e-profile", "iilb1", {
     state: "up",
-    rawMetrics: { online: true, personCount: 7 },
+    personCount: 7,
   });
 
   const browser = await launchBrowser();
@@ -57,9 +69,14 @@ test("карточка Инфо: показывает 'нет данных' дл
   await page.click("#equipList .uo-row");
   await page.waitForTimeout(600); // refreshQuickInfoMetrics — REST-опрос статуса
 
-  await t.test("пришедшая метрика (Счётчик людей) показана значением", async () => {
+  await t.test("РЕГРЕССИЯ: online (из state, не raw_metrics_json) — 'Да', не 'нет данных'", async () => {
     const text = await page.locator("#quickInfoBody").innerText();
-    assert.match(text, /Счётчик людей[\s\S]*7/);
+    assert.match(text, /Статус: онлайн\/офлайн[\s\S]{0,20}Да/);
+  });
+
+  await t.test("РЕГРЕССИЯ: personCount (из своей колонки) показан значением, не 'нет данных'", async () => {
+    const text = await page.locator("#quickInfoBody").innerText();
+    assert.match(text, /Счётчик людей[\s\S]{0,10}7/);
   });
 
   await t.test("непришедшая метрика профиля (Счётчик техники) — явно 'нет данных'", async () => {

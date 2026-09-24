@@ -6425,9 +6425,9 @@ function showQuickInfoCable(c) {
 // Живые метрики (см. server/lib/monitorShared.js/custom-monitor-worker.js)
 // показываются только для оборудования с monitorMethod:"custom". На странице
 // Мониторинга берём из WS-кэша monitorStatusById, в Редакторе — опрашиваем
-// REST раз в 10 сек, пока эта карточка открыта в панели "Инфо" (см. fetchEquipMetrics).
+// REST раз в 10 сек, пока эта карточка открыта в панели "Инфо" (см. fetchEquipStatusRow).
 let currentQuickInfoEquip = null;
-const quickInfoMetricsCache = new Map(); // equipmentId -> metrics|null
+const quickInfoStatusRowCache = new Map(); // equipmentId -> monitor_status row|null
 
 // Каталог атрибутов (attribute_definitions, см. server/routes/references.js)
 // — человекочитаемые названия/единицы для панели "Инфо" ниже. Грузится раз,
@@ -6570,29 +6570,43 @@ function showQuickInfoEquip(eq) {
   // (см. ping-worker.js), так что там это было бы просто шумом "нет данных"
   // на каждый атрибут профиля, а не диагностикой реальной проблемы.
   const metricsHtml = eq.monitorMethod === "custom"
-    ? metricsRowsHtml(quickInfoMetricsCache.get(eq.id), profile && profile.attributes)
+    ? metricsRowsHtml(buildEffectiveMetrics(quickInfoStatusRowCache.get(eq.id)), profile && profile.attributes)
     : "";
   dom.quickInfoBody.innerHTML = `<div class="qi-title">${esc(eq.label)}</div>${rows.join("")}${metricsHtml}`;
 }
-async function fetchEquipMetrics(eq) {
-  let row = null;
-  if (IS_MONITORING_PAGE) {
-    row = monitorStatusById.get(eq.id) || null;
-  } else {
-    try {
-      const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/status`);
-      const data = await resp.json();
-      row = (data.status || []).find((r) => r.equipment_id === eq.id) || null;
-    } catch (e) { row = null; }
+// online/personCount/vehicleCount НИКОГДА не попадают в raw_metrics_json —
+// custom-monitor-worker.js осознанно исключает их из metricsPatch и пишет
+// в свои колонки monitor_status (state/person_count/vehicle_count, см.
+// applyParsedResult в custom-monitor-worker.js и applyCounts/applyOnlineState
+// в lib/monitorShared.js). Детектор "нет данных" (metricsRowsHtml) видит
+// только объект метрик — если профиль включает эти три ключа (как IILB),
+// без этой сборки они выглядели бы "нет данных" ВСЕГДА, даже когда данные
+// реально приходят: реальный баг, найденный пользователем на живом IILB.
+function buildEffectiveMetrics(row) {
+  if (!row) return null;
+  let metrics = {};
+  if (row.raw_metrics_json) {
+    try { metrics = JSON.parse(row.raw_metrics_json) || {}; } catch (e) { metrics = {}; }
   }
-  if (!row || !row.raw_metrics_json) return null;
-  try { return JSON.parse(row.raw_metrics_json); } catch (e) { return null; }
+  if (row.state === "up") metrics.online = true;
+  else if (row.state === "down" || row.state === "degraded") metrics.online = false;
+  if (row.person_count !== null && row.person_count !== undefined) metrics.personCount = row.person_count;
+  if (row.vehicle_count !== null && row.vehicle_count !== undefined) metrics.vehicleCount = row.vehicle_count;
+  return metrics;
+}
+async function fetchEquipStatusRow(eq) {
+  if (IS_MONITORING_PAGE) return monitorStatusById.get(eq.id) || null;
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/status`);
+    const data = await resp.json();
+    return (data.status || []).find((r) => r.equipment_id === eq.id) || null;
+  } catch (e) { return null; }
 }
 async function refreshQuickInfoMetrics() {
   const eq = currentQuickInfoEquip;
   if (!eq || eq.monitorMethod !== "custom") return;
-  const metrics = await fetchEquipMetrics(eq);
-  quickInfoMetricsCache.set(eq.id, metrics);
+  const row = await fetchEquipStatusRow(eq);
+  quickInfoStatusRowCache.set(eq.id, row);
   if (currentQuickInfoEquip === eq) showQuickInfoEquip(eq);
 }
 setInterval(refreshQuickInfoMetrics, 10000);
