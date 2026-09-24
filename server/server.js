@@ -70,6 +70,15 @@ app.get(/^\/[^/]+\/lamps\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "lamps.html"));
 });
 
+// Схема связей — структурная 2D-диаграмма (узлы = оборудование, рёбра =
+// кабели с обоими указанными концами, см. endpointAEquipId/endpointBEquipId
+// на кабеле в редакторе). Отдельная лёгкая страница без Three.js, строит
+// граф на клиенте из того же /:id/state, что и редактор — никакого нового
+// backend-хранилища для связности не потребовалось.
+app.get(/^\/[^/]+\/schema\/?$/, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "schema.html"));
+});
+
 // Журнал действий — admin/supervisor, поверх /api/audit-log.
 app.get(/^\/[^/]+\/log\/?$/, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "log.html"));

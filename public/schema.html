@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Схема связей — Mine Operations Tool</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgODgiPjxwYXRoIGQ9Ik0xMCw3NiBMMTAsMTQgTDUwLDU0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZjlmMWMiIHN0cm9rZS13aWR0aD0iMTUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik01MCw1NCBMOTAsMTQgTDkwLDc2IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZjlmMWMiIHN0cm9rZS13aWR0aD0iMTUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgb3BhY2l0eT0iMC41NSIvPjwvc3ZnPg==">
+<style>
+  :root{
+    --bg:#14171a;
+    --panel:#1b1f23;
+    --panel-alt:#22272b;
+    --panel-alt2:#262c31;
+    --border:#31373d;
+    --border-soft:#282e33;
+    --text:#e4e8eb;
+    --text-dim:#8d979f;
+    --text-faint:#5f6a71;
+    --accent:#ff9f1c;
+    --accent-dim:#8a5713;
+    --accent-2:#39b8b0;
+    --danger:#e6553d;
+    --ok:#2ecc71;
+    --warn:#f39c12;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    color-scheme:dark;
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size:13px;
+  }
+  .mono{ font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  ::selection{ background:var(--accent); color:#14171a; }
+
+  /* ---- shell / top bar (переиспользовано из monitoring-stats.html) ---- */
+  #shell{ display:flex; flex-direction:column; width:100vw; height:100vh; }
+  #topBar{
+    flex:0 0 auto; height:56px; display:flex; align-items:center; gap:14px;
+    padding:0 18px; background:linear-gradient(180deg,#1c2126,#14171a);
+    border-bottom:1px solid var(--border); user-select:none;
+  }
+  #topBar .brand-mark{ width:26px; height:auto; flex-shrink:0; }
+  #topBar .brand-titles{ display:flex; flex-direction:column; line-height:1.25; }
+  #topBar .brand-titles .t1{ font-size:15px; font-weight:700; color:var(--text); letter-spacing:.2px; }
+  #topBar .brand-titles .t2{ font-size:11px; color:var(--text-dim); }
+  #topBar .brand-spacer{ flex:1 1 auto; }
+  #topBar .brand-copyright{ font-size:10.5px; color:var(--text-faint); text-align:right; line-height:1.4; }
+  #topBar a, #topBar button{
+    text-decoration:none; background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:4px; padding:3px 8px; cursor:pointer; font-family:inherit; font-size:11px;
+    white-space:nowrap; flex-shrink:0; display:inline-flex; align-items:center; gap:5px;
+  }
+  #topBar a:hover, #topBar button:hover{ border-color:var(--accent); color:var(--accent); }
+  #topBar .nav-ic{ width:14px; height:14px; flex-shrink:0; }
+  #topBar #projectSelect{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text); border-radius:8px;
+    padding:3px 6px; font-family:inherit; font-size:11.5px; cursor:pointer;
+  }
+  #topBar #projectSelect:hover{ border-color:var(--accent); }
+  #topBar #projectSelect option{ background:var(--panel-alt); color:var(--text); }
+  #topBar a.nav-current{ border-color:var(--accent); color:var(--accent); background:rgba(255,159,28,.08); pointer-events:none; cursor:default; }
+  .nav-badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:15px; height:15px; padding:0 4px; margin-left:1px;
+    background:var(--accent); color:#14171a; border-radius:99px;
+    font-size:9.5px; font-weight:700; line-height:1;
+  }
+  .nav-badge.badge-danger{ background:var(--danger); color:#fff; }
+  #app{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+
+  /* ---- экран входа (переиспользовано из index.html) ---- */
+  #authGate{
+    position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(1200px 800px at 50% 20%, #1c2126 0%, #0d0f11 70%);
+  }
+  #authGate.hidden{ display:none; }
+  #authCard{
+    width:360px; max-width:90vw; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:28px 26px 22px; box-shadow:0 20px 60px rgba(0,0,0,.45); text-align:center;
+  }
+  #authCard .auth-mark{ width:64px; height:auto; display:block; margin:0 auto 12px; }
+  #authCard h1{ margin:0 0 2px; font-size:22px; font-weight:700; color:var(--text); text-align:center; letter-spacing:.3px; }
+  #authCard .auth-tagline{ font-size:11px; color:var(--text-dim); text-align:center; letter-spacing:.06em; text-transform:uppercase; margin:0 0 16px; }
+  #authCard h2{ margin:0 0 18px; font-size:12px; font-weight:500; color:var(--text-dim); text-align:center; }
+  #authCard label{ display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:6px; text-align:left; }
+  #authCard input[type="password"], #authCard input[type="text"]{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    border-radius:5px; padding:9px 10px; font-size:13px; font-family:inherit; letter-spacing:1px;
+  }
+  #authCard input[type="password"]:focus, #authCard input[type="text"]:focus{ outline:none; border-color:var(--accent); }
+  #authCard #authError{ min-height:16px; font-size:11.5px; color:var(--danger); margin-top:8px; text-align:left; }
+  #authCard #btnAuthSubmit{
+    width:100%; margin-top:10px; padding:9px; border-radius:5px; border:1px solid var(--accent);
+    background:var(--accent); color:#14171a; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;
+  }
+  #authCard #btnAuthSubmit:hover{ filter:brightness(1.08); }
+  #authCard .authHint{ margin-top:14px; font-size:10.5px; color:var(--text-faint); text-align:center; line-height:1.5; }
+
+  /* ---- страница схемы ---- */
+  .pagehead{ display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:12px 18px 0; }
+  .crumb{ font-size:11.5px; color:var(--text-faint); }
+  .crumb b{ color:var(--text-dim); font-weight:600; }
+  .pagehead h1{ margin:2px 0 0; font-size:17px; font-weight:700; letter-spacing:.1px; flex:1 1 auto; }
+
+  #controlbar{
+    display:flex; align-items:center; flex-wrap:wrap; gap:10px;
+    padding:10px 18px; border-bottom:1px solid var(--border);
+  }
+  .sys-filter{ display:flex; gap:4px; flex-wrap:wrap; }
+  .sys-btn{
+    border:1px solid var(--border); background:var(--panel-alt); color:var(--text-dim);
+    font:inherit; font-size:11.5px; font-weight:600; padding:5px 11px; border-radius:99px; cursor:pointer;
+  }
+  .sys-btn:hover{ border-color:var(--accent); color:var(--text); }
+  .sys-btn.active{ background:var(--accent); border-color:var(--accent); color:#14171a; }
+  #controlbar .spacer{ flex:1 1 auto; }
+  .legend{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; font-size:11px; color:var(--text-dim); }
+  .legend .item{ display:flex; align-items:center; gap:5px; }
+  .legend .dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .toolbtn{
+    background:var(--panel-alt); border:1px solid var(--border); color:var(--text-dim);
+    border-radius:6px; padding:6px 11px; font-size:11.5px; cursor:pointer; font-family:inherit;
+  }
+  .toolbtn:hover{ border-color:var(--accent); color:var(--accent); }
+
+  #diagramWrap{ flex:1 1 auto; min-height:0; display:flex; position:relative; overflow:hidden; }
+  #diagramSvg{ flex:1 1 auto; min-width:0; background:
+    radial-gradient(1px 1px at center, rgba(255,255,255,.05) 1px, transparent 1px) 0 0/22px 22px, var(--bg);
+    cursor:grab; touch-action:none; }
+  #diagramSvg.dragging{ cursor:grabbing; }
+  #diagramSvg text{ fill:var(--text-dim); font-family:inherit; user-select:none; }
+  .node-circle{ cursor:pointer; stroke-width:2; }
+  .node-circle:hover{ filter:brightness(1.3); }
+  .node-label{ font-size:10px; pointer-events:none; }
+  .node-selected{ stroke:var(--accent) !important; stroke-width:3 !important; }
+  .edge-line{ pointer-events:stroke; cursor:pointer; }
+  .edge-line:hover{ filter:brightness(1.4); }
+
+  #emptyHint{
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    text-align:center; color:var(--text-faint); padding:20px; line-height:1.7; font-size:12.5px;
+  }
+  #emptyHint b{ color:var(--text-dim); }
+
+  #sidePanel{
+    width:290px; flex:0 0 auto; border-left:1px solid var(--border); background:var(--panel);
+    overflow-y:auto; display:flex; flex-direction:column;
+  }
+  .side-section{ border-bottom:1px solid var(--border-soft); }
+  .side-section summary{
+    padding:11px 14px; cursor:pointer; font-size:11.5px; font-weight:700; color:var(--text-dim);
+    display:flex; align-items:center; justify-content:space-between; list-style:none;
+  }
+  .side-section summary::-webkit-details-marker{ display:none; }
+  .side-section summary .cnt{
+    background:var(--panel-alt2); color:var(--text-dim); border-radius:99px; padding:1px 7px; font-size:10.5px;
+  }
+  .side-section[open] summary .cnt, .side-section summary:hover .cnt{ color:var(--text); }
+  .side-list{ padding:0 14px 12px; display:flex; flex-direction:column; gap:2px; max-height:260px; overflow-y:auto; }
+  .side-row{
+    display:flex; align-items:center; gap:7px; padding:5px 6px; border-radius:5px; cursor:pointer; font-size:11.5px;
+  }
+  .side-row:hover{ background:var(--panel-alt); }
+  .side-row .dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .side-row .lbl{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+  .side-row .sub{ color:var(--text-faint); font-size:10.5px; flex-shrink:0; }
+  .side-empty{ padding:4px 6px; color:var(--text-faint); font-size:11px; }
+
+  #infoPanel{ display:none; flex-direction:column; }
+  #infoPanel[open]{ display:flex; }
+  #infoPanel .ip-head{
+    padding:14px; display:flex; align-items:flex-start; gap:10px; border-bottom:1px solid var(--border-soft);
+  }
+  #infoPanel .ip-title{ font-size:13.5px; font-weight:700; color:var(--text); flex:1; min-width:0; word-break:break-word; }
+  #infoPanel .ip-close{
+    background:none; border:none; color:var(--text-faint); cursor:pointer; font-size:16px; line-height:1; padding:0 2px;
+  }
+  #infoPanel .ip-close:hover{ color:var(--text); }
+  #infoPanel .ip-rows{ padding:4px 14px 14px; display:flex; flex-direction:column; gap:7px; }
+  #infoPanel .ip-row{ display:flex; justify-content:space-between; gap:10px; font-size:11.5px; }
+  #infoPanel .ip-row .k{ color:var(--text-faint); }
+  #infoPanel .ip-row .v{ color:var(--text); text-align:right; }
+  #infoPanel .ip-status{ display:inline-flex; align-items:center; gap:5px; font-weight:600; }
+  #infoPanel .ip-status .dot{ width:7px; height:7px; border-radius:50%; }
+  #infoPanel .ip-open{
+    margin:2px 14px 14px; text-decoration:none; text-align:center; background:var(--panel-alt);
+    border:1px solid var(--border); color:var(--text-dim); border-radius:6px; padding:8px; font-size:11.5px;
+  }
+  #infoPanel .ip-open:hover{ border-color:var(--accent); color:var(--accent); }
+
+  #stateMsg{ padding:60px 20px; text-align:center; color:var(--text-faint); line-height:1.7; display:none; }
+  #stateMsg b{ color:var(--text-dim); }
+</style>
+</head>
+<body>
+
+<!-- ================= Экран входа по паролю (тот же кэш сессии, что в index.html) ================= -->
+<div id="authGate">
+  <div id="authCard">
+    <svg class="auth-mark" viewBox="0 0 100 88" aria-hidden="true"><path d="M10,76 L10,14 L50,54" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><path d="M50,54 L90,14 L90,76" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/></svg>
+    <h1>MoT</h1>
+    <div class="auth-tagline">Mine Operations Tool</div>
+    <h2>Схема связей — вход</h2>
+    <label for="authUsername">Логин</label>
+    <input type="text" id="authUsername" autocomplete="username" placeholder="Логин" style="margin-bottom:10px;" />
+    <label for="authPassword">Пароль</label>
+    <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
+    <div id="authError"></div>
+    <button id="btnAuthSubmit">Войти</button>
+    <div class="authHint">Доступ только для авторизованных пользователей.<br>© 2026 MoT. Все права защищены.</div>
+  </div>
+</div>
+<script>
+(function(){
+  var gate = document.getElementById("authGate");
+  var userInput = document.getElementById("authUsername");
+  var passInput = document.getElementById("authPassword");
+  var errorEl = document.getElementById("authError");
+  var btn = document.getElementById("btnAuthSubmit");
+
+  function unlock(session){
+    gate.classList.add("hidden");
+    window.__auth = session;
+    document.dispatchEvent(new CustomEvent("kzmAuthReady"));
+  }
+  function readStoredSession(){
+    try {
+      var raw = localStorage.getItem("kzmAuthSession");
+      if (!raw) return null;
+      var s = JSON.parse(raw);
+      if (s && s.token && s.username && s.role) return s;
+    } catch(e){}
+    return null;
+  }
+  async function tryLogin(){
+    var username = (userInput.value || "").trim();
+    var password = passInput.value || "";
+    if (!username || !password) {
+      errorEl.textContent = "Введите логин и пароль.";
+      return;
+    }
+    btn.disabled = true;
+    try {
+      var resp = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username, password: password }),
+      });
+      if (!resp.ok) {
+        errorEl.textContent = "Неверный логин или пароль.";
+        passInput.value = "";
+        passInput.focus();
+        return;
+      }
+      var data = await resp.json();
+      var session = { token: data.token, username: data.username, role: data.role };
+      try { localStorage.setItem("kzmAuthSession", JSON.stringify(session)); } catch(e){}
+      errorEl.textContent = "";
+      unlock(session);
+    } catch(e) {
+      errorEl.textContent = "Не удалось связаться с сервером.";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  var stored = readStoredSession();
+  if (stored) { unlock(stored); } else { userInput.focus(); }
+  btn.addEventListener("click", tryLogin);
+  passInput.addEventListener("keydown", function(e){ if (e.key === "Enter") tryLogin(); });
+  userInput.addEventListener("keydown", function(e){ if (e.key === "Enter") passInput.focus(); });
+  window.__kzmLogout = function(){
+    try { localStorage.removeItem("kzmAuthSession"); } catch(e){}
+    location.reload();
+  };
+})();
+</script>
+
+<div id="shell">
+  <header id="topBar">
+    <svg class="brand-mark" viewBox="0 0 100 88" aria-hidden="true"><path d="M10,76 L10,14 L50,54" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><path d="M50,54 L90,14 L90,76" fill="none" stroke="var(--accent)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/></svg>
+    <div class="brand-titles">
+      <span class="t1">MoT</span>
+      <span class="t2">Схема связей</span>
+    </div>
+    <div class="brand-spacer"></div>
+    <div id="sessionInfo" style="display:flex; align-items:center; gap:10px; margin-right:14px; font-size:11.5px; color:var(--text-dim);">
+      <span id="sessionProject"></span>
+      <select id="projectSelect" title="Переключить проект" style="display:none;"></select>
+      <span id="sessionUser"></span>
+      <a id="navToEditor" title="Редактор модели"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" /><path d="M13.5 6.5l4 4" /></svg> Редактор</a>
+      <a id="navToMonitoring" title="Мониторинг оборудования"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4v8" /><path d="M16 4.5v7" /><path d="M12 5v16" /><path d="M8 5.5v5" /><path d="M4 6v4" /><path d="M20 8h-16" /></svg> Мониторинг</a>
+      <a id="navToStats" title="История аварий"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14" /><path d="M4 20h14" /></svg> Статистика</a>
+      <a id="navToSchema" class="nav-current" title="Схема связей оборудования"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2" /><circle cx="5" cy="19" r="2" /><circle cx="19" cy="19" r="2" /><path d="M12 7v3.5" /><path d="M11 10l-5 6.5" /><path d="M13 10l5 6.5" /></svg> Схема</a>
+      <a id="navToTickets" title="Тикеты"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l0 2" /><path d="M15 11l0 2" /><path d="M15 17l0 2" /><path d="M5 5a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h14a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 2 -2z" /></svg> Тикеты<span class="nav-badge" id="ticketsBadge" style="display:none;">0</span></a>
+      <a id="navToRegistry" title="Реестр ЗИП"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" /><path d="M12 12l8 -4.5" /><path d="M12 12l0 9" /><path d="M12 12l-8 -4.5" /><path d="M16 5.25l-8 4.5" /></svg> ЗИП</a>
+      <a id="navToLamps" title="Фонари"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" /><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3" /><path d="M9.7 17l4.6 0" /></svg> Фонари</a>
+      <a id="navToLog" title="Журнал действий" style="display:none;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8l0 4l2 2" /><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 -4l1.75 -4.5l3.22 2.5m-4.97 2l4.5 1.5" /></svg> Лог</a>
+      <a id="navToSettings" title="Настройки" style="display:none;"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" /><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /></svg> Настройки</a>
+      <button id="btnLogout" title="Выйти">Выйти</button>
+    </div>
+    <div class="brand-copyright">© 2026 MoT<br>Все права защищены</div>
+  </header>
+
+  <div id="app">
+    <div class="pagehead">
+      <span class="crumb"><b>Схема связей</b> <span id="crumbProject"></span></span>
+      <h1>Структурная схема — оборудование и кабели</h1>
+    </div>
+
+    <div id="controlbar">
+      <div class="sys-filter" id="sysFilter"></div>
+      <div class="spacer"></div>
+      <div class="legend">
+        <span class="item"><span class="dot" style="background:var(--ok);"></span>онлайн</span>
+        <span class="item"><span class="dot" style="background:var(--danger);"></span>авария</span>
+        <span class="item"><span class="dot" style="background:var(--text-faint);"></span>нет данных</span>
+      </div>
+      <button class="toolbtn" id="btnFitView" title="Вписать схему в экран">⤢ Вписать</button>
+      <button class="toolbtn" id="btnRefreshSchema" title="Обновить">↻ Обновить</button>
+    </div>
+
+    <div id="diagramWrap">
+      <svg id="diagramSvg" xmlns="http://www.w3.org/2000/svg">
+        <g id="viewport"></g>
+      </svg>
+      <div id="emptyHint"></div>
+      <div id="sidePanel">
+        <details class="side-section" id="infoPanel">
+          <!-- заполняется JS при клике на узел -->
+        </details>
+        <details class="side-section" open>
+          <summary>Оборудование без связей <span class="cnt" id="cntUnlinked">0</span></summary>
+          <div class="side-list" id="listUnlinked"></div>
+        </details>
+        <details class="side-section">
+          <summary>Кабели с неполной привязкой <span class="cnt" id="cntPartial">0</span></summary>
+          <div class="side-list" id="listPartial"></div>
+        </details>
+      </div>
+    </div>
+    <div id="stateMsg"></div>
+  </div>
+</div>
+
+<script type="module">
+const CURRENT_PROJECT_ID = (location.pathname.split("/").filter(Boolean)[0] || "default").toLowerCase();
+
+function apiHeaders(extra) {
+  const auth = window.__auth;
+  const headers = Object.assign({}, extra || {});
+  if (auth && auth.token) headers["Authorization"] = "Bearer " + auth.token;
+  return headers;
+}
+async function apiFetch(url, options) {
+  const resp = await fetch(url, Object.assign({}, options, { headers: apiHeaders((options && options.headers) || {}) }));
+  if (resp.status === 401) {
+    if (window.__kzmLogout) window.__kzmLogout();
+    throw new Error("Сессия истекла, требуется повторный вход.");
+  }
+  return resp;
+}
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ---------------- Топбар / логаут / переключатель проекта (как на других страницах) ---------------- */
+function applyRoleUI() {
+  const auth = window.__auth;
+  document.getElementById("sessionProject").textContent = "Проект:";
+  document.getElementById("crumbProject").textContent = "· " + CURRENT_PROJECT_ID;
+  document.getElementById("sessionUser").textContent = auth ? `${auth.username} (${auth.role})` : "";
+  document.getElementById("navToEditor").href = `/${CURRENT_PROJECT_ID}`;
+  document.getElementById("navToMonitoring").href = `/${CURRENT_PROJECT_ID}/monitoring`;
+  document.getElementById("navToStats").href = `/${CURRENT_PROJECT_ID}/monitoring/stats`;
+  document.getElementById("navToTickets").href = `/${CURRENT_PROJECT_ID}/tickets`;
+  document.getElementById("navToRegistry").href = `/${CURRENT_PROJECT_ID}/registry`;
+  document.getElementById("navToLamps").href = `/${CURRENT_PROJECT_ID}/lamps`;
+  const isAdminLevel = auth && (auth.role === "admin" || auth.role === "supervisor");
+  document.getElementById("navToLog").href = `/${CURRENT_PROJECT_ID}/log`;
+  document.getElementById("navToLog").style.display = isAdminLevel ? "inline-flex" : "none";
+  document.getElementById("navToSettings").href = `/${CURRENT_PROJECT_ID}/settings`;
+  document.getElementById("navToSettings").style.display = isAdminLevel ? "inline-flex" : "none";
+}
+document.getElementById("btnLogout").addEventListener("click", () => { if (window.__kzmLogout) window.__kzmLogout(); });
+async function loadProjectSwitcher() {
+  const sel = document.getElementById("projectSelect");
+  if (!sel) return;
+  try {
+    const resp = await apiFetch("/api/projects");
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    sel.textContent = "";
+    let hasCurrent = false;
+    for (const p of data.projects) {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.name + " (" + p.id + ")";
+      if (p.id === CURRENT_PROJECT_ID) { opt.selected = true; hasCurrent = true; }
+      sel.appendChild(opt);
+    }
+    if (!hasCurrent) {
+      const opt = document.createElement("option");
+      opt.value = CURRENT_PROJECT_ID;
+      opt.textContent = CURRENT_PROJECT_ID;
+      opt.selected = true;
+      sel.insertBefore(opt, sel.firstChild);
+    }
+    sel.style.display = "";
+  } catch (e) {
+    // не смогли загрузить список — просто оставляем без переключателя
+  }
+}
+document.getElementById("projectSelect").addEventListener("change", (e) => {
+  const newId = e.target.value;
+  if (!newId || newId === CURRENT_PROJECT_ID) return;
+  location.pathname = location.pathname.replace(/^\/[^/]+/, "/" + newId);
+});
+async function updateTicketsBadge() {
+  const auth = window.__auth;
+  const badge = document.getElementById("ticketsBadge");
+  if (!badge) return;
+  if (!auth || !(auth.role === "engineer" || auth.role === "admin" || auth.role === "supervisor")) { badge.style.display = "none"; return; }
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/tickets?assignee=${encodeURIComponent(auth.username)}`);
+    const data = await resp.json();
+    const open = (data.tickets || []).filter((t) => !["closed", "cancelled"].includes(t.status));
+    if (!open.length) { badge.style.display = "none"; return; }
+    badge.textContent = open.length;
+    badge.className = "nav-badge" + (open.some((t) => t.isOverdue) ? " badge-danger" : "");
+    badge.style.display = "inline-flex";
+  } catch (e) {
+    badge.style.display = "none";
+  }
+}
+
+/* ---------------- Справочники (формы/типы кабелей/системы) ---------------- */
+let SHAPES_BY_KEY = {};      // key -> { label, defaultColor }
+let CABLE_TYPES_BY_KEY = {}; // key -> { label, color, thickness }
+let MONITOR_SYSTEMS = [];
+let CABLE_TYPE_SYSTEMS = {};
+let EQUIP_SHAPE_SYSTEMS = {};
+async function loadCatalogs() {
+  const [shapesResp, cableResp, sysResp] = await Promise.all([
+    apiFetch("/api/references/equipment-shapes/public"),
+    apiFetch("/api/references/cable-types/public"),
+    apiFetch("/api/references/monitor-systems/public"),
+  ]);
+  if (shapesResp.ok) {
+    const data = await shapesResp.json();
+    for (const s of data.shapes || []) SHAPES_BY_KEY[s.key] = s;
+  }
+  if (cableResp.ok) {
+    const data = await cableResp.json();
+    for (const c of data.cableTypes || []) CABLE_TYPES_BY_KEY[c.key] = c;
+  }
+  if (sysResp.ok) {
+    const data = await sysResp.json();
+    MONITOR_SYSTEMS = data.systems || [];
+    CABLE_TYPE_SYSTEMS = data.cableTypeSystems || {};
+    EQUIP_SHAPE_SYSTEMS = data.equipmentShapeSystems || {};
+  }
+}
+
+/* ---------------- Живой статус (для цвета узлов) ---------------- */
+let statusByEquipId = new Map();
+async function loadStatus() {
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/monitor/status`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    statusByEquipId = new Map((data.status || []).map((r) => [r.equipment_id, r]));
+  } catch (e) {
+    // сеть недоступна — узлы остаются без цвета статуса, схема всё равно рисуется
+  }
+}
+function statusColor(equipId) {
+  const row = statusByEquipId.get(equipId);
+  if (!row) return "var(--text-faint)";
+  if (row.state === "up") return "var(--ok)";
+  if (row.state === "down" || row.state === "degraded") return "var(--danger)";
+  return "var(--text-faint)";
+}
+
+/* ---------------- Загрузка проекта и построение графа ---------------- */
+let equipmentAll = [];
+let cablesAll = [];
+async function loadSnapshot() {
+  const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/state`);
+  if (!resp.ok) throw new Error("HTTP " + resp.status);
+  const data = await resp.json();
+  const snapshot = data.snapshot || {};
+  equipmentAll = snapshot.equipment || [];
+  cablesAll = snapshot.cables || [];
+}
+
+let currentSystem = "all";
+function inSystem(map, key, sys) {
+  return sys === "all" || (map[key] || []).includes(sys);
+}
+// Возвращает { nodes:[{id,label,shape}], edges:[{cable,a,b}], unlinked:[eq], partial:[{cable,haveEnd}] }
+// см. обсуждение "Фаза 2" — узлы это оборудование, рёбра это кабели с ОБОИМИ
+// указанными концами (endpointAEquipId/endpointBEquipId, заведены в Фазе 1,
+// public/index.html — карточка кабеля). Кабель только с одним указанным
+// концом — это незавершённая привязка (см. Фаза 1), не рисуется как ребро,
+// а выносится в отдельный список, чтобы было видно, что доразметить.
+function buildGraph(system) {
+  const equipById = new Map(equipmentAll.map((eq) => [eq.id, eq]));
+  const nodesPool = equipmentAll.filter((eq) => inSystem(EQUIP_SHAPE_SYSTEMS, SHAPES_BY_KEY[eq.shape] ? eq.shape : "custom", system));
+  const nodeIds = new Set(nodesPool.map((eq) => eq.id));
+
+  const edges = [];
+  const partial = [];
+  for (const c of cablesAll) {
+    const typeKey = CABLE_TYPES_BY_KEY[c.cableType] ? c.cableType : "custom";
+    if (!inSystem(CABLE_TYPE_SYSTEMS, typeKey, system)) continue;
+    const a = c.endpointAEquipId || "";
+    const b = c.endpointBEquipId || "";
+    if (a && b) {
+      if (nodeIds.has(a) && nodeIds.has(b) && a !== b) edges.push({ cable: c, a, b });
+    } else if (a || b) {
+      partial.push({ cable: c, haveEnd: equipById.get(a || b) || null });
+    }
+  }
+  const connected = new Set();
+  for (const e of edges) { connected.add(e.a); connected.add(e.b); }
+  const nodes = nodesPool.filter((eq) => connected.has(eq.id));
+  const unlinked = nodesPool.filter((eq) => !connected.has(eq.id));
+  return { nodes, edges, unlinked, partial };
+}
+
+/* ---------------- Force-directed layout (Fruchterman-Reingold, детерминированный по составу узлов) ---------------- */
+function seededRng(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return function () {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h = (h ^ (h >>> 16)) >>> 0;
+    return h / 4294967296;
+  };
+}
+function layoutGraph(nodes, edges) {
+  const n = nodes.length;
+  if (n === 0) return [];
+  if (n === 1) return [{ x: 0, y: 0 }];
+  const idxOf = new Map(nodes.map((nd, i) => [nd.id, i]));
+  const edgeIdx = edges.map((e) => [idxOf.get(e.a), idxOf.get(e.b)]);
+  const rng = seededRng(nodes.map((nd) => nd.id).sort().join("|"));
+  const R = Math.max(160, Math.sqrt(n) * 95);
+  const pos = nodes.map((_, i) => {
+    const a = (i / n) * Math.PI * 2;
+    return { x: Math.cos(a) * R + (rng() - 0.5) * 30, y: Math.sin(a) * R + (rng() - 0.5) * 30 };
+  });
+  const area = (2 * R) * (2 * R);
+  const k = Math.sqrt(area / Math.max(1, n));
+  let temp = R * 0.2;
+  const iterations = n > 250 ? 120 : 260;
+  for (let iter = 0; iter < iterations; iter++) {
+    const disp = pos.map(() => ({ x: 0, y: 0 }));
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        let dx = pos[i].x - pos[j].x, dy = pos[i].y - pos[j].y;
+        let dist = Math.hypot(dx, dy) || 0.01;
+        const force = (k * k) / dist;
+        const ux = dx / dist, uy = dy / dist;
+        disp[i].x += ux * force; disp[i].y += uy * force;
+        disp[j].x -= ux * force; disp[j].y -= uy * force;
+      }
+    }
+    for (const [a, b] of edgeIdx) {
+      let dx = pos[a].x - pos[b].x, dy = pos[a].y - pos[b].y;
+      let dist = Math.hypot(dx, dy) || 0.01;
+      const force = (dist * dist) / k;
+      const ux = dx / dist, uy = dy / dist;
+      disp[a].x -= ux * force; disp[a].y -= uy * force;
+      disp[b].x += ux * force; disp[b].y += uy * force;
+    }
+    for (let i = 0; i < n; i++) {
+      const d = Math.hypot(disp[i].x, disp[i].y) || 0.01;
+      const capped = Math.min(d, temp);
+      pos[i].x += (disp[i].x / d) * capped;
+      pos[i].y += (disp[i].y / d) * capped;
+    }
+    temp *= 0.97;
+  }
+  return pos;
+}
+
+/* ---------------- Рендер SVG (узлы/рёбра + пан/зум) ---------------- */
+const svg = document.getElementById("diagramSvg");
+const viewport = document.getElementById("viewport");
+const SVGNS = "http://www.w3.org/2000/svg";
+let view = { x: 0, y: 0, scale: 1 };
+let lastGraph = { nodes: [], edges: [] };
+let selectedNodeId = null;
+
+function applyViewTransform() {
+  viewport.setAttribute("transform", `translate(${view.x} ${view.y}) scale(${view.scale})`);
+}
+function fitView() {
+  const nodes = lastGraph.renderNodes || [];
+  if (!nodes.length) { view = { x: svg.clientWidth / 2, y: svg.clientHeight / 2, scale: 1 }; applyViewTransform(); return; }
+  const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y);
+  const minX = Math.min(...xs) - 60, maxX = Math.max(...xs) + 60;
+  const minY = Math.min(...ys) - 60, maxY = Math.max(...ys) + 60;
+  const w = Math.max(1, maxX - minX), h = Math.max(1, maxY - minY);
+  const vw = svg.clientWidth || 800, vh = svg.clientHeight || 600;
+  const scale = Math.max(0.08, Math.min(2.5, Math.min(vw / w, vh / h)));
+  view.scale = scale;
+  view.x = vw / 2 - scale * (minX + w / 2);
+  view.y = vh / 2 - scale * (minY + h / 2);
+  applyViewTransform();
+}
+
+function nodeRadius(eq) {
+  return 12;
+}
+function shapeLabel(eq) {
+  return (SHAPES_BY_KEY[eq.shape] && SHAPES_BY_KEY[eq.shape].label) || eq.shape || "?";
+}
+function shapeColor(eq) {
+  return (SHAPES_BY_KEY[eq.shape] && SHAPES_BY_KEY[eq.shape].defaultColor) || "#8d979f";
+}
+function cableColor(c) {
+  return (CABLE_TYPES_BY_KEY[c.cableType] && CABLE_TYPES_BY_KEY[c.cableType].color) || "#8d979f";
+}
+function cableLabel(c) {
+  return (CABLE_TYPES_BY_KEY[c.cableType] && CABLE_TYPES_BY_KEY[c.cableType].label) || c.cableType || "Другое";
+}
+
+function renderGraph(graph) {
+  viewport.textContent = "";
+  const pos = layoutGraph(graph.nodes, graph.edges);
+  const posById = new Map(graph.nodes.map((nd, i) => [nd.id, pos[i]]));
+  lastGraph.renderNodes = pos;
+
+  const edgesGroup = document.createElementNS(SVGNS, "g");
+  for (const e of graph.edges) {
+    const pa = posById.get(e.a), pb = posById.get(e.b);
+    if (!pa || !pb) continue;
+    const line = document.createElementNS(SVGNS, "line");
+    line.setAttribute("class", "edge-line");
+    line.setAttribute("x1", pa.x); line.setAttribute("y1", pa.y);
+    line.setAttribute("x2", pb.x); line.setAttribute("y2", pb.y);
+    line.setAttribute("stroke", cableColor(e.cable));
+    line.setAttribute("stroke-width", Math.max(1.5, Math.min(4, (CABLE_TYPES_BY_KEY[e.cable.cableType]?.thickness || 6) / 4)));
+    const title = document.createElementNS(SVGNS, "title");
+    title.textContent = `${e.cable.label || "Кабель"} (${cableLabel(e.cable)})`;
+    line.appendChild(title);
+    edgesGroup.appendChild(line);
+  }
+  viewport.appendChild(edgesGroup);
+
+  const nodesGroup = document.createElementNS(SVGNS, "g");
+  graph.nodes.forEach((eq, i) => {
+    const p = pos[i];
+    const g = document.createElementNS(SVGNS, "g");
+    g.setAttribute("transform", `translate(${p.x} ${p.y})`);
+    g.dataset.equipId = eq.id;
+
+    const circle = document.createElementNS(SVGNS, "circle");
+    circle.setAttribute("class", "node-circle" + (eq.id === selectedNodeId ? " node-selected" : ""));
+    circle.setAttribute("r", nodeRadius(eq));
+    circle.setAttribute("fill", shapeColor(eq));
+    circle.setAttribute("stroke", statusColorRaw(eq.id));
+    g.appendChild(circle);
+
+    const label = document.createElementNS(SVGNS, "text");
+    label.setAttribute("class", "node-label");
+    label.setAttribute("y", nodeRadius(eq) + 12);
+    label.setAttribute("text-anchor", "middle");
+    label.textContent = eq.label || eq.id;
+    g.appendChild(label);
+
+    g.addEventListener("click", () => selectNode(eq.id));
+    nodesGroup.appendChild(g);
+  });
+  viewport.appendChild(nodesGroup);
+}
+function statusColorRaw(equipId) {
+  const row = statusByEquipId.get(equipId);
+  if (!row) return "#5f6a71";
+  if (row.state === "up") return "#2ecc71";
+  if (row.state === "down" || row.state === "degraded") return "#e6553d";
+  return "#5f6a71";
+}
+function refreshNodeColors() {
+  viewport.querySelectorAll("g[data-equip-id]").forEach((g) => {
+    const circle = g.querySelector("circle");
+    if (circle) circle.setAttribute("stroke", statusColorRaw(g.dataset.equipId));
+  });
+}
+
+/* ---------------- Панель "Инфо" по клику на узел ---------------- */
+function fmtWhen(iso) {
+  if (!iso) return "—";
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/.exec(iso);
+  const d = m ? new Date(m[1] + "T" + m[2] + "Z") : new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+function selectNode(equipId) {
+  selectedNodeId = equipId;
+  viewport.querySelectorAll(".node-circle").forEach((c) => c.classList.remove("node-selected"));
+  const g = viewport.querySelector(`g[data-equip-id="${CSS.escape(equipId)}"]`);
+  if (g) g.querySelector("circle").classList.add("node-selected");
+  showInfoPanel(equipId);
+}
+function equipSystems(eq) {
+  const key = SHAPES_BY_KEY[eq.shape] ? eq.shape : "custom";
+  return (EQUIP_SHAPE_SYSTEMS[key] || []).join(", ") || "—";
+}
+function showInfoPanel(equipId) {
+  const eq = equipmentAll.find((e) => e.id === equipId);
+  const panel = document.getElementById("infoPanel");
+  if (!eq) { panel.removeAttribute("open"); panel.innerHTML = ""; return; }
+  const row = statusByEquipId.get(equipId);
+  const stateLabel = !row ? "нет данных" : row.state === "up" ? "онлайн" : (row.state === "down" || row.state === "degraded") ? "авария" : "нет данных";
+  const stateColor = !row ? "var(--text-faint)" : row.state === "up" ? "var(--ok)" : (row.state === "down" || row.state === "degraded") ? "var(--danger)" : "var(--text-faint)";
+  panel.innerHTML = `
+    <summary class="ip-head" style="cursor:default;">
+      <span class="ip-title">${esc(eq.label || eq.id)}</span>
+      <button class="ip-close" title="Закрыть">✕</button>
+    </summary>
+    <div class="ip-rows">
+      <div class="ip-row"><span class="k">Форма</span><span class="v">${esc(shapeLabel(eq))}</span></div>
+      <div class="ip-row"><span class="k">Системы</span><span class="v">${esc(equipSystems(eq))}</span></div>
+      <div class="ip-row"><span class="k">Статус</span><span class="v ip-status" style="color:${stateColor};"><span class="dot" style="background:${stateColor};"></span>${esc(stateLabel)}</span></div>
+      ${row && row.last_change_at ? `<div class="ip-row"><span class="k">Изменился</span><span class="v">${esc(fmtWhen(row.last_change_at))}</span></div>` : ""}
+    </div>
+    <a class="ip-open" href="/${encodeURIComponent(CURRENT_PROJECT_ID)}?equip=${encodeURIComponent(eq.id)}">Открыть в редакторе →</a>
+  `;
+  panel.setAttribute("open", "");
+  panel.querySelector(".ip-close").addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    selectedNodeId = null;
+    viewport.querySelectorAll(".node-circle").forEach((c) => c.classList.remove("node-selected"));
+    panel.removeAttribute("open");
+    panel.innerHTML = "";
+  });
+}
+
+/* ---------------- Списки: оборудование без связей / кабели с неполной привязкой ---------------- */
+function renderSideLists(graph) {
+  const cntUnlinked = document.getElementById("cntUnlinked");
+  const listUnlinked = document.getElementById("listUnlinked");
+  cntUnlinked.textContent = graph.unlinked.length;
+  listUnlinked.innerHTML = "";
+  if (!graph.unlinked.length) {
+    listUnlinked.innerHTML = `<div class="side-empty">Все объекты этой системы привязаны к кабелям.</div>`;
+  } else {
+    for (const eq of graph.unlinked) {
+      const row = document.createElement("div");
+      row.className = "side-row";
+      row.innerHTML = `<span class="dot" style="background:${statusColorRaw(eq.id)};"></span><span class="lbl">${esc(eq.label || eq.id)}</span><span class="sub">${esc(shapeLabel(eq))}</span>`;
+      row.addEventListener("click", () => { location.href = `/${encodeURIComponent(CURRENT_PROJECT_ID)}?equip=${encodeURIComponent(eq.id)}`; });
+      listUnlinked.appendChild(row);
+    }
+  }
+
+  const cntPartial = document.getElementById("cntPartial");
+  const listPartial = document.getElementById("listPartial");
+  cntPartial.textContent = graph.partial.length;
+  listPartial.innerHTML = "";
+  if (!graph.partial.length) {
+    listPartial.innerHTML = `<div class="side-empty">Нет кабелей с частичной привязкой.</div>`;
+  } else {
+    for (const p of graph.partial) {
+      const row = document.createElement("div");
+      row.className = "side-row";
+      const haveTxt = p.haveEnd ? `к «${esc(p.haveEnd.label || p.haveEnd.id)}»` : "";
+      row.innerHTML = `<span class="dot" style="background:var(--warn);"></span><span class="lbl">${esc(p.cable.label || p.cable.id)}</span><span class="sub">1 конец</span>`;
+      row.title = `Указан только один конец ${haveTxt} — доопределите второй в редакторе на карточке кабеля.`;
+      listPartial.appendChild(row);
+    }
+  }
+}
+
+/* ---------------- Панель фильтра по системе ---------------- */
+function renderSysFilter() {
+  const el = document.getElementById("sysFilter");
+  el.innerHTML = "";
+  const options = [{ key: "all", label: "Все" }, ...MONITOR_SYSTEMS.map((s) => ({ key: s, label: s }))];
+  for (const opt of options) {
+    const btn = document.createElement("button");
+    btn.className = "sys-btn" + (currentSystem === opt.key ? " active" : "");
+    btn.textContent = opt.label;
+    btn.addEventListener("click", () => {
+      currentSystem = opt.key;
+      selectedNodeId = null;
+      document.getElementById("infoPanel").removeAttribute("open");
+      document.getElementById("infoPanel").innerHTML = "";
+      renderSysFilter();
+      rebuildAndRender(true);
+    });
+    el.appendChild(btn);
+  }
+}
+
+/* ---------------- Пан/зум ---------------- */
+let dragging = false, dragStart = null, viewStart = null;
+svg.addEventListener("mousedown", (e) => {
+  dragging = true; svg.classList.add("dragging");
+  dragStart = { x: e.clientX, y: e.clientY }; viewStart = { x: view.x, y: view.y };
+});
+window.addEventListener("mousemove", (e) => {
+  if (!dragging) return;
+  view.x = viewStart.x + (e.clientX - dragStart.x);
+  view.y = viewStart.y + (e.clientY - dragStart.y);
+  applyViewTransform();
+});
+window.addEventListener("mouseup", () => { dragging = false; svg.classList.remove("dragging"); });
+svg.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const rect = svg.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  const newScale = Math.max(0.05, Math.min(6, view.scale * factor));
+  const localX = (mx - view.x) / view.scale, localY = (my - view.y) / view.scale;
+  view.x = mx - newScale * localX;
+  view.y = my - newScale * localY;
+  view.scale = newScale;
+  applyViewTransform();
+}, { passive: false });
+document.getElementById("btnFitView").addEventListener("click", fitView);
+document.getElementById("btnRefreshSchema").addEventListener("click", () => rebuildAndRender(false));
+window.addEventListener("resize", () => fitView());
+
+/* ---------------- Оркестрация ---------------- */
+const stateMsg = document.getElementById("stateMsg");
+const emptyHint = document.getElementById("emptyHint");
+async function rebuildAndRender(refetch) {
+  try {
+    if (refetch) { await loadSnapshot(); await loadStatus(); }
+    const graph = buildGraph(currentSystem);
+    lastGraph = graph;
+    renderSideLists(graph);
+    if (!graph.nodes.length) {
+      viewport.textContent = "";
+      emptyHint.style.display = "flex";
+      emptyHint.innerHTML = graph.partial.length
+        ? `<div><b>Нет полностью связанных объектов</b> в выбранной системе.<br>Есть ${graph.partial.length} кабел${graph.partial.length === 1 ? "ь" : "я"} с указанным только одним концом — смотрите список справа.</div>`
+        : `<div><b>Связей пока не задано.</b><br>Откройте карточку кабеля в редакторе и укажите оборудование на обоих концах ("Подключён (начало/конец)"), чтобы кабель появился здесь.</div>`;
+      return;
+    }
+    emptyHint.style.display = "none";
+    renderGraph(graph);
+    fitView();
+  } catch (err) {
+    viewport.textContent = "";
+    emptyHint.style.display = "flex";
+    emptyHint.innerHTML = `<div style="color:var(--danger);">Не удалось загрузить схему: ${esc(err.message)}</div>`;
+  }
+}
+
+async function boot() {
+  applyRoleUI();
+  updateTicketsBadge();
+  loadProjectSwitcher();
+  try {
+    await loadCatalogs();
+    await loadSnapshot();
+    await loadStatus();
+  } catch (err) {
+    stateMsg.style.display = "block";
+    stateMsg.innerHTML = `<b>Не удалось загрузить проект.</b><br>${esc(err.message)}`;
+    return;
+  }
+  renderSysFilter();
+  rebuildAndRender(false);
+  // Живой статус — обновляем цвета узлов раз в 10 секунд, без пересборки
+  // раскладки (структура графа от статуса не зависит, дёргать layout на
+  // каждый тик было бы просто "прыгающей" картинкой без пользы).
+  setInterval(async () => {
+    await loadStatus();
+    refreshNodeColors();
+    updateTicketsBadge();
+  }, 10000);
+}
+if (window.__auth) boot();
+else document.addEventListener("kzmAuthReady", boot, { once: true });
+</script>
+</body>
+</html>
