@@ -4002,12 +4002,41 @@ function renderCableNodeList(c) {
 // оборудование ПРОЕКТА (не глобальный справочник, как у профилей/форм),
 // поэтому строим select заново при каждом открытии карточки кабеля, а не
 // грузим один раз при старте.
+// Список отфильтрован по системе кабеля (ВОЛС/LFC/АО/...,
+// CABLE_TYPE_SYSTEMS/EQUIP_SHAPE_SYSTEMS — тот же справочник, что и у
+// кнопок-фильтров на "Мониторинге"/"Схеме") — иначе LFC-трассу можно было
+// подключить к оборудованию АО, что физически бессмысленно и раньше ничем
+// не предотвращалось. Кабель без привязки к системе (тип "Другое"/не
+// задан) не фильтрует — ему разрешено соединять что угодно, как и силовому
+// кабелю, у которого CABLE_TYPE_SYSTEMS включает сразу все системы.
+// Оборудование, вообще ни к одной системе не привязанное (в т.ч. форма
+// "Другое"), тоже не исключается — про него неизвестно, что оно НЕ
+// подходит. Уже выбранный конец остаётся в списке всегда, даже если он вне
+// системы кабеля (например, тип кабеля поменяли уже после подключения) —
+// не прячем существующую связь молча, только помечаем её.
 function populateCableEndpointOptions(c) {
+  const cableTypeKey = CABLE_TYPES[c.cableType] ? c.cableType : "custom";
+  const cableSystems = CABLE_TYPE_SYSTEMS[cableTypeKey] || [];
+  const filterActive = cableSystems.length > 0;
+  function isInCableSystem(eq) {
+    if (!filterActive) return true;
+    const shapeKey = EQUIP_SHAPE_LABELS[eq.shape] ? eq.shape : "custom";
+    const eqSystems = EQUIP_SHAPE_SYSTEMS[shapeKey] || [];
+    if (!eqSystems.length) return true;
+    return eqSystems.some((s) => cableSystems.includes(s));
+  }
   const items = [...equipment.values()].sort((a, b) => a.label.localeCompare(b.label));
-  const optionsHtml = '<option value="">— не указано —</option>' +
-    items.map((eq) => `<option value="${eq.id}">${esc(eq.label)}</option>`).join("");
-  dom.cableDEndpointA.innerHTML = optionsHtml;
-  dom.cableDEndpointB.innerHTML = optionsHtml;
+  function buildOptions(currentValue) {
+    let html = '<option value="">— не указано —</option>';
+    for (const eq of items) {
+      const inSystem = isInCableSystem(eq);
+      if (!inSystem && eq.id !== currentValue) continue;
+      html += `<option value="${eq.id}">${esc(eq.label)}${inSystem ? "" : " (вне системы кабеля)"}</option>`;
+    }
+    return html;
+  }
+  dom.cableDEndpointA.innerHTML = buildOptions(c.endpointAEquipId || "");
+  dom.cableDEndpointB.innerHTML = buildOptions(c.endpointBEquipId || "");
   dom.cableDEndpointA.value = c.endpointAEquipId || "";
   dom.cableDEndpointB.value = c.endpointBEquipId || "";
 }

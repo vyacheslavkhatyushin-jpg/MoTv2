@@ -130,3 +130,70 @@ test("удаление оборудования отвязывает кабел�
     assert.equal(await page.locator("#cableDEndpointA").inputValue(), "");
   });
 });
+
+test("карточка кабеля: список 'Подключён' фильтруется по системе кабеля", async (t) => {
+  const server = await startServer();
+  t.after(() => server.stop());
+
+  const engineer = createUser(server.db, { username: "e2e-cable-ep3", role: "engineer" });
+  createProject(server.db, { id: "e2e-cable-ep3", name: "E2E cable endpoints 3" });
+  seedSnapshot(server.db, "e2e-cable-ep3", {
+    equipment: [
+      // iilb -> система LFC (см. сид equipment_shape_systems в db.js)
+      { id: "eqLfc", label: "IILB-LFC", shape: "iilb", position: [0, 0, 0], size: 5 },
+      // stativ_ao -> система АО, никак не пересекается с LFC-кабелем
+      { id: "eqAo", label: "Статив-АО", shape: "stativ_ao", position: [10, 0, 0], size: 5 },
+      // custom -> ни в одной системе не числится, поэтому не исключается нигде
+      { id: "eqCustom", label: "Прочее-оборудование", shape: "custom", position: [20, 0, 0], size: 5 },
+    ],
+    cables: [
+      { id: "cabLfc", label: "Трасса-LFC", cableType: "lfc", nodes: [[0, 0, 0], [10, 0, 0]] },
+      // уже подключена к оборудованию АО ДО того, как тип кабеля стал LFC —
+      // имитирует смену типа задним числом, связь не должна пропасть молча.
+      { id: "cabStale", label: "Трасса-устаревшая", cableType: "lfc", nodes: [[0, 0, 0], [10, 0, 0]], endpointAEquipId: "eqAo" },
+    ],
+  });
+
+  const browser = await launchBrowser();
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  const pageErrors = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
+
+  await page.goto(server.baseUrl + "/");
+  await page.evaluate(
+    (session) => localStorage.setItem("kzmAuthSession", JSON.stringify(session)),
+    { token: tokenFor(engineer), username: engineer.username, role: engineer.role }
+  );
+  await page.goto(`${server.baseUrl}/e2e-cable-ep3`);
+  await page.waitForLoadState("networkidle");
+
+  await page.click('.tab-btn[data-tab="cables"]');
+  const header = page.locator("#cableList .uo-group-header").first();
+  await header.waitFor({ timeout: 8000 });
+  if (!(await header.getAttribute("class") || "").includes("uo-group-open")) await header.click();
+  await page.waitForSelector("#cableList .uo-row", { timeout: 4000 });
+  const rows = page.locator("#cableList .uo-row");
+
+  await t.test("LFC-кабель: в списке — оборудование LFC и без системы, АО-объекта нет", async () => {
+    await rows.filter({ hasText: "Трасса-LFC" }).locator('button[title="Редактировать"]').click();
+    await page.waitForSelector("#cableDetails.open", { timeout: 4000 });
+    const optionTexts = await page.locator("#cableDEndpointA option").allTextContents();
+    assert.ok(optionTexts.some((t) => t.includes("IILB-LFC")), "LFC-оборудование должно быть в списке");
+    assert.ok(optionTexts.some((t) => t.includes("Прочее-оборудование")), "оборудование без системы не должно исключаться");
+    assert.ok(!optionTexts.some((t) => t.includes("Статив-АО")), "АО-оборудование не должно предлагаться для LFC-кабеля");
+  });
+
+  await t.test("уже подключённое 'вне системы' оборудование остаётся в списке с пометкой", async () => {
+    await rows.filter({ hasText: "Трасса-устаревшая" }).locator('button[title="Редактировать"]').click();
+    await page.waitForSelector("#cableDetails.open", { timeout: 4000 });
+    assert.equal(await page.locator("#cableDEndpointA").inputValue(), "eqAo", "существующая связь не должна пропасть");
+    const selectedText = await page.locator('#cableDEndpointA option[value="eqAo"]').innerText();
+    assert.match(selectedText, /вне системы кабеля/);
+  });
+
+  await t.test("ни одной ошибки в консоли", () => {
+    assert.deepEqual(pageErrors, []);
+  });
+});
