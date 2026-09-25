@@ -301,6 +301,17 @@ test("страница Схема: пустой проект без связей
     assert.match(text, /Одиночный/);
   });
 
+  await t.test("РЕГРЕССИЯ: клик по строке в 'без связей' открывает панель Инфо, а НЕ уводит в редактор", async () => {
+    const urlBefore = page.url();
+    await page.locator("#listUnlinked .side-row").first().click();
+    await page.waitForSelector("#infoPanel[open]", { timeout: 4000 });
+    assert.equal(page.url(), urlBefore, "клик по строке не должен переходить на другую страницу");
+    const title = await page.locator("#infoPanel .ip-title").textContent();
+    assert.equal(title, "Одиночный");
+    const href = await page.locator("#infoPanel .ip-open").getAttribute("href");
+    assert.equal(href, "/e2e-schema-empty?equip=eqOnly", "переход в редактор остаётся доступен явной кнопкой");
+  });
+
   await t.test("ни одной ошибки в консоли", () => {
     assert.deepEqual(pageErrors, []);
   });

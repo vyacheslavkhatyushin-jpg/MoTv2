@@ -157,6 +157,11 @@
   #emptyHint{
     position:absolute; inset:0; display:none; align-items:center; justify-content:center;
     text-align:center; color:var(--text-faint); padding:20px; line-height:1.7; font-size:12.5px;
+    /* inset:0 относительно #diagramWrap перекрывает всю его площадь, включая
+       #sidePanel рядом (оба — flex-дети одного контейнера) — без этого при
+       пустом графе подсказка блокирует клики по спискам "без связей"/
+       "неполная привязка" сбоку, хотя сама подсказка их не касается. */
+    pointer-events:none;
   }
   #emptyHint b{ color:var(--text-dim); }
 
@@ -955,7 +960,11 @@ function renderSideLists(graph) {
       const row = document.createElement("div");
       row.className = "side-row";
       row.innerHTML = `<span class="dot" style="background:${statusColorRaw(eq.id)};"></span><span class="lbl">${esc(eq.label || eq.id)}</span><span class="sub">${esc(shapeLabel(eq))}</span>`;
-      row.addEventListener("click", () => { location.href = `/${encodeURIComponent(CURRENT_PROJECT_ID)}?equip=${encodeURIComponent(eq.id)}`; });
+      // Клик открывает панель Инфо (как и клик по узлу на самой схеме) —
+      // раньше сразу уводил в редактор, что было неожиданно резко для
+      // одного клика по строке; переход в редактор теперь только явным
+      // действием — кнопкой "Открыть в редакторе →" внутри этой панели.
+      row.addEventListener("click", () => selectNode(eq.id));
       listUnlinked.appendChild(row);
     }
   }
