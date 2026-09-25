@@ -760,6 +760,10 @@
             <input type="checkbox" id="chkGrayscale">
             Оттенки серого (тоннели)
           </label>
+          <label class="check" id="rowShowSurface" style="margin-top:6px; display:none;">
+            <input type="checkbox" id="chkShowSurface">
+            Показать поверхность
+          </label>
           <div class="slider-row">
             <span>Прозрачность тоннелей</span>
             <input type="range" id="rngOpacity" min="0" max="100" value="50">
@@ -910,6 +914,12 @@
           <div class="drow"><span>Расположение</span><input type="text" id="equipDLocation" placeholder="Например: гор. 340, ПК 12"></div>
           <div class="drow"><span>IP-адрес</span><input type="text" id="equipDIp" placeholder="192.168.0.1"></div>
           <div class="drow"><span>ID номер</span><input type="text" id="equipDIdNumber" placeholder="Инвентарный/серийный номер"></div>
+          <button type="button" id="equipDCoordsToggle" style="display:flex; align-items:center; justify-content:center; gap:6px; width:100%; margin:2px 0 4px; background:none; border:1px dashed var(--border); border-radius:4px; padding:6px 8px; cursor:pointer; color:var(--text-dim); font-family:inherit; font-size:inherit;">+ Задать координаты</button>
+          <div id="equipDCoordsBlock" style="display:none;">
+            <div class="drow"><span>X, м</span><input type="number" id="equipDCoordX" step="0.01"></div>
+            <div class="drow"><span>Y, м</span><input type="number" id="equipDCoordY" step="0.01"></div>
+            <div class="drow"><span>Z (высота), м</span><input type="number" id="equipDCoordZ" step="0.01"></div>
+          </div>
           <div class="drow"><span>Профиль</span>
             <select id="equipDProfile" style="background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 6px; font-family:inherit;">
               <option value="">— авто (по форме) —</option>
@@ -1858,6 +1868,8 @@ const dom = {
   btnImportObjects: document.getElementById("btnImportObjects"),
   objectsFileInput: document.getElementById("objectsFileInput"),
   chkGrayscale: document.getElementById("chkGrayscale"),
+  rowShowSurface: document.getElementById("rowShowSurface"),
+  chkShowSurface: document.getElementById("chkShowSurface"),
   // кабели
   btnAddCable: document.getElementById("btnAddCable"),
   cableHint: document.getElementById("cableHint"),
@@ -1896,6 +1908,11 @@ const dom = {
   equipDLocation: document.getElementById("equipDLocation"),
   equipDIp: document.getElementById("equipDIp"),
   equipDIdNumber: document.getElementById("equipDIdNumber"),
+  equipDCoordsToggle: document.getElementById("equipDCoordsToggle"),
+  equipDCoordsBlock: document.getElementById("equipDCoordsBlock"),
+  equipDCoordX: document.getElementById("equipDCoordX"),
+  equipDCoordY: document.getElementById("equipDCoordY"),
+  equipDCoordZ: document.getElementById("equipDCoordZ"),
   equipDProfile: document.getElementById("equipDProfile"),
   equipDMonitorRow: document.getElementById("equipDMonitorRow"),
   equipDMonitorMethod: document.getElementById("equipDMonitorMethod"),
@@ -2163,6 +2180,57 @@ function applyGrayscaleToAll() {
     }
   }
 }
+// Плоскость-подложка "поверхность" (см. обсуждение в этой сессии: макет +
+// план) — не претендует на реальный рельеф, просто горизонтальная плоскость
+// на заданной администратором отметке Z (Настройки → Пороги), нужна только
+// чтобы было по чему кликнуть при расстановке поверхностного оборудования
+// (антенны/вышки/будки), для которого нет геометрии выработок рядом.
+// Добавляется прямо в scene, НЕ в modelGroup — иначе попала бы в "Оттенки
+// серого"/прозрачность тоннелей и в экспорт модели (.str/.obj), которым эта
+// плоскость не принадлежит и не должна быть видна как часть шахты.
+let projectSurfaceLevel = null; // реальная отметка Z (project.surfaceLevel с сервера) — null, если не настроена
+let showSurfacePlane = false;   // сохраняется в снапшоте (settings.showSurfacePlane), как и grayscaleMode
+let surfacePlaneGroup = null;   // THREE.Group{plane, grid} — grid чисто визуальный, plane кликабелен
+let surfacePlaneMesh = null;    // сам плоский Mesh внутри группы — то, что попадает в getIntersectableMeshes
+const SURFACE_PLANE_COLOR = 0x39b8b0;
+function ensureSurfacePlane() {
+  if (surfacePlaneGroup) return;
+  const size = 4000;
+  const planeMat = new THREE.MeshBasicMaterial({
+    color: SURFACE_PLANE_COLOR, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false,
+  });
+  surfacePlaneMesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), planeMat);
+  surfacePlaneMesh.rotation.x = -Math.PI / 2; // горизонтально, нормаль вверх по Y (та же ось, что и "высота" в этой сцене)
+  const grid = new THREE.GridHelper(size, 40, SURFACE_PLANE_COLOR, SURFACE_PLANE_COLOR);
+  grid.material.transparent = true;
+  grid.material.opacity = 0.3;
+  surfacePlaneGroup = new THREE.Group();
+  surfacePlaneGroup.add(surfacePlaneMesh, grid);
+  surfacePlaneGroup.visible = false;
+  scene.add(surfacePlaneGroup);
+}
+function updateSurfaceRowVisibility() {
+  // Чекбокс имеет смысл, только когда отметка вообще задана — иначе это
+  // мёртвый переключатель без эффекта (плоскость просто негде разместить).
+  dom.rowShowSurface.style.display = projectSurfaceLevel != null ? "flex" : "none";
+}
+function applySurfacePlaneVisibility() {
+  ensureSurfacePlane();
+  if (projectSurfaceLevel != null) surfacePlaneGroup.position.y = realToScene([0, 0, projectSurfaceLevel]).y;
+  surfacePlaneGroup.visible = showSurfacePlane && projectSurfaceLevel != null;
+}
+// Тестовый хук — только для E2E клика по плоскости поверхности. В обычной
+// работе кладка "Показать поверхность" видна лишь когда модель уже
+// загружена (см. rowShowSurface/shaftControls), так что modelLoaded к
+// этому моменту всегда true; но клик-размещение (drawMode) в общем
+// обработчике шлюзуется тем же modelLoaded (см. ниже), поэтому E2E-сценарию
+// без реальной загрузки .str нужен способ выставить его напрямую. Ничего,
+// кроме этого флага и видимости панелей, не трогает.
+window.__mot3dForceModelLoadedForTest = function () {
+  modelLoaded = true;
+  dom.empty.style.display = "none";
+  dom.shaftControls.style.display = "block";
+};
 // Материал тоннеля раньше создавался заново на КАЖДУЮ выработку (до ~1500
 // на модель) — GPU при рендере вынужден на каждый меш переключать
 // состояние (цвет/прозрачность/blending), даже если у 80 выработок одного
@@ -2949,6 +3017,10 @@ dom.chkGrayscale.addEventListener("change", () => {
   grayscaleMode = dom.chkGrayscale.checked;
   applyGrayscaleToAll();
 });
+dom.chkShowSurface.addEventListener("change", () => {
+  showSurfacePlane = dom.chkShowSurface.checked;
+  applySurfacePlaneVisibility();
+});
 dom.rngOpacity.addEventListener("input", () => {
   const v = dom.rngOpacity.value / 100;
   dom.rngOpacityVal.textContent = dom.rngOpacity.value + "%";
@@ -3451,6 +3523,10 @@ function findLeafFromIntersect(hit) {
 function getIntersectableMeshes() {
   const arr = [];
   modelGroup.traverse((o) => { if (o.isMesh) arr.push(o); });
+  // Плоскость поверхности — тоже валидная цель для клика при расстановке
+  // (кабель/оборудование/метка/заплатка), только пока реально видна;
+  // невидимая или неотрисованная плоскость не должна ловить клики "мимо".
+  if (surfacePlaneGroup && surfacePlaneGroup.visible) arr.push(surfacePlaneMesh);
   return arr;
 }
 // Расставленные объекты (оборудование/кабели/метки) добавляются прямо в
@@ -4696,7 +4772,37 @@ function selectEquip(eq) {
   dom.equipDSourceAddress.value = eq.sourceAddress || "";
   updateEquipMonitorRows(eq);
   dom.equipDDataSource.value = eq.dataSourceId || "";
+  // Координаты сворачиваются при каждом новом открытии карточки — большинству
+  // объектов клик по 3D достаточен, поле нужно только для расстановки
+  // поверхностного оборудования по известным координатам съёмки.
+  dom.equipDCoordsBlock.style.display = "none";
+  dom.equipDCoordsToggle.textContent = "+ Задать координаты";
 }
+function fillEquipCoordInputs(eq) {
+  const r = sceneToReal(eq.mesh.position);
+  dom.equipDCoordX.value = r.x.toFixed(2);
+  dom.equipDCoordY.value = r.y.toFixed(2);
+  dom.equipDCoordZ.value = r.z.toFixed(2);
+}
+dom.equipDCoordsToggle.addEventListener("click", () => {
+  if (!selectedEquip) return;
+  const opening = dom.equipDCoordsBlock.style.display === "none";
+  if (opening) fillEquipCoordInputs(selectedEquip);
+  dom.equipDCoordsBlock.style.display = opening ? "block" : "none";
+  dom.equipDCoordsToggle.textContent = opening ? "Скрыть координаты ✕" : "+ Задать координаты";
+});
+function applyEquipCoordInputs() {
+  if (!selectedEquip) return;
+  const x = parseFloat(dom.equipDCoordX.value);
+  const y = parseFloat(dom.equipDCoordY.value);
+  const z = parseFloat(dom.equipDCoordZ.value);
+  if (![x, y, z].every(Number.isFinite)) return;
+  selectedEquip.mesh.position.copy(realToScene([x, y, z]));
+  if (selectedEquip.labelObj) selectedEquip.labelObj.position.copy(equipLabelOffset(selectedEquip));
+}
+dom.equipDCoordX.addEventListener("change", applyEquipCoordInputs);
+dom.equipDCoordY.addEventListener("change", applyEquipCoordInputs);
+dom.equipDCoordZ.addEventListener("change", applyEquipCoordInputs);
 // Список источников (project_data_sources) для выпадающего списка "custom" —
 // без connection_json/parser_json (там логин/пароль от системы шахты), см.
 // GET /api/projects/:id/data-sources. Грузится один раз лениво, при первом
@@ -5890,6 +5996,7 @@ function buildSnapshot() {
     settings: {
       opacity: parseInt(dom.rngOpacity.value, 10),
       grayscale: grayscaleMode,
+      showSurfacePlane: showSurfacePlane,
       labelsOn: dom.chkLabels.checked,
       cableLabel: { size: cableLabelSize, groups: serializeLabelGroups(cableLabelGroups) },
       equipLabel: { size: equipLabelSize, groups: serializeLabelGroups(equipLabelGroups) },
@@ -7112,6 +7219,8 @@ async function loadProjectFromServer() {
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
     serverStateVersion = data.version || 0;
+    projectSurfaceLevel = data.project?.surfaceLevel ?? null;
+    updateSurfaceRowVisibility();
     if (data.snapshot) {
       await restoreFromSnapshot(data.snapshot);
       setBaseObjects(data.snapshot);
@@ -7313,6 +7422,11 @@ async function restoreFromSnapshot(state) {
         dom.chkGrayscale.checked = s.grayscale;
         grayscaleMode = s.grayscale;
         applyGrayscaleToAll();
+      }
+      if (typeof s.showSurfacePlane === "boolean") {
+        dom.chkShowSurface.checked = s.showSurfacePlane;
+        showSurfacePlane = s.showSurfacePlane;
+        applySurfacePlaneVisibility();
       }
       if (typeof s.labelsOn === "boolean") {
         dom.chkLabels.checked = s.labelsOn;

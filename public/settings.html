@@ -607,6 +607,21 @@
               <span class="save-status" id="shapeSaveStatus"></span>
             </div>
           </div>
+
+          <div class="card">
+            <h3>Поверхность</h3>
+            <div class="hint">Плоскость-подложка в редакторе (вкладка «Шахта» → «Показать поверхность») — для расстановки поверхностного оборудования, для которого нет геометрии рядом, чтобы по ней кликнуть. Пусто — плоскость не показывается.</div>
+            <div class="field-row">
+              <div class="field">
+                <label for="surfLevel">Уровень земли (отметка Z), м</label>
+                <input type="number" id="surfLevel" step="0.01" placeholder="не задано">
+              </div>
+            </div>
+            <div class="save-bar" style="margin-top:14px;">
+              <button class="btn primary" id="btnSurfSave">Сохранить</button>
+              <span class="save-status" id="surfSaveStatus"></span>
+            </div>
+          </div>
         </section>
 
         <!-- ============ Справочники ============ -->
@@ -1826,6 +1841,48 @@ document.getElementById("btnThReset").addEventListener("click", async () => {
   }
 });
 
+/* ================= Поверхность (плоскость-подложка в редакторе) ================= */
+// surfaceLevel приходит вместе с GET /:id/state (project.surfaceLevel), а не
+// отдельным эндпоинтом — она уже грузится там же для редактора, отдельный
+// GET здесь был бы лишним запросом ради одного числа.
+async function loadSurfaceLevel() {
+  const statusEl = document.getElementById("surfSaveStatus");
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/state`);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    const level = data.project?.surfaceLevel;
+    document.getElementById("surfLevel").value = level == null ? "" : level;
+    statusEl.className = "save-status";
+    statusEl.textContent = level == null ? "Не задано — плоскость в редакторе скрыта." : "Настроено.";
+  } catch (err) {
+    statusEl.className = "save-status err";
+    statusEl.textContent = "Не удалось загрузить: " + err.message;
+  }
+}
+document.getElementById("btnSurfSave").addEventListener("click", async () => {
+  const statusEl = document.getElementById("surfSaveStatus");
+  const raw = document.getElementById("surfLevel").value.trim();
+  const surfaceLevel = raw === "" ? null : parseFloat(raw);
+  if (surfaceLevel !== null && !Number.isFinite(surfaceLevel)) {
+    statusEl.className = "save-status err";
+    statusEl.textContent = "Отметка — число (или пусто, чтобы скрыть плоскость).";
+    return;
+  }
+  try {
+    const resp = await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/surface-level`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ surfaceLevel }),
+    });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
+    statusEl.className = "save-status ok";
+    statusEl.textContent = "Сохранено.";
+    loadSurfaceLevel();
+  } catch (err) {
+    statusEl.className = "save-status err";
+    statusEl.textContent = "Не удалось сохранить: " + err.message;
+  }
+});
+
 /* ================= Пороги по формам оборудования ================= */
 let shapesCatalog = []; // [{key,label,monitorable}]
 let shapeOverridesLoaded = new Map(); // shape -> {staleAfterSec,failDurationSec}
@@ -2655,6 +2712,7 @@ function boot() {
   if (isFullAdmin) loadUserAdminList();
   loadThresholds();
   loadShapeThresholds();
+  loadSurfaceLevel();
   const initialSection = new URLSearchParams(location.search).get("section") || (isFullAdmin ? "users" : "thresholds");
   showSection(initialSection);
 }

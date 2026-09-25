@@ -59,7 +59,7 @@ router.post("/", requireRole("admin", "supervisor"), (req, res) => {
 
 router.get("/:id/state", (req, res) => {
   const project = db
-    .prepare("SELECT id, name FROM projects WHERE id = ?")
+    .prepare("SELECT id, name, surface_level AS surfaceLevel FROM projects WHERE id = ?")
     .get(req.params.id);
   if (!project) return res.status(404).json({ error: "project_not_found" });
 
@@ -813,6 +813,27 @@ router.delete("/:id/schema-layout", requireRole("engineer", "supervisor", "admin
   db.prepare("DELETE FROM schema_layout_overrides WHERE project_id = ?").run(req.params.id);
   logAudit({ actor: req.user.username, projectId: req.params.id, action: "schema_layout.reset", entityType: "schema_layout", ip: req.ip });
   res.json({ ok: true });
+});
+
+// Отметка Z поверхности (см. projects.surface_level в db.js) — плоскость-
+// подложка в редакторе для расстановки поверхностного оборудования, для
+// которого нет геометрии рядом, чтобы по ней кликнуть. Правка — как
+// редактирование модели (engineer/supervisor/admin); чтение уже приходит
+// вместе с GET /:id/state, отдельного GET здесь не нужно.
+router.put("/:id/surface-level", requireRole("engineer", "supervisor", "admin"), (req, res) => {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.id);
+  if (!project) return res.status(404).json({ error: "project_not_found" });
+
+  const { surfaceLevel } = req.body || {};
+  if (surfaceLevel !== null && (typeof surfaceLevel !== "number" || !Number.isFinite(surfaceLevel))) {
+    return res.status(400).json({ error: "invalid_surface_level" });
+  }
+  db.prepare("UPDATE projects SET surface_level = ? WHERE id = ?").run(surfaceLevel, req.params.id);
+  logAudit({
+    actor: req.user.username, projectId: req.params.id, action: "project.set_surface_level",
+    entityType: "project", entityId: req.params.id, details: { surfaceLevel }, ip: req.ip,
+  });
+  res.json({ ok: true, surfaceLevel });
 });
 
 module.exports = router;

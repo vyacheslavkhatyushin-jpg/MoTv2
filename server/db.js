@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  -- Отметка Z поверхности (реальные координаты .str, та же система, что и
+  -- курсорная подсказка в редакторе) — плоскость-подложка для расстановки
+  -- поверхностного оборудования, для которого нет геометрии рядом, чтобы
+  -- по ней кликнуть. NULL — не настроено, плоскость не показывается вообще
+  -- (см. миграцию ниже для уже задеплоенных инсталляций).
+  surface_level REAL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -657,6 +663,18 @@ if (db.prepare("SELECT COUNT(*) AS n FROM monitor_systems").get().n === 0) {
   };
   for (const [shape, systems] of Object.entries(shapeSystems)) {
     for (const system of systems) insertShapeSystem.run(shape, system);
+  }
+}
+
+// Добавочная миграция: surface_level на projects — появилась позже основного
+// CREATE TABLE выше (см. комментарий у колонки), поэтому не может просто в
+// нём остаться: на уже задеплоенных инсталляциях таблица создана раньше
+// этой колонки. NULL по умолчанию — плоскость не показывается, пока
+// кто-то явно не задаст отметку в настройках проекта.
+{
+  const hasSurfaceLevelColumn = db.prepare("PRAGMA table_info(projects)").all().some((c) => c.name === "surface_level");
+  if (!hasSurfaceLevelColumn) {
+    db.exec("ALTER TABLE projects ADD COLUMN surface_level REAL");
   }
 }
 
