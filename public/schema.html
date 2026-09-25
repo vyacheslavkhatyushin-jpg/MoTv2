@@ -143,6 +143,14 @@
   #diagramWrap.editable .node-circle:active{ cursor:grabbing; }
   .node-label{ font-size:10px; pointer-events:none; }
   .node-selected{ stroke:var(--accent) !important; stroke-width:3 !important; }
+  /* Расположение/IP под подпиской узла — по умолчанию скрыто (легко
+     захламляет плотную схему), чекбокс "инфо на узлах" включает показ.
+     Обводка цветом фона вместо подложки — тот же приём, что у длин кабелей. */
+  .node-extra-info{
+    display:none; font-size:8.5px; fill:var(--text-faint); pointer-events:none;
+    paint-order:stroke fill; stroke:var(--bg); stroke-width:2.5px; stroke-linejoin:round;
+  }
+  #diagramWrap.show-node-info .node-extra-info{ display:block; }
   .edge-line{ pointer-events:stroke; cursor:pointer; }
   .edge-line:hover{ filter:brightness(1.4); }
 
@@ -336,6 +344,9 @@
       </div>
       <label class="legend item" style="cursor:pointer;">
         <input type="checkbox" id="chkShowLengths" checked style="accent-color:var(--accent);">длины кабелей
+      </label>
+      <label class="legend item" style="cursor:pointer;">
+        <input type="checkbox" id="chkShowNodeInfo" style="accent-color:var(--accent);">инфо на узлах
       </label>
       <button class="toolbtn" id="btnFitView" title="Вписать схему в экран">⤢ Вписать</button>
       <button class="toolbtn" id="btnRefreshSchema" title="Обновить">↻ Обновить</button>
@@ -675,6 +686,50 @@ function shapeLabel(eq) {
 function shapeColor(eq) {
   return (SHAPES_BY_KEY[eq.shape] && SHAPES_BY_KEY[eq.shape].defaultColor) || "#8d979f";
 }
+// Значок формы на схеме (Настройки → Справочники → Формы оборудования,
+// поле "Значок на схеме") — независимо от 3D-модели в редакторе: тут важно
+// быстро отличать категории на глаз по силуэту узла, а не по объёмному виду.
+function diagramShapeKind(eq) {
+  return (SHAPES_BY_KEY[eq.shape] && SHAPES_BY_KEY[eq.shape].diagramShape) || "circle";
+}
+function polygonPoints(kind, r) {
+  if (kind === "diamond") return [[0, -r], [r, 0], [0, r], [-r, 0]].map((p) => p.join(",")).join(" ");
+  const n = kind === "triangle" ? 3 : 6;
+  // Треугольник/шестиугольник вписаны в тот же радиус r, что и круг — на
+  // глаз они кажутся немного мельче круга (обычное свойство многоугольника
+  // против вписывающей окружности), это ожидаемо и не корректируем отдельно.
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI / 2 + i * (2 * Math.PI / n);
+    pts.push([r * Math.cos(a), r * Math.sin(a)]);
+  }
+  return pts.map((p) => p.join(",")).join(" ");
+}
+function createNodeShapeEl(eq, isPinned) {
+  const r = nodeRadius(eq);
+  const kind = diagramShapeKind(eq);
+  let el;
+  if (kind === "rect") {
+    el = document.createElementNS(SVGNS, "rect");
+    const side = r * 1.7;
+    el.setAttribute("x", -side / 2);
+    el.setAttribute("y", -side / 2);
+    el.setAttribute("width", side);
+    el.setAttribute("height", side);
+    el.setAttribute("rx", 2);
+  } else if (kind === "hexagon" || kind === "triangle" || kind === "diamond") {
+    el = document.createElementNS(SVGNS, "polygon");
+    el.setAttribute("points", polygonPoints(kind, r));
+  } else {
+    el = document.createElementNS(SVGNS, "circle");
+    el.setAttribute("r", r);
+  }
+  el.setAttribute("class", "node-circle" + (eq.id === selectedNodeId ? " node-selected" : ""));
+  el.setAttribute("fill", shapeColor(eq));
+  el.setAttribute("stroke", statusColorRaw(eq.id));
+  if (isPinned) el.setAttribute("stroke-dasharray", "3 2");
+  return el;
+}
 function cableColor(c) {
   return (CABLE_TYPES_BY_KEY[c.cableType] && CABLE_TYPES_BY_KEY[c.cableType].color) || "#8d979f";
 }
@@ -772,13 +827,7 @@ function renderGraph(graph) {
     g.setAttribute("transform", `translate(${p.x} ${p.y})`);
     g.dataset.equipId = eq.id;
 
-    const circle = document.createElementNS(SVGNS, "circle");
-    circle.setAttribute("class", "node-circle" + (eq.id === selectedNodeId ? " node-selected" : ""));
-    circle.setAttribute("r", nodeRadius(eq));
-    circle.setAttribute("fill", shapeColor(eq));
-    circle.setAttribute("stroke", statusColorRaw(eq.id));
-    if (isPinned) circle.setAttribute("stroke-dasharray", "3 2");
-    g.appendChild(circle);
+    g.appendChild(createNodeShapeEl(eq, isPinned));
 
     const label = document.createElementNS(SVGNS, "text");
     label.setAttribute("class", "node-label");
@@ -786,6 +835,19 @@ function renderGraph(graph) {
     label.setAttribute("text-anchor", "middle");
     label.textContent = eq.label || eq.id;
     g.appendChild(label);
+
+    // Расположение/IP — только те строки, для которых реально есть данные
+    // (пустая карточка не лучше её отсутствия), скрыто по умолчанию
+    // (.node-extra-info), см. чекбокс "инфо на узлах" ниже.
+    const extraLines = [eq.location, eq.ip].filter((v) => v && String(v).trim());
+    extraLines.forEach((line, idx) => {
+      const extra = document.createElementNS(SVGNS, "text");
+      extra.setAttribute("class", "node-extra-info");
+      extra.setAttribute("y", nodeRadius(eq) + 24 + idx * 11);
+      extra.setAttribute("text-anchor", "middle");
+      extra.textContent = line;
+      g.appendChild(extra);
+    });
 
     const titleEl = document.createElementNS(SVGNS, "title");
     titleEl.textContent = `${eq.label || eq.id} (${shapeLabel(eq)})`
@@ -825,8 +887,8 @@ function statusColorRaw(equipId) {
 }
 function refreshNodeColors() {
   viewport.querySelectorAll("g[data-equip-id]").forEach((g) => {
-    const circle = g.querySelector("circle");
-    if (circle) circle.setAttribute("stroke", statusColorRaw(g.dataset.equipId));
+    const shapeEl = g.querySelector(".node-circle");
+    if (shapeEl) shapeEl.setAttribute("stroke", statusColorRaw(g.dataset.equipId));
   });
 }
 
@@ -842,7 +904,7 @@ function selectNode(equipId) {
   selectedNodeId = equipId;
   viewport.querySelectorAll(".node-circle").forEach((c) => c.classList.remove("node-selected"));
   const g = viewport.querySelector(`g[data-equip-id="${CSS.escape(equipId)}"]`);
-  if (g) g.querySelector("circle").classList.add("node-selected");
+  if (g) g.querySelector(".node-circle").classList.add("node-selected");
   showInfoPanel(equipId);
 }
 function equipSystems(eq) {
@@ -972,8 +1034,8 @@ window.addEventListener("mouseup", async () => {
       lastDragEndedId = id;
       const p = currentPosById.get(id);
       pinnedPositions.set(id, { x: p.x, y: p.y });
-      const circle = g.querySelector("circle");
-      if (circle) circle.setAttribute("stroke-dasharray", "3 2");
+      const shapeEl = g.querySelector(".node-circle");
+      if (shapeEl) shapeEl.setAttribute("stroke-dasharray", "3 2");
       try {
         await apiFetch(`/api/projects/${encodeURIComponent(CURRENT_PROJECT_ID)}/schema-layout/${encodeURIComponent(id)}`, {
           method: "PUT",
@@ -1014,6 +1076,13 @@ function exportSvg() {
     if (document.getElementById("diagramWrap").classList.contains("hide-lengths")) { t.remove(); return; }
     t.setAttribute("stroke", "#14171a");
     t.setAttribute("stroke-width", "3");
+    t.setAttribute("paint-order", "stroke fill");
+  });
+  clone.querySelectorAll(".node-extra-info").forEach((t) => {
+    if (!document.getElementById("diagramWrap").classList.contains("show-node-info")) { t.remove(); return; }
+    t.setAttribute("fill", "#8d979f");
+    t.setAttribute("stroke", "#14171a");
+    t.setAttribute("stroke-width", "2.5");
     t.setAttribute("paint-order", "stroke fill");
   });
   const bbox = viewport.getBBox();
@@ -1057,6 +1126,9 @@ document.getElementById("btnResetLayout").addEventListener("click", async () => 
 });
 document.getElementById("chkShowLengths").addEventListener("change", (e) => {
   document.getElementById("diagramWrap").classList.toggle("hide-lengths", !e.target.checked);
+});
+document.getElementById("chkShowNodeInfo").addEventListener("change", (e) => {
+  document.getElementById("diagramWrap").classList.toggle("show-node-info", e.target.checked);
 });
 
 /* ---------------- Оркестрация ---------------- */

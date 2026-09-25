@@ -52,7 +52,7 @@ router.get("/cable-types/public", requireAuth, (req, res) => {
 router.get("/equipment-shapes/public", requireAuth, (req, res) => {
   const shapes = db
     .prepare(
-      "SELECT key, label, default_color AS defaultColor, geometry, monitorable, selectable FROM equipment_shapes ORDER BY sort_order"
+      "SELECT key, label, default_color AS defaultColor, geometry, monitorable, selectable, diagram_shape AS diagramShape FROM equipment_shapes ORDER BY sort_order"
     )
     .all()
     .map((s) => ({ ...s, monitorable: !!s.monitorable, selectable: !!s.selectable }));
@@ -107,6 +107,7 @@ router.use(requireAuth, requireRole("admin"));
 const DATA_TYPES = new Set(["number", "boolean", "string"]);
 const LINE_TYPES = new Set(["solid", "dashed", "dotted"]);
 const GEOMETRY_TYPES = new Set(["sphere", "box", "cylinder", "cone", "capsule", "disc"]);
+const DIAGRAM_SHAPE_TYPES = new Set(["circle", "rect", "hexagon", "triangle", "diamond"]);
 const KEY_RE = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
 
 // Раньше countEquipmentUsingProfile/Shape/countCablesUsingType каждая сама
@@ -407,7 +408,7 @@ router.get("/equipment-shapes", (req, res) => {
   const { shapeCounts } = scanSnapshotUsage();
   const shapes = db
     .prepare(
-      "SELECT key, label, default_color AS defaultColor, geometry, monitorable, selectable, sort_order AS sortOrder FROM equipment_shapes ORDER BY sort_order"
+      "SELECT key, label, default_color AS defaultColor, geometry, monitorable, selectable, diagram_shape AS diagramShape, sort_order AS sortOrder FROM equipment_shapes ORDER BY sort_order"
     )
     .all()
     .map((s) => ({
@@ -421,18 +422,20 @@ router.get("/equipment-shapes", (req, res) => {
 });
 
 router.post("/equipment-shapes", (req, res) => {
-  const { key, label, defaultColor, geometry, monitorable, selectable } = req.body || {};
+  const { key, label, defaultColor, geometry, monitorable, selectable, diagramShape } = req.body || {};
   if (!key || !KEY_RE.test(key)) return res.status(400).json({ error: "invalid_key" });
   if (!label || !String(label).trim()) return res.status(400).json({ error: "missing_label" });
   if (defaultColor != null && !/^#[0-9a-fA-F]{6}$/.test(defaultColor)) return res.status(400).json({ error: "invalid_color" });
   const geom = geometry || "sphere";
   if (!GEOMETRY_TYPES.has(geom)) return res.status(400).json({ error: "invalid_geometry" });
+  const diagShape = diagramShape || "circle";
+  if (!DIAGRAM_SHAPE_TYPES.has(diagShape)) return res.status(400).json({ error: "invalid_diagram_shape" });
   const exists = db.prepare("SELECT 1 FROM equipment_shapes WHERE key = ?").get(key);
   if (exists) return res.status(409).json({ error: "already_exists" });
   const maxOrder = db.prepare("SELECT COALESCE(MAX(sort_order), -1) AS m FROM equipment_shapes").get().m;
   db.prepare(
-    "INSERT INTO equipment_shapes (key, label, default_color, geometry, monitorable, selectable, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  ).run(key, label.trim(), defaultColor ?? null, geom, monitorable ? 1 : 0, selectable === false ? 0 : 1, maxOrder + 1);
+    "INSERT INTO equipment_shapes (key, label, default_color, geometry, monitorable, selectable, diagram_shape, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(key, label.trim(), defaultColor ?? null, geom, monitorable ? 1 : 0, selectable === false ? 0 : 1, diagShape, maxOrder + 1);
   logAudit({ actor: req.user.username, action: "equipment_shape.create", entityType: "equipment_shape", entityId: key, entityLabel: label, ip: req.ip });
   res.status(201).json({ ok: true });
 });
@@ -441,20 +444,22 @@ router.patch("/equipment-shapes/:key", (req, res) => {
   const { key } = req.params;
   const existing = db.prepare("SELECT * FROM equipment_shapes WHERE key = ?").get(key);
   if (!existing) return res.status(404).json({ error: "not_found" });
-  const { label, defaultColor, geometry, monitorable, selectable } = req.body || {};
+  const { label, defaultColor, geometry, monitorable, selectable, diagramShape } = req.body || {};
   const next = {
     label: label !== undefined ? String(label).trim() : existing.label,
     defaultColor: defaultColor !== undefined ? defaultColor : existing.default_color,
     geometry: geometry !== undefined ? geometry : existing.geometry,
     monitorable: monitorable !== undefined ? (monitorable ? 1 : 0) : existing.monitorable,
     selectable: selectable !== undefined ? (selectable ? 1 : 0) : existing.selectable,
+    diagramShape: diagramShape !== undefined ? diagramShape : existing.diagram_shape,
   };
   if (!next.label) return res.status(400).json({ error: "missing_label" });
   if (next.defaultColor != null && !/^#[0-9a-fA-F]{6}$/.test(next.defaultColor)) return res.status(400).json({ error: "invalid_color" });
   if (!GEOMETRY_TYPES.has(next.geometry)) return res.status(400).json({ error: "invalid_geometry" });
+  if (!DIAGRAM_SHAPE_TYPES.has(next.diagramShape)) return res.status(400).json({ error: "invalid_diagram_shape" });
   db.prepare(
-    "UPDATE equipment_shapes SET label = ?, default_color = ?, geometry = ?, monitorable = ?, selectable = ? WHERE key = ?"
-  ).run(next.label, next.defaultColor, next.geometry, next.monitorable, next.selectable, key);
+    "UPDATE equipment_shapes SET label = ?, default_color = ?, geometry = ?, monitorable = ?, selectable = ?, diagram_shape = ? WHERE key = ?"
+  ).run(next.label, next.defaultColor, next.geometry, next.monitorable, next.selectable, next.diagramShape, key);
   logAudit({ actor: req.user.username, action: "equipment_shape.update", entityType: "equipment_shape", entityId: key, entityLabel: next.label, details: next, ip: req.ip });
   res.json({ ok: true });
 });

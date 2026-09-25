@@ -6,6 +6,11 @@ endpointBEquipId на кабеле в редакторе). Строит граф
 указанными концами) и раскладывает его force-directed layout'ом; кабели
 только с одним концом и несвязанное оборудование не попадают на схему, а
 перечисляются в боковых списках — это то, что тест ниже и проверяет.
+
+Узел на схеме рисуется классом ".node-circle", а не обязательно тегом
+<circle> — с настраиваемым "значком формы на схеме" (equipment_shapes.
+diagram_shape) это может быть <rect>/<polygon>. Локаторы ниже всегда идут
+через класс, не через тег.
 */
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
@@ -70,7 +75,7 @@ test("страница Схема: рисует связанные кабеле�
   });
 
   await t.test("клик по узлу открывает панель Инфо со статусом и ссылкой в редактор", async () => {
-    await page.click('#viewport g[data-equip-id="eqA"] circle');
+    await page.click('#viewport g[data-equip-id="eqA"] .node-circle');
     await page.waitForSelector("#infoPanel[open]", { timeout: 4000 });
     const title = await page.locator("#infoPanel .ip-title").innerText();
     assert.equal(title, "МАП-А");
@@ -134,7 +139,7 @@ test("страница Схема: показывает реальную дли�
     const xBefore = parseFloat(await labelBefore.getAttribute("x"));
 
     const g = page.locator('#viewport g[data-equip-id="eqA"]');
-    const box = await g.locator("circle").boundingBox();
+    const box = await g.locator(".node-circle").boundingBox();
     const startX = box.x + box.width / 2, startY = box.y + box.height / 2;
     await page.mouse.move(startX, startY);
     await page.mouse.down();
@@ -199,13 +204,13 @@ test("страница Схема: перетаскивание узла зак�
   await page.waitForSelector('#viewport g[data-equip-id="eqA"]', { timeout: 8000 });
 
   await t.test("узел без ручной раскладки — сплошная обводка (не закреплён)", async () => {
-    const dash = await page.locator('#viewport g[data-equip-id="eqA"] circle').getAttribute("stroke-dasharray");
+    const dash = await page.locator('#viewport g[data-equip-id="eqA"] .node-circle').getAttribute("stroke-dasharray");
     assert.equal(dash, null);
   });
 
   await t.test("перетаскивание узла — обводка становится пунктирной, координаты сохранены на сервере", async () => {
     const g = page.locator('#viewport g[data-equip-id="eqA"]');
-    const box = await g.locator("circle").boundingBox();
+    const box = await g.locator(".node-circle").boundingBox();
     const startX = box.x + box.width / 2, startY = box.y + box.height / 2;
     await page.mouse.move(startX, startY);
     await page.mouse.down();
@@ -213,7 +218,7 @@ test("страница Схема: перетаскивание узла зак�
     await page.mouse.up();
 
     await page.waitForFunction(
-      () => document.querySelector('#viewport g[data-equip-id="eqA"] circle')?.getAttribute("stroke-dasharray") === "3 2",
+      () => document.querySelector('#viewport g[data-equip-id="eqA"] .node-circle')?.getAttribute("stroke-dasharray") === "3 2",
       { timeout: 4000 }
     );
 
@@ -229,14 +234,14 @@ test("страница Схема: перетаскивание узла зак�
     await page.reload();
     await page.waitForLoadState("networkidle");
     await page.waitForSelector('#viewport g[data-equip-id="eqA"]', { timeout: 8000 });
-    const dash = await page.locator('#viewport g[data-equip-id="eqA"] circle').getAttribute("stroke-dasharray");
+    const dash = await page.locator('#viewport g[data-equip-id="eqA"] .node-circle').getAttribute("stroke-dasharray");
     assert.equal(dash, "3 2");
   });
 
   await t.test("двойной клик по закреплённому узлу — открепляет (обводка снова сплошная)", async () => {
-    await page.dblclick('#viewport g[data-equip-id="eqA"] circle');
+    await page.dblclick('#viewport g[data-equip-id="eqA"] .node-circle');
     await page.waitForFunction(
-      () => document.querySelector('#viewport g[data-equip-id="eqA"] circle')?.getAttribute("stroke-dasharray") === null,
+      () => document.querySelector('#viewport g[data-equip-id="eqA"] .node-circle')?.getAttribute("stroke-dasharray") === null,
       { timeout: 4000 }
     );
   });

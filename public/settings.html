@@ -738,12 +738,19 @@
                   <option value="capsule">Капсула</option>
                   <option value="disc">Диск</option>
                 </select>
+                <select id="new-shape-diagramshape">
+                  <option value="circle">Круг</option>
+                  <option value="rect">Прямоугольник</option>
+                  <option value="hexagon">Шестиугольник</option>
+                  <option value="triangle">Треугольник</option>
+                  <option value="diamond">Ромб</option>
+                </select>
                 <label class="check-inline"><input type="checkbox" id="new-shape-monitorable" checked> Мониторится</label>
                 <label class="check-inline"><input type="checkbox" id="new-shape-selectable" checked> Доступна при создании</label>
                 <button class="btn primary sm" id="submit-add-shape">Создать</button>
               </div>
               <table class="data-table">
-                <thead><tr><th style="width:12%;">Ключ</th><th style="width:20%;">Название</th><th style="width:10%;">Цвет</th><th style="width:13%;">3D-модель</th><th style="width:12%;">Мониторится</th><th style="width:14%;">Доступна при создании</th><th style="width:9%;">Исп.</th><th></th></tr></thead>
+                <thead><tr><th style="width:11%;">Ключ</th><th style="width:17%;">Название</th><th style="width:9%;">Цвет</th><th style="width:12%;">3D-модель</th><th style="width:13%;">Значок на схеме</th><th style="width:11%;">Мониторится</th><th style="width:13%;">Доступна при создании</th><th style="width:8%;">Исп.</th><th></th></tr></thead>
                 <tbody id="equipshapes-body"></tbody>
               </table>
             </div>
@@ -1523,6 +1530,16 @@ function refGeometrySelectHtml(current) {
     return '<option value="' + g + '"' + (g === current ? " selected" : "") + '>' + REF_GEOMETRY_LABELS[g] + '</option>';
   }).join("") + '</select>';
 }
+// Значок формы на 2D-схеме связей (public/schema.html) — независимо от
+// geometry выше: там важно быстро отличать категории оборудования по
+// силуэту узла на схеме, не по 3D-модели в редакторе (см. обсуждение:
+// IILB/ISIB/MAP — прямоугольником, ODF/MBU — кругом, MLA — шестиугольником).
+var REF_DIAGRAM_SHAPE_LABELS = { circle: "Круг", rect: "Прямоугольник", hexagon: "Шестиугольник", triangle: "Треугольник", diamond: "Ромб" };
+function refDiagramShapeSelectHtml(current) {
+  return '<select data-shape="diagramShape">' + Object.keys(REF_DIAGRAM_SHAPE_LABELS).map((g) => {
+    return '<option value="' + g + '"' + (g === current ? " selected" : "") + '>' + REF_DIAGRAM_SHAPE_LABELS[g] + '</option>';
+  }).join("") + '</select>';
+}
 function renderEquipShapes() {
   var body = document.getElementById("equipshapes-body");
   body.innerHTML = refEquipShapes.map((s) => {
@@ -1534,6 +1551,7 @@ function renderEquipShapes() {
       '<td><input type="text" data-shape="label" value="' + s.label.replace(/"/g, "&quot;") + '"></td>' +
       '<td><input type="color" data-shape="defaultColor" value="' + (s.defaultColor || "#4fd6e0") + '"></td>' +
       '<td>' + geometryCell + '</td>' +
+      '<td>' + refDiagramShapeSelectHtml(s.diagramShape || "circle") + '</td>' +
       '<td><input type="checkbox" data-shape="monitorable"' + (s.monitorable ? " checked" : "") + '></td>' +
       '<td><input type="checkbox" data-shape="selectable"' + (s.selectable ? " checked" : "") + '></td>' +
       '<td class="hint">' + s.usage + '</td>' +
@@ -1572,6 +1590,7 @@ document.getElementById("submit-add-shape").addEventListener("click", async () =
     label: document.getElementById("new-shape-label").value.trim(),
     defaultColor: document.getElementById("new-shape-color").value,
     geometry: document.getElementById("new-shape-geometry").value,
+    diagramShape: document.getElementById("new-shape-diagramshape").value,
     monitorable: document.getElementById("new-shape-monitorable").checked,
     selectable: document.getElementById("new-shape-selectable").checked,
   };

@@ -437,6 +437,10 @@ CREATE TABLE IF NOT EXISTS equipment_shapes (
   geometry TEXT NOT NULL DEFAULT 'sphere' CHECK(geometry IN ('sphere','box','cylinder','cone','capsule','disc')),
   monitorable INTEGER NOT NULL DEFAULT 0,
   selectable INTEGER NOT NULL DEFAULT 1,
+  -- Значок формы на 2D-схеме связей (public/schema.html) — независимо от
+  -- geometry выше (та решает 3D-примитив в редакторе). См. миграцию ниже
+  -- для уже задеплоенных инсталляций, где эта колонка появилась позже.
+  diagram_shape TEXT NOT NULL DEFAULT 'circle' CHECK(diagram_shape IN ('circle','rect','hexagon','triangle','diamond')),
   sort_order INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -574,36 +578,39 @@ if (db.prepare("SELECT COUNT(*) AS n FROM cable_types").get().n === 0) {
 
 if (db.prepare("SELECT COUNT(*) AS n FROM equipment_shapes").get().n === 0) {
   const insertShape = db.prepare(
-    "INSERT INTO equipment_shapes (key, label, default_color, geometry, monitorable, selectable, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO equipment_shapes (key, label, default_color, geometry, monitorable, selectable, diagram_shape, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
   );
-  // [key, label, default_color|null, geometry, monitorable, selectable] —
-  // 1:1 то, что сейчас зашито в index.html (EQUIP_SHAPE_*), включая
-  // устаревший "stativ" (selectable=0 — не предлагается при создании новой
-  // единицы, только для группировки уже расставленных до разделения на
-  // LFC/АО). geometry тут просто приблизительный fallback-примитив — у
-  // всех этих 18 форм есть своя bespoke-модель в buildEquipGeometry(),
-  // которая имеет приоритет, это поле никогда для них не используется.
+  // [key, label, default_color|null, geometry, monitorable, selectable,
+  // diagram_shape] — 1:1 то, что сейчас зашито в index.html (EQUIP_SHAPE_*),
+  // включая устаревший "stativ" (selectable=0 — не предлагается при
+  // создании новой единицы, только для группировки уже расставленных до
+  // разделения на LFC/АО). geometry тут просто приблизительный
+  // fallback-примитив — у всех этих 18 форм есть своя bespoke-модель в
+  // buildEquipGeometry(), которая имеет приоритет, это поле никогда для них
+  // не используется. diagram_shape — значок формы на 2D-схеме связей
+  // (public/schema.html), независимая от geometry настройка: там важно
+  // быстро отличать категории оборудования по силуэту узла, не по 3D-виду.
   const seedShapes = [
-    ["mla", "MLA", "#4fd6e0", "box", 0, 1],
-    ["map", "MAP", "#2ecc71", "box", 1, 1],
-    ["odf", "Муфта ODF", "#f1c40f", "cylinder", 0, 1],
-    ["iilb", "IILB", "#3498db", "box", 1, 1],
-    ["isib", "ISIB", "#9b59b6", "box", 1, 1],
-    ["cam", "CAM", "#455a64", "box", 1, 1],
-    ["mps", "MPS", "#e67e22", "cylinder", 0, 1],
-    ["mpc", "MPC", "#e67e22", "box", 0, 1],
-    ["mtu", "MTU", "#e67e22", "box", 0, 1],
-    ["mvsa", "MVSA", "#e67e22", "cone", 0, 1],
-    ["wifi", "WiFi", "#1abc9c", "disc", 1, 1],
-    ["mbu", "MBU", "#95a5a6", "box", 0, 1],
-    ["fs", "FS", "#e74c3c", "box", 1, 1],
-    ["tel", "TEL", "#3498db", "box", 1, 1],
-    ["stativ_lfc", "Статив LFC", "#2ecc71", "box", 1, 1],
-    ["stativ_ao", "Статив АО", "#9b59b6", "box", 1, 1],
-    ["poe", "PoE", "#f39c12", "box", 0, 1],
-    ["go", "ГО", "#e74c3c", "cone", 1, 1],
-    ["stativ", "Статив (устар.)", null, "box", 0, 0],
-    ["custom", "Другое", null, "sphere", 1, 1],
+    ["mla", "MLA", "#4fd6e0", "box", 0, 1, "hexagon"],
+    ["map", "MAP", "#2ecc71", "box", 1, 1, "rect"],
+    ["odf", "Муфта ODF", "#f1c40f", "cylinder", 0, 1, "circle"],
+    ["iilb", "IILB", "#3498db", "box", 1, 1, "rect"],
+    ["isib", "ISIB", "#9b59b6", "box", 1, 1, "rect"],
+    ["cam", "CAM", "#455a64", "box", 1, 1, "circle"],
+    ["mps", "MPS", "#e67e22", "cylinder", 0, 1, "circle"],
+    ["mpc", "MPC", "#e67e22", "box", 0, 1, "circle"],
+    ["mtu", "MTU", "#e67e22", "box", 0, 1, "circle"],
+    ["mvsa", "MVSA", "#e67e22", "cone", 0, 1, "circle"],
+    ["wifi", "WiFi", "#1abc9c", "disc", 1, 1, "circle"],
+    ["mbu", "MBU", "#95a5a6", "box", 0, 1, "circle"],
+    ["fs", "FS", "#e74c3c", "box", 1, 1, "circle"],
+    ["tel", "TEL", "#3498db", "box", 1, 1, "circle"],
+    ["stativ_lfc", "Статив LFC", "#2ecc71", "box", 1, 1, "circle"],
+    ["stativ_ao", "Статив АО", "#9b59b6", "box", 1, 1, "circle"],
+    ["poe", "PoE", "#f39c12", "box", 0, 1, "circle"],
+    ["go", "ГО", "#e74c3c", "cone", 1, 1, "circle"],
+    ["stativ", "Статив (устар.)", null, "box", 0, 0, "circle"],
+    ["custom", "Другое", null, "sphere", 1, 1, "circle"],
   ];
   seedShapes.forEach((row, i) => insertShape.run(...row, i));
 }
@@ -661,6 +668,28 @@ if (db.prepare("SELECT COUNT(*) AS n FROM monitor_systems").get().n === 0) {
   const hasGeometryColumn = db.prepare("PRAGMA table_info(equipment_shapes)").all().some((c) => c.name === "geometry");
   if (!hasGeometryColumn) {
     db.exec("ALTER TABLE equipment_shapes ADD COLUMN geometry TEXT NOT NULL DEFAULT 'sphere'");
+  }
+}
+
+// Добавочная миграция: diagram_shape на equipment_shapes — значок формы на
+// 2D-схеме связей (public/schema.html), появился позже основного сида выше,
+// см. комментарий у seedShapes. На уже задеплоенных инсталляциях таблица
+// давно существует без этой колонки — добавляем со значением по умолчанию
+// "circle" (текущий вид всех узлов на схеме до этой фичи, чтобы обновление
+// ничего не меняло молча), затем backfill'им те формы, для которых у нас
+// есть осмысленное значение получше самого "circle" по умолчанию (см. те же
+// seedShapes) — тем же UPDATE ... WHERE diagram_shape = 'circle' AND key IN
+// (...), которое не тронет то, что админ уже мог перенастроить руками между
+// этим кодом и следующим запуском.
+{
+  const hasDiagramShapeColumn = db.prepare("PRAGMA table_info(equipment_shapes)").all().some((c) => c.name === "diagram_shape");
+  if (!hasDiagramShapeColumn) {
+    db.exec("ALTER TABLE equipment_shapes ADD COLUMN diagram_shape TEXT NOT NULL DEFAULT 'circle'");
+    const backfill = db.prepare("UPDATE equipment_shapes SET diagram_shape = ? WHERE key = ? AND diagram_shape = 'circle'");
+    backfill.run("hexagon", "mla");
+    backfill.run("rect", "map");
+    backfill.run("rect", "iilb");
+    backfill.run("rect", "isib");
   }
 }
 
